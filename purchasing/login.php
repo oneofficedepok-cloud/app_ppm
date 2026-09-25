@@ -32,12 +32,12 @@ if (current_user()) {
 
       <div>
         <label class="block font-semibold text-slate-700 mb-1">Username</label>
-        <input type="text" id="username" required autofocus
+        <input type="text" id="username" required autofocus autocomplete="username" maxlength="100"
                class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-indigo-500">
       </div>
       <div>
         <label class="block font-semibold text-slate-700 mb-1">Password</label>
-        <input type="password" id="password" required
+        <input type="password" id="password" required autocomplete="current-password" maxlength="200"
                class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-indigo-500">
       </div>
 
@@ -46,9 +46,6 @@ if (current_user()) {
         Login
       </button>
 
-      <p class="text-center text-[10px] text-slate-400 pt-2">
-        Default: <b>admin</b> / <b>admin123</b> &mdash; segera ganti setelah login pertama.
-      </p>
     </form>
   </div>
 

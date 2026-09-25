@@ -1,7 +1,12 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-require_login();
+$method = http_method();
+if (($_GET['resource'] ?? 'dashboard') === 'divisi_list' && $method === 'GET') {
+    require_login(); // daftar divisi baku = data referensi umum
+} else {
+    require_module('mtc');
+}
 
 $pdo = db();
 $method = http_method();

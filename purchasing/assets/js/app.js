@@ -45,6 +45,35 @@ let supplierChartObj = null;
 let statusChartObj = null;
 
 const currentUser = window.CURRENT_USER || null;
+const CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+let appModules = {}; // daftar modul yang tersedia (key => label), dari api/roles.php
+
+// ===================== HAK AKSES MODUL =====================
+// Hanya untuk menyembunyikan menu & tidak memuat data yang tidak perlu.
+// Pengaman SEBENARNYA ada di server (require_module di tiap api/*.php).
+const USER_MODULES = new Set((currentUser && currentUser.modules) || []);
+function can(module) {
+  return !!(currentUser && (currentUser.is_admin || USER_MODULES.has(module)));
+}
+function canAny(...modules) {
+  return modules.some(can);
+}
+const ALL_MODULE_KEYS = ['purchasing', 'produksi', 'masterdata', 'gudang', 'finance', 'mtc'];
+// Aturan baca data per endpoint - harus sama dengan aturan di server.
+const READ_RULES = {
+  workOrders: () => canAny(...ALL_MODULE_KEYS),
+  prItems: () => canAny('purchasing', 'gudang', 'produksi', 'finance'),
+  sealItems: () => canAny('produksi', 'purchasing', 'finance'),
+  transportItems: () => canAny('purchasing', 'produksi', 'finance'),
+  masterUsers: () => !!(currentUser && currentUser.is_admin),
+  finance: () => can('finance'),
+  gudang: () => canAny('gudang', 'produksi'),
+  mtc: () => can('mtc'),
+};
+/** Panggil api() hanya kalau boleh, selain itu kembalikan array kosong. */
+function apiIf(allowed, url) {
+  return allowed ? api(url) : Promise.resolve([]);
+}
 
 // ===================== API HELPER =====================
 /**
@@ -54,7 +83,8 @@ const currentUser = window.CURRENT_USER || null;
 async function api(url, method = 'GET', body = null) {
   const opts = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+    credentials: 'same-origin',
   };
   if (body !== null) opts.body = JSON.stringify(body);
 
@@ -487,6 +517,11 @@ function switchTab(tab) {
   if (tab === 'admin' && !(currentUser && currentUser.is_admin)) {
     tab = 'overview';
   }
+  // Tab milik modul yang tidak diizinkan untuk role ini -> kembali ke Dashboard.
+  const targetSection = TAB_SECTION[tab];
+  if (targetSection && ALL_MODULE_KEYS.includes(targetSection) && !can(targetSection)) {
+    tab = 'overview';
+  }
 
   // Tampilkan/sembunyikan konten tab.
   Object.keys(TAB_LOADERS).forEach(t => {
@@ -534,6 +569,10 @@ function switchTab(tab) {
 
 /** Dipanggil oleh tombol level-1 (Dashboard/Purchasing/Finance). */
 function switchSection(section) {
+  if (ALL_MODULE_KEYS.includes(section) && !can(section)) {
+    showToast('Anda tidak memiliki akses ke modul ini.');
+    return;
+  }
   if (section === 'overview' || section === 'admin') {
     switchTab(section);
     return;
@@ -554,29 +593,30 @@ async function loadAllData() {
     const [cust, supp, wo, pr, seal, trans, prod, buyers, users, rolesData, ar, ap, talangan, cashflow, invItems, prodOrders, invMoves, karyawanData, mesinData, mpData, divisiListData] = await Promise.all([
       api('api/customers.php'),
       api('api/suppliers.php'),
-      api('api/work_orders.php'),
-      api('api/pr_items.php'),
-      api('api/seal_items.php'),
-      api('api/transport_items.php'),
+      apiIf(READ_RULES.workOrders(), 'api/work_orders.php'),
+      apiIf(READ_RULES.prItems(), 'api/pr_items.php'),
+      apiIf(READ_RULES.sealItems(), 'api/seal_items.php'),
+      apiIf(READ_RULES.transportItems(), 'api/transport_items.php'),
       api('api/master.php?type=products'),
       api('api/master.php?type=buyers'),
-      api('api/master.php?type=users'),
+      apiIf(READ_RULES.masterUsers(), 'api/master.php?type=users'),
       api('api/roles.php'),
-      api('api/account_receivable.php'),
-      api('api/account_payable.php'),
-      api('api/dana_talangan.php'),
-      api('api/cashflow.php'),
-      api('api/inventory_items.php'),
-      api('api/production_orders.php'),
-      api('api/inventory_movements.php'),
+      apiIf(READ_RULES.finance(), 'api/account_receivable.php'),
+      apiIf(READ_RULES.finance(), 'api/account_payable.php'),
+      apiIf(READ_RULES.finance(), 'api/dana_talangan.php'),
+      apiIf(READ_RULES.finance(), 'api/cashflow.php'),
+      apiIf(READ_RULES.gudang(), 'api/inventory_items.php'),
+      apiIf(READ_RULES.gudang(), 'api/production_orders.php'),
+      apiIf(READ_RULES.gudang(), 'api/inventory_movements.php'),
       api('api/master.php?type=karyawan'),
-      api('api/mtc.php?resource=mesin'),
-      api('api/mtc.php?resource=mp'),
+      apiIf(READ_RULES.mtc(), 'api/mtc.php?resource=mesin'),
+      apiIf(READ_RULES.mtc(), 'api/mtc.php?resource=mp'),
       api('api/mtc.php?resource=divisi_list'),
     ]);
     customers = cust; suppliers = supp; workOrders = wo; prItems = pr;
     sealItems = seal; transportItems = trans;
-    masterProducts = prod; masterBuyers = buyers; masterUsers = users; roles = rolesData;
+    masterProducts = prod; masterBuyers = buyers; masterUsers = users;
+    roles = rolesData.roles; appModules = rolesData.modules;
     arData = ar; apData = ap; danaTalangan = talangan; cashflowCombined = cashflow;
     inventoryItems = invItems; productionOrders = prodOrders; inventoryMovements = invMoves;
     karyawanList = karyawanData;
@@ -593,24 +633,24 @@ async function refresh(...keys) {
   const map = {
     customers: async () => (customers = await api('api/customers.php')),
     suppliers: async () => (suppliers = await api('api/suppliers.php')),
-    workOrders: async () => (workOrders = await api('api/work_orders.php')),
-    prItems: async () => (prItems = await api('api/pr_items.php')),
-    sealItems: async () => (sealItems = await api('api/seal_items.php')),
-    transportItems: async () => (transportItems = await api('api/transport_items.php')),
+    workOrders: async () => (workOrders = await apiIf(READ_RULES.workOrders(), 'api/work_orders.php')),
+    prItems: async () => (prItems = await apiIf(READ_RULES.prItems(), 'api/pr_items.php')),
+    sealItems: async () => (sealItems = await apiIf(READ_RULES.sealItems(), 'api/seal_items.php')),
+    transportItems: async () => (transportItems = await apiIf(READ_RULES.transportItems(), 'api/transport_items.php')),
     masterProducts: async () => (masterProducts = await api('api/master.php?type=products')),
     masterBuyers: async () => (masterBuyers = await api('api/master.php?type=buyers')),
-    masterUsers: async () => (masterUsers = await api('api/master.php?type=users')),
-    roles: async () => (roles = await api('api/roles.php')),
-    arData: async () => (arData = await api('api/account_receivable.php')),
-    apData: async () => (apData = await api('api/account_payable.php')),
-    danaTalangan: async () => (danaTalangan = await api('api/dana_talangan.php')),
-    cashflowCombined: async () => (cashflowCombined = await api('api/cashflow.php')),
-    inventoryItems: async () => (inventoryItems = await api('api/inventory_items.php')),
-    productionOrders: async () => (productionOrders = await api('api/production_orders.php')),
-    inventoryMovements: async () => (inventoryMovements = await api('api/inventory_movements.php')),
+    masterUsers: async () => (masterUsers = await apiIf(READ_RULES.masterUsers(), 'api/master.php?type=users')),
+    roles: async () => { const d = await api('api/roles.php'); roles = d.roles; appModules = d.modules; },
+    arData: async () => (arData = await apiIf(READ_RULES.finance(), 'api/account_receivable.php')),
+    apData: async () => (apData = await apiIf(READ_RULES.finance(), 'api/account_payable.php')),
+    danaTalangan: async () => (danaTalangan = await apiIf(READ_RULES.finance(), 'api/dana_talangan.php')),
+    cashflowCombined: async () => (cashflowCombined = await apiIf(READ_RULES.finance(), 'api/cashflow.php')),
+    inventoryItems: async () => (inventoryItems = await apiIf(READ_RULES.gudang(), 'api/inventory_items.php')),
+    productionOrders: async () => (productionOrders = await apiIf(READ_RULES.gudang(), 'api/production_orders.php')),
+    inventoryMovements: async () => (inventoryMovements = await apiIf(READ_RULES.gudang(), 'api/inventory_movements.php')),
     karyawanList: async () => (karyawanList = await api('api/master.php?type=karyawan')),
-    mtcMesinList: async () => (mtcMesinList = await api('api/mtc.php?resource=mesin')),
-    mtcMpList: async () => (mtcMpList = await api('api/mtc.php?resource=mp')),
+    mtcMesinList: async () => (mtcMesinList = await apiIf(READ_RULES.mtc(), 'api/mtc.php?resource=mesin')),
+    mtcMpList: async () => (mtcMpList = await apiIf(READ_RULES.mtc(), 'api/mtc.php?resource=mp')),
   };
   await Promise.all(keys.map(k => map[k] ? map[k]() : Promise.resolve()));
   updateDropdownOptions();
@@ -3561,6 +3601,11 @@ function renderAdminSection() {
         ${Number(r.is_admin) ? '<span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 uppercase">Admin Penuh</span>' : ''}
         ${Number(r.is_system) ? '<span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-200 text-slate-600 uppercase">Bawaan</span>' : ''}
         <div class="text-[10px] text-slate-400">${esc(r.role_key)}</div>
+        <div class="flex flex-wrap gap-1 mt-1">${Number(r.is_admin)
+          ? '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-100">SEMUA MODUL</span>'
+          : ((r.modules || []).length
+            ? r.modules.map(m => `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">${esc(m.toUpperCase())}</span>`).join('')
+            : '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100">BELUM ADA AKSES MODUL</span>')}</div>
       </div>
       <div class="flex items-center gap-1">
         <button onclick="openRoleModal('edit',${r.id})" class="text-rose-600 hover:text-rose-800 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -3570,6 +3615,27 @@ function renderAdminSection() {
 }
 
 // --- Role Management ---
+/** Render checkbox modul di form role. */
+function renderRoleModuleCheckboxes(selected = []) {
+  const list = document.getElementById('role-modules-list');
+  list.innerHTML = Object.entries(appModules).map(([key, label]) => `
+    <label class="flex items-center gap-2 cursor-pointer">
+      <input type="checkbox" class="role-module-cb w-4 h-4 text-indigo-600 rounded border-slate-300" value="${esc(key)}" ${selected.includes(key) ? 'checked' : ''}>
+      <span class="text-slate-700">${esc(label)}</span>
+    </label>`).join('');
+  syncRoleModuleCheckboxes();
+}
+
+/** Role admin penuh otomatis semua modul: kunci checkbox-nya supaya jelas. */
+function syncRoleModuleCheckboxes() {
+  const isAdmin = document.getElementById('role-is-admin').checked;
+  document.querySelectorAll('.role-module-cb').forEach(cb => {
+    cb.disabled = isAdmin;
+    if (isAdmin) cb.checked = true;
+  });
+  document.getElementById('role-modules-admin-note').classList.toggle('hidden', !isAdmin);
+}
+
 function openRoleModal(mode, id = null) {
   document.getElementById('role-form').reset();
   document.getElementById('role-form-id').value = '';
@@ -3582,6 +3648,7 @@ function openRoleModal(mode, id = null) {
   if (mode === 'add') {
     title.textContent = 'Tambah Role Baru';
     document.getElementById('role-key-preview').textContent = 'Kode teknis role akan dibuat otomatis dari nama ini.';
+    renderRoleModuleCheckboxes([]);
   } else {
     const r = roles.find(x => x.id === id);
     if (!r) return;
@@ -3596,6 +3663,7 @@ function openRoleModal(mode, id = null) {
     if (Number(r.is_system)) {
       document.getElementById('role-system-note').classList.remove('hidden');
     }
+    renderRoleModuleCheckboxes(r.modules || []);
   }
   document.getElementById('role-modal').classList.remove('hidden');
 }
@@ -3624,6 +3692,7 @@ async function handleRoleSubmit(e) {
     id: id || undefined,
     label: document.getElementById('role-label').value.trim(),
     is_admin: document.getElementById('role-is-admin').checked,
+    modules: [...document.querySelectorAll('.role-module-cb:checked')].map(cb => cb.value),
   };
 
   try {
@@ -3736,7 +3805,7 @@ async function handleImportUpload() {
   resultBox.classList.add('hidden');
 
   try {
-    const res = await fetch('api/import.php', { method: 'POST', body: formData, credentials: 'same-origin' });
+    const res = await fetch('api/import.php', { method: 'POST', body: formData, credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF_TOKEN } });
     const data = await res.json();
 
     if (!res.ok || !data.success) {
@@ -4801,17 +4870,20 @@ function renderOverviewDashboard() {
   }
 
   // --- KPI gabungan ---
+  // Kartu KPI hanya dirender kalau role punya akses modulnya (lihat index.php).
+  const setText = (elId, text) => { const el = document.getElementById(elId); if (el) el.textContent = text; };
+
   const totalPurchasing = prItems.filter(p => p.status !== 'CANCEL').reduce((s, p) => s + (Number(p.total) || 0), 0);
-  document.getElementById('ov-total-purchasing').textContent = formatRupiah(totalPurchasing);
+  setText('ov-total-purchasing', formatRupiah(totalPurchasing));
 
   const saldoKas = cashflowCombined.length > 0 ? cashflowCombined[cashflowCombined.length - 1].saldo : 0;
-  document.getElementById('ov-saldo-kas').textContent = formatRupiah(saldoKas);
+  setText('ov-saldo-kas', formatRupiah(saldoKas));
 
   const sisaAR = arData.reduce((s, a) => s + (Number(a.sisa_piutang) || 0), 0);
-  document.getElementById('ov-sisa-ar').textContent = formatRupiah(sisaAR);
+  setText('ov-sisa-ar', formatRupiah(sisaAR));
 
   const sisaAP = apData.reduce((s, a) => s + (Number(a.sisa_hutang) || 0), 0);
-  document.getElementById('ov-sisa-ap').textContent = formatRupiah(sisaAP);
+  setText('ov-sisa-ap', formatRupiah(sisaAP));
 
   // --- Chart Purchasing: pengeluaran per supplier (ambil dari data PR yang sudah dimuat) ---
   const supplierSpend = {};

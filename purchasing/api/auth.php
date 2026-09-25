@@ -9,11 +9,15 @@ if ($method === 'POST' && $action === 'login') {
     $username = clean_str(arr_val($body, 'username', ''));
     $password = (string) arr_val($body, 'password', '');
 
-    if ($username === '' || $password === '') {
+    if ($username === '' || $password === '' || strlen($username) > 100 || strlen($password) > 200) {
         json_error('Username dan password wajib diisi.', 422);
     }
 
-    $user = attempt_login($username, $password);
+    try {
+        $user = attempt_login($username, $password);
+    } catch (RuntimeException $e) {
+        json_error($e->getMessage(), 429);
+    }
 
     if (!$user) {
         // Pesan sengaja generik (tidak bilang "user tidak ada" / "password salah")

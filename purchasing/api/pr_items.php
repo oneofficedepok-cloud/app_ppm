@@ -2,12 +2,19 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/pr_functions.php';
 
-require_login();
-
 $method = http_method();
 $pdo = db();
 
 $action = $_GET['action'] ?? '';
+
+if ($method === 'POST' && $action === 'receive') {
+    // Penerimaan barang dilakukan tim Gudang (atau Purchasing).
+    require_module(['gudang', 'purchasing']);
+} else {
+    // Baca: Purchasing + modul yang memakai data PR (Incoming/Receiving Gudang,
+    // biaya aktual WO di Produksi, Finance). Ubah/approval: modul Purchasing.
+    require_module_access(['purchasing', 'gudang', 'produksi', 'finance'], ['purchasing']);
+}
 
 // ---------------------------------------------------------
 // action=receive : PR berstatus STORE ROOM diterima tim Gudang -

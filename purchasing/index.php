@@ -2,12 +2,14 @@
 require_once __DIR__ . '/includes/auth.php';
 
 $user = require_login_redirect();
+$can = fn(string $module): bool => user_can($user, $module);
 ?>
 <!DOCTYPE html>
 <html lang="id" class="h-full bg-slate-100">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="<?= esc_html(csrf_token()) ?>">
   <title>Dashboard Purchasing Cloud</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
@@ -41,24 +43,30 @@ $user = require_login_redirect();
         </div>
 
         <div class="flex items-center gap-2">
+          <?php if ($can('purchasing')): ?>
           <button onclick="downloadExcelTemplate()" class="hidden md:flex bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition items-center gap-1.5">
             <i class="fa-solid fa-file-csv"></i> Template Excel
           </button>
           <button onclick="exportToExcel()" class="hidden md:flex bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition items-center gap-1.5">
             <i class="fa-solid fa-file-export"></i> Export Excel
           </button>
+          <?php endif; ?>
+          <?php if ($can('produksi')): ?>
           <button onclick="openWOModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
             <i class="fa-solid fa-folder-plus"></i> + WO Baru
           </button>
+          <?php endif; ?>
+          <?php if ($can('purchasing')): ?>
           <button onclick="openModal('add')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
             <i class="fa-solid fa-plus-circle"></i> + PR Baru
           </button>
+          <?php endif; ?>
 
           <div class="pl-2 border-l border-slate-800 flex items-center gap-2">
             <div class="text-right hidden sm:block">
               <p class="text-xs font-bold text-white leading-tight"><?= esc_html($user['full_name']) ?></p>
               <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
-                <?= !empty($user['is_admin']) ? 'FULL ACCESS' : esc_html($user['divisi']) ?>
+                <?= !empty($user['is_admin']) ? 'FULL ACCESS' : esc_html($user['role_label']) ?>
               </span>
             </div>
             <?php if (!empty($user['is_admin'])): ?>
@@ -85,24 +93,36 @@ $user = require_login_redirect();
         <button id="section-btn-overview" onclick="switchSection('overview')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
           <i class="fa-solid fa-house"></i> DASHBOARD
         </button>
+        <?php if ($can('purchasing')): ?>
         <button id="section-btn-purchasing" onclick="switchSection('purchasing')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
           <i class="fa-solid fa-boxes-packing"></i> PURCHASING
         </button>
+        <?php endif; ?>
+        <?php if ($can('produksi')): ?>
         <button id="section-btn-produksi" onclick="switchSection('produksi')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
           <i class="fa-solid fa-industry"></i> PRODUKSI
         </button>
+        <?php endif; ?>
+        <?php if ($can('masterdata')): ?>
         <button id="section-btn-masterdata" onclick="switchSection('masterdata')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
           <i class="fa-solid fa-database"></i> MASTER DATA
         </button>
+        <?php endif; ?>
+        <?php if ($can('gudang')): ?>
         <button id="section-btn-gudang" onclick="switchSection('gudang')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
           <i class="fa-solid fa-warehouse"></i> GUDANG & PRODUKSI
         </button>
+        <?php endif; ?>
+        <?php if ($can('finance')): ?>
         <button id="section-btn-finance" onclick="switchSection('finance')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
           <i class="fa-solid fa-sack-dollar"></i> FINANCE
         </button>
+        <?php endif; ?>
+        <?php if ($can('mtc')): ?>
         <button id="section-btn-mtc" onclick="switchSection('mtc')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
           <i class="fa-solid fa-gears"></i> MTC PRODUKSI
         </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -217,6 +237,12 @@ $user = require_login_redirect();
   </nav>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+    <?php if (!empty($user['weak_password'])): ?>
+    <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-2xl p-4 flex items-start gap-2">
+      <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+      <div><b>Password Anda lemah atau masih default.</b> Segera ganti password (minimal <?= (int) PASSWORD_MIN_LENGTH ?> karakter, kombinasi huruf &amp; angka)<?= !empty($user['is_admin']) ? ' lewat menu Administrator &rarr; Master User &amp; Divisi' : ' — minta admin untuk menggantinya' ?>.</div>
+    </div>
+    <?php endif; ?>
 
     <!-- 0. DASHBOARD OVERVIEW (gabungan Purchasing + Finance) -->
     <div id="tab-content-overview" class="space-y-6">
@@ -226,10 +252,13 @@ $user = require_login_redirect();
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <?php if ($can('purchasing')): ?>
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
           <div class="flex justify-between items-start"><span class="text-[11px] font-bold text-slate-400 uppercase">Total Belanja Purchasing</span><span class="p-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs"><i class="fa-solid fa-cart-shopping"></i></span></div>
           <div id="ov-total-purchasing" class="text-lg font-bold text-slate-800 mt-2">Rp 0</div>
         </div>
+        <?php endif; ?>
+        <?php if ($can('finance')): ?>
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
           <div class="flex justify-between items-start"><span class="text-[11px] font-bold text-slate-400 uppercase">Saldo Kas (Finance)</span><span class="p-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs"><i class="fa-solid fa-wallet"></i></span></div>
           <div id="ov-saldo-kas" class="text-lg font-bold text-emerald-600 mt-2">Rp 0</div>
@@ -242,9 +271,11 @@ $user = require_login_redirect();
           <div class="flex justify-between items-start"><span class="text-[11px] font-bold text-slate-400 uppercase">Sisa Hutang (AP)</span><span class="p-2 bg-rose-50 text-rose-600 rounded-lg text-xs"><i class="fa-solid fa-credit-card"></i></span></div>
           <div id="ov-sisa-ap" class="text-lg font-bold text-rose-600 mt-2">Rp 0</div>
         </div>
+        <?php endif; ?>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <?php if ($can('purchasing')): ?>
         <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col">
           <div class="flex items-center justify-between mb-1">
             <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><i class="fa-solid fa-boxes-packing text-indigo-600"></i> Ringkasan Purchasing</h3>
@@ -253,6 +284,8 @@ $user = require_login_redirect();
           <p class="text-[11px] text-slate-400 mb-3">Pengeluaran per Supplier (Termasuk PPN)</p>
           <div class="h-56 relative"><canvas id="chart-overview-purchasing"></canvas></div>
         </div>
+        <?php endif; ?>
+        <?php if ($can('finance')): ?>
         <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col">
           <div class="flex items-center justify-between mb-1">
             <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><i class="fa-solid fa-sack-dollar text-emerald-600"></i> Ringkasan Finance</h3>
@@ -261,7 +294,13 @@ $user = require_login_redirect();
           <p class="text-[11px] text-slate-400 mb-3">Tren Debit/Kredit Cash Flow (10 transaksi terakhir)</p>
           <div class="h-56 relative"><canvas id="chart-overview-finance"></canvas></div>
         </div>
+        <?php endif; ?>
       </div>
+      <?php if (!$user['is_admin'] && empty($user['modules'])): ?>
+      <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-2xl p-4">
+        <i class="fa-solid fa-lock mr-1"></i> Role Anda (<b><?= esc_html($user['role_label']) ?></b>) belum diberi akses ke modul apapun. Hubungi admin untuk mengatur hak akses di menu Role Management.
+      </div>
+      <?php endif; ?>
     </div>
 
     <!-- 1. DASHBOARD & DETAIL PR -->
@@ -1874,7 +1913,7 @@ $user = require_login_redirect();
           <div><label class="block font-semibold text-slate-700 mb-1">Role</label><select id="mu-role" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></select></div>
           <div><label class="block font-semibold text-slate-700 mb-1">Status</label><select id="mu-status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"><option value="AKTIF">AKTIF</option><option value="NON AKTIF">NON AKTIF</option></select></div>
         </div>
-        <div><label class="block font-semibold text-slate-700 mb-1">Password <span id="mu-password-hint">*</span></label><input type="password" id="mu-password" placeholder="Kosongkan jika tidak diubah" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+        <div><label class="block font-semibold text-slate-700 mb-1">Password <span id="mu-password-hint">*</span></label><input type="password" id="mu-password" placeholder="Kosongkan jika tidak diubah" autocomplete="new-password" class="w-full p-2 bg-white border border-slate-300 rounded-lg"><p class="text-[10px] text-slate-400 mt-1">Min. <?= (int) PASSWORD_MIN_LENGTH ?> karakter, kombinasi huruf &amp; angka.</p></div>
         <div class="pt-2 flex items-center justify-end space-x-2 border-t border-slate-100">
           <button type="button" onclick="closeMasterUserModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold">Batal</button>
           <button type="submit" class="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-md">Simpan User</button>
@@ -1885,7 +1924,7 @@ $user = require_login_redirect();
 
   <!-- MODAL: TAMBAH / EDIT ROLE -->
   <div id="role-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-sm overflow-hidden">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md max-h-[90vh] overflow-y-auto">
       <div class="px-6 py-4 bg-rose-600 text-white flex items-center justify-between">
         <h3 id="role-modal-title" class="font-bold text-base">Tambah Role</h3>
         <button onclick="closeRoleModal()" class="text-white/80 hover:text-white p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
@@ -1898,11 +1937,17 @@ $user = require_login_redirect();
           <p id="role-key-preview" class="text-[10px] text-slate-400 mt-1"></p>
         </div>
         <div class="flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-lg p-3">
-          <input type="checkbox" id="role-is-admin" class="w-4 h-4 mt-0.5 text-rose-600 rounded border-slate-300">
+          <input type="checkbox" id="role-is-admin" onchange="syncRoleModuleCheckboxes()" class="w-4 h-4 mt-0.5 text-rose-600 rounded border-slate-300">
           <label for="role-is-admin" class="text-xs text-rose-900 cursor-pointer">
             <span class="font-bold">Akses Admin Penuh</span><br>
             <span class="text-[10px] text-rose-700">Kalau dicentang, siapapun dengan role ini bisa hapus data master, hapus user, dan kelola role lain — setara akun Admin.</span>
           </label>
+        </div>
+        <div id="role-modules-box" class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
+          <div class="font-bold text-slate-700">Hak Akses Modul</div>
+          <p class="text-[10px] text-slate-500 -mt-1">Centang modul yang boleh dibuka role ini. Menu yang tidak dicentang akan disembunyikan dan diblokir di server.</p>
+          <div id="role-modules-list" class="grid grid-cols-1 gap-1.5"></div>
+          <p id="role-modules-admin-note" class="hidden text-[10px] text-rose-700">Role dengan Akses Admin Penuh otomatis bisa membuka semua modul.</p>
         </div>
         <p id="role-system-note" class="hidden text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">Ini role bawaan sistem. Nama boleh diubah, tapi tidak bisa dihapus dan status Akses Admin Penuh-nya terkunci.</p>
         <div class="pt-2 flex items-center justify-end space-x-2 border-t border-slate-100">
@@ -2129,7 +2174,7 @@ $user = require_login_redirect();
 
   <!-- Current user & role info dipakai app.js (menggantikan currentUser palsu di versi lama) -->
   <script>
-    window.CURRENT_USER = <?= json_encode($user, JSON_UNESCAPED_UNICODE) ?>;
+    window.CURRENT_USER = <?= json_encode($user, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
   </script>
   <script src="assets/js/app.js"></script>
 </body>

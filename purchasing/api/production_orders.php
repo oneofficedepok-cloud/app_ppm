@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-require_login();
+require_module_access(['gudang', 'produksi'], ['gudang']);
 
 $method = http_method();
 $pdo = db();

@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-require_login();
+// Baca: Gudang & Produksi (WO memakai stok). Ubah: modul Gudang.
+require_module_access(['gudang', 'produksi'], ['gudang']);
 
 $method = http_method();
 $pdo = db();
