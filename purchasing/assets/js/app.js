@@ -955,7 +955,7 @@ function renderPRTable() {
     return;
   }
 
-  tbody.innerHTML = filtered.map(p => `
+  tbody.innerHTML = sortRows('pr', filtered).map(p => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -1638,7 +1638,7 @@ function renderWOTracking() {
   };
   const categoryBadge = { 'PROJECT': 'bg-indigo-100 text-indigo-800', 'MAINTENANCE': 'bg-amber-100 text-amber-800', 'INVENTARIS': 'bg-slate-200 text-slate-700' };
 
-  tbody.innerHTML = filtered.map(w => {
+  tbody.innerHTML = sortRows('wo', filtered).map(w => {
     const isProfit = Number(w.profit_loss) >= 0;
     const plBadgeClass = isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800 font-bold';
     return `
@@ -1923,14 +1923,378 @@ async function deleteWO(id) {
 
 // ===================== SEAL CNC MODULE =====================
 
+// ===================== URUTKAN (SORTIR) TABEL =====================
+// Dropdown "Urutkan" di panel filter setiap tabel. Pilihan per tabel ada di TABLE_SORTS.
+// Opsi pertama ('' = Default) mengikuti urutan bawaan dari server.
+const SORT_BY = {
+  dateDesc: (f, l = 'Tanggal Terbaru') => ({ v: `${f}:desc`, l, cmp: (a, b) => String(b[f] || '').localeCompare(String(a[f] || '')) }),
+  dateAsc: (f, l = 'Tanggal Terlama') => ({ v: `${f}:asc`, l, cmp: (a, b) => (a[f] ? 0 : 1) - (b[f] ? 0 : 1) || String(a[f] || '').localeCompare(String(b[f] || '')) }),
+  numDesc: (f, l) => ({ v: `${typeof f === 'string' ? f : l}:ndesc`, l, cmp: (a, b) => sortNum(b, f) - sortNum(a, f) }),
+  numAsc: (f, l) => ({ v: `${typeof f === 'string' ? f : l}:nasc`, l, cmp: (a, b) => sortNum(a, f) - sortNum(b, f) }),
+  text: (f, l) => ({ v: `${typeof f === 'string' ? f : l}:text`, l, cmp: (a, b) => sortText(a, f).localeCompare(sortText(b, f), 'id', { numeric: true, sensitivity: 'base' }) }),
+};
+function sortNum(r, f) { return Number(typeof f === 'function' ? f(r) : r[f]) || 0; }
+function sortText(r, f) {
+  const v = typeof f === 'function' ? f(r) : r[f];
+  return v === null || v === undefined || v === '' ? '￿' : String(v); // kosong selalu di bawah
+}
+
+const TABLE_SORTS = {
+  pr: [SORT_BY.dateDesc('tanggal'), SORT_BY.dateAsc('tanggal'), SORT_BY.numDesc('total', 'Total Terbesar'), SORT_BY.numAsc('total', 'Total Terkecil'),
+    SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('approval_status', 'Status Approval (dikelompokkan)'),
+    SORT_BY.text('supplier_nama', 'Supplier A-Z'), SORT_BY.text('pr_number', 'No. PR')],
+  wo: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.dateDesc('est_kirim', 'Est. Kirim Terbaru'), SORT_BY.dateAsc('est_kirim', 'Est. Kirim Terdekat'),
+    SORT_BY.text(r => r.computed_status || r.status, 'Status (dikelompokkan)'), SORT_BY.text('customer_nama', 'Customer A-Z'),
+    SORT_BY.numDesc('wo_total', 'Nilai WO Terbesar'), SORT_BY.numDesc('profit_loss', 'Profit Terbesar'), SORT_BY.numAsc('profit_loss', 'Profit Terkecil / Rugi')],
+  seal: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('product', 'Product A-Z'),
+    SORT_BY.numDesc('total', 'Total Terbesar'), SORT_BY.numAsc('total', 'Total Terkecil')],
+  transport: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('tujuan', 'Tujuan A-Z'),
+    SORT_BY.numDesc('total', 'Total Terbesar'), SORT_BY.numAsc('total', 'Total Terkecil')],
+  customers: [SORT_BY.text('nama', 'Nama A-Z'), SORT_BY.text('kota', 'Kota A-Z'), SORT_BY.text('status', 'Status (dikelompokkan)')],
+  suppliers: [SORT_BY.text('nama', 'Nama A-Z'), SORT_BY.text('kota', 'Kota A-Z'), SORT_BY.text('status', 'Status (dikelompokkan)')],
+  stok: [SORT_BY.text('nama', 'Nama Material A-Z'), SORT_BY.text('sku', 'SKU'), SORT_BY.text('kategori', 'Kategori (dikelompokkan)'),
+    SORT_BY.numAsc('stok_qty', 'Stok Paling Sedikit'), SORT_BY.numDesc('stok_qty', 'Stok Paling Banyak'),
+    SORT_BY.numDesc(r => (Number(r.stok_qty) || 0) * (Number(r.harga_satuan) || 0), 'Nilai Stok Terbesar')],
+  incoming: [SORT_BY.dateDesc('tgl_datang', 'Tgl Datang Terbaru'), SORT_BY.dateAsc('tgl_datang', 'Tgl Datang Terlama'),
+    SORT_BY.text('pr_number', 'No. PR'), SORT_BY.text('supplier_nama', 'Supplier A-Z'), SORT_BY.text('product', 'Nama Barang A-Z')],
+  receiving: [SORT_BY.dateDesc('tgl_datang', 'Tgl Datang Terbaru'), SORT_BY.dateAsc('tgl_datang', 'Tgl Datang Terlama'),
+    SORT_BY.text('pr_number', 'No. PR'), SORT_BY.text('supplier_nama', 'Supplier A-Z'), SORT_BY.text('product', 'Nama Barang A-Z')],
+  produksi: [SORT_BY.text('po_number', 'No. Produksi'), SORT_BY.text('status', 'Status (dikelompokkan)'),
+    SORT_BY.numDesc(r => produksiProgressPct(r), 'Progress Material Tertinggi'), SORT_BY.numAsc(r => produksiProgressPct(r), 'Progress Material Terendah'),
+    SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('wo_number', 'No. WO')],
+  riwayat: [SORT_BY.dateDesc('tanggal'), SORT_BY.dateAsc('tanggal'), SORT_BY.text('tipe', 'Tipe (dikelompokkan)'),
+    SORT_BY.text('item_nama', 'Material A-Z'), SORT_BY.numDesc('qty', 'Qty Terbesar')],
+  cashflow: [SORT_BY.dateDesc('tanggal'), SORT_BY.dateAsc('tanggal'), SORT_BY.numDesc('debit', 'Debit (Masuk) Terbesar'),
+    SORT_BY.numDesc('kredit', 'Kredit (Keluar) Terbesar'), SORT_BY.text('kode', 'Kode (dikelompokkan)'), SORT_BY.text('status', 'Status (dikelompokkan)')],
+  ar: [SORT_BY.dateDesc('tgl_invoice', 'Tgl Invoice Terbaru'), SORT_BY.dateAsc('tgl_invoice', 'Tgl Invoice Terlama'),
+    SORT_BY.dateAsc('due_date', 'Jatuh Tempo Terdekat'), SORT_BY.numDesc('sisa_piutang', 'Sisa Piutang Terbesar'),
+    SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('customer_nama', 'Customer A-Z')],
+  ap: [SORT_BY.dateDesc('tgl_invoice', 'Tgl Invoice Terbaru'), SORT_BY.dateAsc('tgl_invoice', 'Tgl Invoice Terlama'),
+    SORT_BY.dateAsc('due_date', 'Jatuh Tempo Terdekat'), SORT_BY.numDesc('sisa_hutang', 'Sisa Hutang Terbesar'),
+    SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('supplier_nama', 'Supplier A-Z')],
+  talangan: [SORT_BY.dateDesc('tanggal'), SORT_BY.dateAsc('tanggal'), SORT_BY.numDesc('sisa', 'Sisa Terbesar'),
+    SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('pic', 'PIC A-Z')],
+  mtcdash: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('status', 'Status (dikelompokkan)'),
+    SORT_BY.numDesc('nilai_po', 'Nilai PO Terbesar'), SORT_BY.numDesc('total_biaya', 'Total Biaya Terbesar')],
+};
+// tbody tiap tabel (untuk mereset sortir klik-judul-kolom saat dropdown dipakai) & fungsi render ulangnya.
+const SORT_TARGETS = {
+  pr: ['pr-table-body', () => renderPRTable()], wo: ['wo-tracking-tbody', () => renderWOTracking()],
+  seal: ['seal-table-tbody', () => renderSealTable()], transport: ['transport-table-tbody', () => renderTransportTable()],
+  customers: ['customer-cards-container', () => renderCustomerDirectory()], suppliers: ['supplier-detail-tbody', () => renderSupplierDirectory()],
+  stok: ['stok-table-tbody', () => renderStokTable()], incoming: ['incoming-table-tbody', () => renderIncomingTable()],
+  receiving: ['receiving-table-tbody', () => renderReceivingTable()], produksi: ['produksi-table-tbody', () => renderProduksiTable()],
+  riwayat: ['riwayat-table-tbody', () => renderRiwayatTable()], cashflow: ['cashflow-tbody', () => renderCashflowTable()],
+  ar: ['ar-tbody', () => renderARTable()], ap: ['ap-tbody', () => renderAPTable()],
+  talangan: ['talangan-tbody', () => renderTalanganTable()], mtcdash: ['mtc-dash-matrix-tbody', () => renderMTCDashboard()],
+};
+
+/** Urutkan baris sesuai pilihan dropdown "Urutkan" tabel tsb (tidak mengubah array asli). */
+function sortRows(name, rows) {
+  const v = document.getElementById(`sort-${name}`)?.value || '';
+  const opt = v && (TABLE_SORTS[name] || []).find(o => o.v === v);
+  if (!opt) return rows;
+  return rows.map((r, i) => [r, i]).sort((a, b) => opt.cmp(a[0], b[0]) || a[1] - b[1]).map(x => x[0]);
+}
+
+function sortSelectHtml(name, selectClass) {
+  return `<select id="sort-${name}" data-sort-tbody="${(SORT_TARGETS[name] || [])[0] || ''}" onchange="onSortChange('${name}')" class="${selectClass}">
+      <option value="">Default</option>
+      ${(TABLE_SORTS[name] || []).map(o => `<option value="${esc(o.v)}">${esc(o.l)}</option>`).join('')}
+    </select>`;
+}
+
+function onSortChange(name) {
+  const [tbodyId, render] = SORT_TARGETS[name] || [];
+  if (window.TableTools && tbodyId) window.TableTools.clearSort(tbodyId);
+  if (render) render();
+}
+
+/**
+ * Tempel dropdown "Urutkan" ke panel filter yang sudah ada, tepat setelah
+ * kontrol filter `afterId` - memakai class yang sama dengan sel filter di sebelahnya
+ * supaya tampilannya seragam.
+ */
+function mountSortSelect(name, afterId) {
+  if (document.getElementById(`sort-${name}`)) return;
+  const ref = document.getElementById(afterId);
+  if (!ref) return;
+  // Naik maksimal 3 level mencari "sel" filter (div yang berisi <label> + kontrol).
+  let cell = ref;
+  for (let i = 0; i < 3 && cell.parentElement && !cell.querySelector('label'); i++) cell = cell.parentElement;
+  if (!cell.querySelector('label')) {
+    // Panel tanpa label (mis. kotak cari di header Dashboard MTC): taruh dropdown ringkas di sebelahnya.
+    const wrap = ref.parentElement;
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2';
+    div.innerHTML = `<i class="fa-solid fa-arrow-down-wide-short text-slate-400 text-sm" title="Urutkan"></i>` +
+      sortSelectHtml(name, 'py-2 px-3 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-indigo-500');
+    // Kelompokkan kotak cari + dropdown supaya tetap berdampingan di layout header.
+    const group = document.createElement('div');
+    group.className = 'flex items-center gap-2 flex-wrap';
+    wrap.before(group);
+    group.append(wrap, div);
+    return;
+  }
+  const label = cell.querySelector('label');
+  const panel = cell.parentElement;
+  const refSelect = panel.querySelector('select') || ref;
+  const div = document.createElement('div');
+  div.className = cell.className;
+  div.innerHTML = `<label class="${label ? label.className : ''}"><i class="fa-solid fa-arrow-down-wide-short mr-1"></i>Urutkan</label>` +
+    sortSelectHtml(name, refSelect.className.replace(/\bpl-\d+\b/, ''));
+  cell.after(div);
+}
+
+function mountAllSortSelects() {
+  [['pr', 'filter-approval'], ['wo', 'filter-wo-status'], ['customers', 'filter-customer-directory-status'],
+   ['suppliers', 'filter-supplier-directory-status'], ['stok', 'filter-stok-kondisi'], ['cashflow', 'filter-cf-search'],
+   ['ar', 'filter-ar-status'], ['ap', 'filter-ap-status'], ['mtcdash', 'mtc-dash-search']]
+    .forEach(([name, afterId]) => mountSortSelect(name, afterId));
+}
+document.addEventListener('DOMContentLoaded', mountAllSortSelects);
+
+// ===================== FILTER & PENCARIAN TABEL (GENERIK) =====================
+// Satu mesin filter untuk tabel: Transportasi, Seal CNC, Progress Produksi,
+// Riwayat Pergerakan Stok, Dana Talangan. Tiap tabel cukup didefinisikan di TABLE_FILTERS.
+//   search : field yang dicari (boleh beberapa kata, semua kata harus cocok)
+//   selects: dropdown. `get` = ambil nilai dari baris (pilihan dibuat otomatis dari data),
+//            atau `options` = pilihan tetap [{v, l, test?}]
+//   date   : field tanggal untuk filter rentang Dari - Sampai
+function produksiProgressPct(p) {
+  const butuh = (p.bom_items || []).reduce((s, b) => s + Number(b.qty_dibutuhkan), 0);
+  const pakai = (p.bom_items || []).reduce((s, b) => s + Number(b.qty_terpakai), 0);
+  return butuh > 0 ? Math.min(100, Math.round((pakai / butuh) * 100)) : 0;
+}
+
+const TABLE_FILTERS = {
+  incoming: {
+    color: 'orange', data: () => prItems.filter(p => p.status === 'STORE ROOM'), render: () => renderIncomingTable(),
+    placeholder: 'Cari No. PR, barang, supplier, WO, project...',
+    search: ['pr_number', 'product', 'supplier_nama', 'wo_number', 'project', 'penerima_barang'],
+    selects: [
+      { key: 'supplier', label: 'Supplier', all: 'Semua Supplier', get: r => r.supplier_nama },
+      { key: 'wo', label: 'No WO', all: 'Semua WO', get: r => r.wo_number },
+    ],
+    date: 'tgl_datang',
+  },
+  receiving: {
+    color: 'lime', data: () => prItems.filter(p => p.status === 'RECEIVED').sort((a, b) => (b.tgl_datang || '').localeCompare(a.tgl_datang || '')), render: () => renderReceivingTable(),
+    placeholder: 'Cari No. PR, barang, supplier, WO, penerima...',
+    search: ['pr_number', 'product', 'supplier_nama', 'wo_number', 'project', 'penerima_barang'],
+    selects: [
+      { key: 'supplier', label: 'Supplier', all: 'Semua Supplier', get: r => r.supplier_nama },
+      { key: 'wo', label: 'No WO', all: 'Semua WO', get: r => r.wo_number },
+    ],
+    date: 'tgl_datang',
+  },
+  transport: {
+    color: 'blue', data: () => transportItems, render: () => renderTransportTable(),
+    placeholder: 'Cari WO, project, customer, deskripsi, asal, tujuan...',
+    search: ['wo_number', 'project', 'customer_nama', 'deskripsi', 'asal', 'tujuan'],
+    selects: [
+      { key: 'customer', label: 'Customer', all: 'Semua Customer', get: r => r.customer_nama },
+      { key: 'wo', label: 'No WO', all: 'Semua WO', get: r => r.wo_number },
+    ],
+    total: r => Number(r.total) || 0,
+  },
+  seal: {
+    color: 'amber', data: () => sealItems, render: () => renderSealTable(),
+    placeholder: 'Cari WO, project, customer, product, type, dimensi, brand...',
+    search: ['wo_number', 'project', 'customer_nama', 'product', 'type', 'dimensi', 'brand'],
+    selects: [
+      { key: 'customer', label: 'Customer', all: 'Semua Customer', get: r => r.customer_nama },
+      { key: 'wo', label: 'No WO', all: 'Semua WO', get: r => r.wo_number },
+      { key: 'brand', label: 'Brand', all: 'Semua Brand', get: r => r.brand },
+    ],
+    total: r => Number(r.total) || 0,
+  },
+  produksi: {
+    color: 'teal', data: () => productionOrders, render: () => renderProduksiTable(),
+    placeholder: 'Cari No produksi, WO, customer, product...',
+    search: ['po_number', 'wo_number', 'customer_nama', 'product'],
+    selects: [
+      { key: 'status', label: 'Status', all: 'Semua Status', get: r => r.status,
+        options: ['DRAFT', 'ON PROGRESS', 'HOLD', 'SELESAI', 'CANCEL'].map(v => ({ v, l: v })) },
+      { key: 'progress', label: 'Progress Material', all: 'Semua Progress', options: [
+        { v: 'NOL', l: 'Belum mulai (0%)', test: r => produksiProgressPct(r) === 0 },
+        { v: 'JALAN', l: 'Berjalan (1-99%)', test: r => { const x = produksiProgressPct(r); return x > 0 && x < 100; } },
+        { v: 'PENUH', l: 'Material lengkap (100%)', test: r => produksiProgressPct(r) === 100 },
+      ] },
+      { key: 'customer', label: 'Customer', all: 'Semua Customer', get: r => r.customer_nama },
+    ],
+  },
+  riwayat: {
+    color: 'cyan', data: () => inventoryMovements, render: () => renderRiwayatTable(),
+    placeholder: 'Cari SKU, material, WO, keterangan, user...',
+    search: ['sku', 'item_nama', 'wo_number', 'keterangan', 'user_nama', 'sumber'],
+    selects: [
+      { key: 'tipe', label: 'Tipe', all: 'Semua Tipe', get: r => r.tipe,
+        options: [{ v: 'IN', l: 'IN (Masuk)' }, { v: 'OUT', l: 'OUT (Keluar)' }, { v: 'ADJUSTMENT', l: 'ADJUSTMENT' }] },
+      { key: 'sumber', label: 'Sumber', all: 'Semua Sumber', get: r => r.sumber,
+        options: ['PEMBELIAN', 'PRODUKSI', 'MANUAL', 'RETUR', 'OPNAME'].map(v => ({ v, l: v })) },
+      { key: 'material', label: 'Material', all: 'Semua Material', get: r => r.sku ? `${r.sku} - ${r.item_nama}` : '' },
+    ],
+    date: 'tanggal',
+  },
+  talangan: {
+    color: 'purple', data: () => danaTalangan, render: () => renderTalanganTable(),
+    placeholder: 'Cari No DT, PIC, deskripsi...',
+    search: ['no_dt', 'pic', 'deskripsi'],
+    selects: [
+      { key: 'status', label: 'Status', all: 'Semua Status', get: r => r.status,
+        options: [{ v: 'PENDING', l: 'PENDING' }, { v: 'PARTIAL', l: 'PARTIAL' }, { v: 'LUNAS', l: 'LUNAS' }] },
+      { key: 'pic', label: 'PIC', all: 'Semua PIC', get: r => r.pic },
+    ],
+    date: 'tanggal',
+  },
+};
+
+function tfId(name, key) { return `tf-${name}-${key}`; }
+
+/** Bangun filter bar sekali saja ke dalam <div id="tf-bar-NAME">. */
+function tfEnsureBar(name) {
+  const host = document.getElementById(`tf-bar-${name}`);
+  const cfg = TABLE_FILTERS[name];
+  if (!host || host.dataset.ready) return;
+  const c = cfg.color;
+  const lbl = 'block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1';
+  const inp = `w-full py-1.5 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-${c}-500`;
+  const on = `TABLE_FILTERS['${name}'].render()`;
+  let html = `
+    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 flex flex-wrap gap-3 items-end">
+      <div class="flex-1 min-w-[220px]">
+        <label class="${lbl}">Pencarian</label>
+        <div class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-2.5 text-slate-400 text-xs"></i>
+          <input type="text" id="${tfId(name, 'q')}" oninput="${on}" placeholder="${esc(cfg.placeholder)}" class="${inp} pl-9">
+        </div>
+      </div>`;
+  (cfg.selects || []).forEach(sel => {
+    html += `
+      <div class="w-full sm:w-auto sm:min-w-[160px]">
+        <label class="${lbl}">${esc(sel.label)}</label>
+        <select id="${tfId(name, sel.key)}" onchange="${on}" class="${inp}"><option value="ALL">${esc(sel.all)}</option></select>
+      </div>`;
+  });
+  if (TABLE_SORTS[name]) {
+    html += `
+      <div class="w-full sm:w-auto sm:min-w-[170px]">
+        <label class="${lbl}"><i class="fa-solid fa-arrow-down-wide-short mr-1"></i>Urutkan</label>
+        ${sortSelectHtml(name, inp)}
+      </div>`;
+  }
+  if (cfg.date) {
+    html += `
+      <div class="w-full sm:w-auto">
+        <label class="${lbl}">Tanggal Dari</label>
+        <input type="date" id="${tfId(name, 'from')}" onchange="${on}" class="${inp}">
+      </div>
+      <div class="w-full sm:w-auto">
+        <label class="${lbl}">Sampai</label>
+        <input type="date" id="${tfId(name, 'to')}" onchange="${on}" class="${inp}">
+      </div>`;
+  }
+  html += `
+      <button type="button" onclick="tfReset('${name}')" title="Reset filter" class="h-[30px] px-3 text-xs text-${c}-700 hover:text-${c}-900 bg-white border border-slate-300 rounded-lg font-semibold whitespace-nowrap"><i class="fa-solid fa-rotate-left mr-1"></i>Reset</button>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-2 mt-2">
+      <span id="${tfId(name, 'count')}" class="text-[11px] font-bold text-slate-500"></span>
+      <span id="${tfId(name, 'sum')}" class="text-[11px] font-bold text-slate-600"></span>
+    </div>`;
+  host.innerHTML = html;
+  host.dataset.ready = '1';
+}
+
+/** Isi ulang pilihan dropdown dinamis dari data (pilihan yang sedang aktif dipertahankan). */
+function tfRefreshOptions(name) {
+  const cfg = TABLE_FILTERS[name];
+  const rows = cfg.data() || [];
+  (cfg.selects || []).forEach(sel => {
+    const el = document.getElementById(tfId(name, sel.key));
+    if (!el) return;
+    const cur = el.value || 'ALL';
+    let opts;
+    if (sel.options) {
+      opts = sel.options;
+    } else {
+      const vals = [...new Set(rows.map(sel.get).filter(v => v !== null && v !== undefined && String(v).trim() !== ''))]
+        .map(String).sort((a, b) => a.localeCompare(b, 'id', { numeric: true }));
+      opts = vals.map(v => ({ v, l: v }));
+    }
+    el.innerHTML = `<option value="ALL">${esc(sel.all)}</option>` + opts.map(o => `<option value="${esc(o.v)}">${esc(o.l)}</option>`).join('');
+    el.value = opts.some(o => String(o.v) === cur) ? cur : 'ALL';
+  });
+}
+
+/** Kembalikan baris yang lolos filter + perbarui teks jumlah/total. */
+function tfApply(name) {
+  const cfg = TABLE_FILTERS[name];
+  tfEnsureBar(name);
+  tfRefreshOptions(name);
+  const rows = cfg.data() || [];
+  const val = (k) => (document.getElementById(tfId(name, k))?.value ?? '');
+  const words = val('q').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const from = cfg.date ? val('from') : '';
+  const to = cfg.date ? val('to') : '';
+
+  const out = rows.filter(r => {
+    if (words.length) {
+      const hay = cfg.search.map(f => r[f] ?? '').join(' ').toLowerCase();
+      if (!words.every(w => hay.includes(w))) return false;
+    }
+    for (const sel of (cfg.selects || [])) {
+      const v = val(sel.key);
+      if (!v || v === 'ALL') continue;
+      const opt = sel.options && sel.options.find(o => String(o.v) === v);
+      if (opt && opt.test) { if (!opt.test(r)) return false; }
+      else if (String(sel.get(r) ?? '') !== v) return false;
+    }
+    if (from || to) {
+      const d = String(r[cfg.date] || '').slice(0, 10);
+      if (!d) return false;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+    }
+    return true;
+  });
+
+  const countEl = document.getElementById(tfId(name, 'count'));
+  if (countEl) countEl.textContent = `Menampilkan ${out.length.toLocaleString('id-ID')} dari ${rows.length.toLocaleString('id-ID')} data`;
+  const sumEl = document.getElementById(tfId(name, 'sum'));
+  if (sumEl) sumEl.textContent = cfg.total ? `Total (hasil filter): ${formatRupiah(out.reduce((s, r) => s + cfg.total(r), 0))}` : '';
+  return sortRows(name, out);
+}
+
+function tfReset(name) {
+  const cfg = TABLE_FILTERS[name];
+  const q = document.getElementById(tfId(name, 'q')); if (q) q.value = '';
+  (cfg.selects || []).forEach(sel => { const el = document.getElementById(tfId(name, sel.key)); if (el) el.value = 'ALL'; });
+  ['from', 'to'].forEach(k => { const el = document.getElementById(tfId(name, k)); if (el) el.value = ''; });
+  const sortEl = document.getElementById(`sort-${name}`); if (sortEl) sortEl.value = '';
+  const [tbodyId] = SORT_TARGETS[name] || [];
+  if (window.TableTools && tbodyId) window.TableTools.clearSort(tbodyId);
+  cfg.render();
+}
+
+function tfNoMatchRow(colspan) {
+  return `<tr><td colspan="${colspan}" class="text-center py-8 text-slate-400 font-semibold">Tidak ada data yang cocok dengan pencarian / filter. <button onclick="this.closest('[id^=tab-content-]').querySelector('button[onclick^=tfReset]')?.click()" class="ml-1 text-indigo-600 hover:underline font-bold">Reset filter</button></td></tr>`;
+}
+
 function renderSealTable() {
   const tbody = document.getElementById('seal-table-tbody');
+  const rows = tfApply('seal');
   if (sealItems.length === 0) {
     tbody.innerHTML = `<tr><td colspan="11" class="text-center py-8 text-slate-400 font-semibold">Belum ada data Seal CNC.</td></tr>`;
     syncBulkBar('seal');
     return;
   }
-  tbody.innerHTML = sealItems.map(s => `
+  if (rows.length === 0) {
+    tbody.innerHTML = tfNoMatchRow(11);
+    syncBulkBar('seal');
+    return;
+  }
+  tbody.innerHTML = rows.map(s => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-4 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -2155,13 +2519,82 @@ async function deleteSealItem(id) {
 
 // ===================== GUDANG: STOK MATERIAL MODULE =====================
 
+/** Kondisi stok: HABIS (<= 0), MENIPIS (ada tapi <= minimum), AMAN (di atas minimum). */
+function stokKondisi(i) {
+  const q = Number(i.stok_qty) || 0;
+  const min = Number(i.stok_min) || 0;
+  if (q <= 0) return 'HABIS';
+  if (q <= min) return 'MENIPIS';
+  return 'AMAN';
+}
+
+function setStokFilterKondisi(val) {
+  const sel = document.getElementById('filter-stok-kondisi');
+  if (sel) sel.value = val;
+  renderStokTable();
+}
+
+function resetStokFilters() {
+  ['filter-stok-kategori', 'filter-stok-kondisi', 'filter-stok-status'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = 'ALL';
+  });
+  const s = document.getElementById('filter-stok-search'); if (s) s.value = '';
+  renderStokTable();
+}
+
+function getFilteredStokItems() {
+  const q = (document.getElementById('filter-stok-search')?.value || '').trim().toLowerCase();
+  const kat = document.getElementById('filter-stok-kategori')?.value || 'ALL';
+  const kondisi = document.getElementById('filter-stok-kondisi')?.value || 'ALL';
+  const status = document.getElementById('filter-stok-status')?.value || 'ALL';
+  const words = q.split(/\s+/).filter(Boolean);
+  return inventoryItems.filter(i => {
+    if (words.length) {
+      const hay = `${i.sku || ''} ${i.nama || ''} ${i.kategori || ''}`.toLowerCase();
+      if (!words.every(w => hay.includes(w))) return false;
+    }
+    if (kat !== 'ALL' && (i.kategori || '-') !== kat) return false;
+    if (status !== 'ALL' && i.status !== status) return false;
+    if (kondisi !== 'ALL') {
+      const k = stokKondisi(i);
+      if (kondisi === 'ADA' ? k === 'HABIS' : k !== kondisi) return false;
+    }
+    return true;
+  });
+}
+
+/** Isi dropdown Kategori dari data material yang ada (pilihan yang sedang dipilih dipertahankan). */
+function refreshStokKategoriOptions() {
+  const sel = document.getElementById('filter-stok-kategori');
+  if (!sel) return;
+  const cur = sel.value || 'ALL';
+  const cats = [...new Set(inventoryItems.map(i => i.kategori || '-'))].sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="ALL">Semua Kategori</option>' + cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value = cats.includes(cur) ? cur : 'ALL';
+}
+
 function renderStokTable() {
   const tbody = document.getElementById('stok-table-tbody');
+  refreshStokKategoriOptions();
+
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setText('stok-sum-total', inventoryItems.length.toLocaleString('id-ID'));
+  setText('stok-sum-habis', inventoryItems.filter(i => stokKondisi(i) === 'HABIS').length.toLocaleString('id-ID'));
+  setText('stok-sum-menipis', inventoryItems.filter(i => stokKondisi(i) === 'MENIPIS').length.toLocaleString('id-ID'));
+
+  const items = getFilteredStokItems();
+  setText('stok-sum-nilai', formatRupiah(items.reduce((s, i) => s + (Number(i.stok_qty) || 0) * (Number(i.harga_satuan) || 0), 0)));
+  setText('stok-table-count', `${items.length.toLocaleString('id-ID')} dari ${inventoryItems.length.toLocaleString('id-ID')} material`);
+
   if (inventoryItems.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 font-semibold">Belum ada data Material.</td></tr>`;
     return;
   }
-  tbody.innerHTML = inventoryItems.map(i => {
+  if (items.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 font-semibold">Tidak ada material yang cocok dengan filter.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = sortRows('stok', items).map(i => {
     const low = Number(i.stok_qty) <= Number(i.stok_min);
     return `
     <tr class="hover:bg-slate-50 transition group ${low ? 'bg-rose-50/60' : ''}">
@@ -2282,9 +2715,13 @@ function updateIncomingBadge() {
 
 function renderIncomingTable() {
   const tbody = document.getElementById('incoming-table-tbody');
-  const incoming = prItems.filter(p => p.status === 'STORE ROOM');
+  const incoming = tfApply('incoming');
   updateIncomingBadge();
 
+  if (incoming.length === 0 && TABLE_FILTERS.incoming.data().length > 0) {
+    tbody.innerHTML = tfNoMatchRow(8);
+    return;
+  }
   if (incoming.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 font-semibold">Tidak ada barang yang menunggu diterima. Barang PR berstatus STORE ROOM akan muncul di sini.</td></tr>`;
     return;
@@ -2308,11 +2745,12 @@ function renderIncomingTable() {
 
 function renderReceivingTable() {
   const tbody = document.getElementById('receiving-table-tbody');
-  const search = (document.getElementById('receiving-search')?.value || '').toLowerCase();
-  const received = prItems.filter(p => p.status === 'RECEIVED' &&
-    (!search || p.pr_number.toLowerCase().includes(search) || (p.product || '').toLowerCase().includes(search)))
-    .sort((a, b) => (b.tgl_datang || '').localeCompare(a.tgl_datang || ''));
+  const received = tfApply('receiving');
 
+  if (received.length === 0 && TABLE_FILTERS.receiving.data().length > 0) {
+    tbody.innerHTML = tfNoMatchRow(7);
+    return;
+  }
   if (received.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-slate-400 font-semibold">Belum ada riwayat barang diterima.</td></tr>`;
     return;
@@ -2371,11 +2809,16 @@ const MOVEMENT_BADGE = {
 
 function renderRiwayatTable() {
   const tbody = document.getElementById('riwayat-table-tbody');
+  const rows = tfApply('riwayat');
   if (inventoryMovements.length === 0) {
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-400 font-semibold">Belum ada Riwayat Pergerakan Stok.</td></tr>`;
     return;
   }
-  tbody.innerHTML = inventoryMovements.map(m => {
+  if (rows.length === 0) {
+    tbody.innerHTML = tfNoMatchRow(9);
+    return;
+  }
+  tbody.innerHTML = rows.map(m => {
     const ref = m.wo_number ? `WO: ${esc(m.wo_number)}` : (m.ref_production_id ? `Produksi #${m.ref_production_id}` : (m.ref_pr_id ? `PR #${m.ref_pr_id}` : '-'));
     return `
     <tr class="hover:bg-slate-50 transition group">
@@ -2451,6 +2894,7 @@ async function deleteMovement(id) {
 
 function renderProduksiTable() {
   const tbody = document.getElementById('produksi-table-tbody');
+  const rows = tfApply('produksi');
   if (productionOrders.length === 0) {
     tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 font-semibold">Belum ada data Produksi.</td></tr>`;
     return;
@@ -2459,7 +2903,11 @@ function renderProduksiTable() {
     DRAFT: 'bg-slate-100 text-slate-600', 'ON PROGRESS': 'bg-blue-100 text-blue-700',
     HOLD: 'bg-amber-100 text-amber-700', SELESAI: 'bg-emerald-100 text-emerald-700', CANCEL: 'bg-rose-100 text-rose-700',
   };
-  tbody.innerHTML = productionOrders.map(p => {
+  if (rows.length === 0) {
+    tbody.innerHTML = tfNoMatchRow(8);
+    return;
+  }
+  tbody.innerHTML = rows.map(p => {
     const totalButuh = (p.bom_items || []).reduce((s, b) => s + Number(b.qty_dibutuhkan), 0);
     const totalPakai = (p.bom_items || []).reduce((s, b) => s + Number(b.qty_terpakai), 0);
     const pct = totalButuh > 0 ? Math.min(100, Math.round((totalPakai / totalButuh) * 100)) : 0;
@@ -2815,7 +3263,7 @@ async function renderMTCDashboard() {
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="${mtcDivisiList.length + 7}" class="text-center py-10 text-slate-400 text-sm">Belum ada WO dengan "Item Pekerjaan" tercatat. Tambahkan Item Pekerjaan lewat Edit WO (Tracking WO & Budget) dulu, baru catat biaya per divisi di "Modul Divisi Produksi".</td></tr>`;
   } else {
-    tbody.innerHTML = filtered.map(w => {
+    tbody.innerHTML = sortRows('mtcdash', filtered).map(w => {
       const divSums = {}; mtcDivisiList.forEach(d => divSums[d] = 0);
       let lastSJ = '-';
       w.items.forEach(it => it.divisi_records.forEach(r => {
@@ -3192,12 +3640,18 @@ async function deleteMTCRecord(id) {
 
 function renderTransportTable() {
   const tbody = document.getElementById('transport-table-tbody');
+  const rows = tfApply('transport');
   if (transportItems.length === 0) {
     tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-slate-400 font-semibold">Belum ada data Transportasi.</td></tr>`;
     syncBulkBar('transport');
     return;
   }
-  tbody.innerHTML = transportItems.map(t => `
+  if (rows.length === 0) {
+    tbody.innerHTML = tfNoMatchRow(10);
+    syncBulkBar('transport');
+    return;
+  }
+  tbody.innerHTML = rows.map(t => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-4 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -3331,7 +3785,7 @@ function renderCustomerDirectory() {
     return;
   }
 
-  container.innerHTML = filtered.map(c => {
+  container.innerHTML = sortRows('customers', filtered).map(c => {
     const relatedWO = workOrders.filter(w => w.customer_id === c.id);
     return `
     <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden flex flex-col">
@@ -3464,7 +3918,7 @@ function renderSupplierDirectory() {
     return;
   }
 
-  tbody.innerHTML = filtered.map(s => {
+  tbody.innerHTML = sortRows('suppliers', filtered).map(s => {
     // Rekap DPP/PPN/Total dihitung dari data PR yang sudah dimuat (bukan CANCEL).
     const relatedPR = prItems.filter(p => p.supplier_id === s.id && p.status !== 'CANCEL');
     const totalDPP = relatedPR.reduce((acc, p) => acc + (Number(p.dpp) || 0), 0);
@@ -4223,7 +4677,7 @@ function renderCashflowTable() {
     return;
   }
 
-  tbody.innerHTML = filtered.map(c => `
+  tbody.innerHTML = sortRows('cashflow', filtered).map(c => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -4375,7 +4829,7 @@ function renderARTable() {
     return;
   }
 
-  tbody.innerHTML = filtered.map(a => `
+  tbody.innerHTML = sortRows('ar', filtered).map(a => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -4584,7 +5038,7 @@ function renderAPTable() {
     return;
   }
 
-  tbody.innerHTML = filtered.map(a => `
+  tbody.innerHTML = sortRows('ap', filtered).map(a => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -4729,10 +5183,11 @@ async function deleteAP(id) {
 
 function renderTalanganTable() {
   const tbody = document.getElementById('talangan-tbody');
+  const rows = tfApply('talangan');
   if (!tbody) return;
 
   let sumPinjaman = 0, sumTerbayar = 0, sumSisa = 0;
-  danaTalangan.forEach(t => {
+  rows.forEach(t => {
     sumPinjaman += Number(t.pinjaman);
     sumTerbayar += Number(t.pelunasan);
     sumSisa += Math.max(0, Number(t.sisa));
@@ -4748,7 +5203,11 @@ function renderTalanganTable() {
 
   const statusBadge = { LUNAS: 'bg-emerald-100 text-emerald-700', PARTIAL: 'bg-blue-100 text-blue-700', PENDING: 'bg-amber-100 text-amber-700' };
 
-  tbody.innerHTML = danaTalangan.map(t => `
+  if (rows.length === 0) {
+    tbody.innerHTML = tfNoMatchRow(10);
+    return;
+  }
+  tbody.innerHTML = rows.map(t => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">

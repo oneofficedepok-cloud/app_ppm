@@ -421,7 +421,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
           <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><i class="fa-solid fa-filter text-indigo-600"></i> Multi-Column Filter & Quick Search</h3>
           <button onclick="resetFilters()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"><i class="fa-solid fa-rotate-left"></i> Reset Filter</button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3 sm:gap-4">
           <div class="sm:col-span-2 lg:col-span-2">
             <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Pencarian Multi-Kolom</label>
             <div class="relative">
@@ -605,6 +605,8 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         </div>
         <button onclick="openSealModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md"><i class="fa-solid fa-plus-circle"></i> + Tambah Data Seal CNC</button>
       </div>
+      <div id="tf-bar-seal"></div>
+
       <div class="flex flex-wrap items-center justify-between gap-2 bg-rose-50/60 border border-rose-100 rounded-xl px-4 py-2">
         <span id="bulk-count-seal" class="text-[11px] font-bold text-rose-800">Belum ada yang dipilih</span>
         <div class="flex items-center gap-2">
@@ -637,6 +639,8 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         </div>
         <button onclick="openTransportModal('add')" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md"><i class="fa-solid fa-plus-circle"></i> + Tambah Data Transportasi</button>
       </div>
+      <div id="tf-bar-transport"></div>
+
       <div class="flex flex-wrap items-center justify-between gap-2 bg-rose-50/60 border border-rose-100 rounded-xl px-4 py-2">
         <span id="bulk-count-transport" class="text-[11px] font-bold text-rose-800">Belum ada yang dipilih</span>
         <div class="flex items-center gap-2">
@@ -767,6 +771,63 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         </div>
         <button onclick="openInventoryItemModal('add')" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md"><i class="fa-solid fa-plus-circle"></i> + Tambah Material</button>
       </div>
+      <!-- Ringkasan + Filter Stok -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <button type="button" onclick="setStokFilterKondisi('ALL')" class="text-left bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl p-3 transition">
+          <div class="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Material</div>
+          <div id="stok-sum-total" class="text-lg font-extrabold text-slate-800">0</div>
+        </button>
+        <button type="button" onclick="setStokFilterKondisi('HABIS')" class="text-left bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl p-3 transition">
+          <div class="text-[10px] font-bold uppercase text-rose-400 tracking-wider">Stok Habis</div>
+          <div id="stok-sum-habis" class="text-lg font-extrabold text-rose-700">0</div>
+        </button>
+        <button type="button" onclick="setStokFilterKondisi('MENIPIS')" class="text-left bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl p-3 transition">
+          <div class="text-[10px] font-bold uppercase text-amber-500 tracking-wider">Stok Menipis</div>
+          <div id="stok-sum-menipis" class="text-lg font-extrabold text-amber-700">0</div>
+        </button>
+        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+          <div class="text-[10px] font-bold uppercase text-emerald-500 tracking-wider">Total Nilai (hasil filter)</div>
+          <div id="stok-sum-nilai" class="text-lg font-extrabold text-emerald-800">Rp 0</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+        <div class="lg:col-span-2">
+          <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Cari SKU / Nama Material</label>
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-2.5 text-slate-400 text-xs"></i>
+            <input type="text" id="filter-stok-search" oninput="renderStokTable()" placeholder="Contoh: MAT-0001, amplas, schotbrite..." class="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Kategori</label>
+          <select id="filter-stok-kategori" onchange="renderStokTable()" class="w-full py-1.5 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500"><option value="ALL">Semua Kategori</option></select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Kondisi Stok</label>
+          <select id="filter-stok-kondisi" onchange="renderStokTable()" class="w-full py-1.5 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+            <option value="ALL">Semua Kondisi</option>
+            <option value="ADA">Ada Stok (&gt; 0)</option>
+            <option value="AMAN">Aman (di atas minimum)</option>
+            <option value="MENIPIS">Menipis (ada, &le; minimum)</option>
+            <option value="HABIS">Habis (0)</option>
+          </select>
+        </div>
+        <div class="flex gap-2">
+          <div class="flex-1">
+            <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Status</label>
+            <select id="filter-stok-status" onchange="renderStokTable()" class="w-full py-1.5 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500">
+              <option value="ALL">Semua</option><option value="AKTIF">AKTIF</option><option value="NON AKTIF">NON AKTIF</option>
+            </select>
+          </div>
+          <button type="button" onclick="resetStokFilters()" title="Reset filter" class="self-end h-[30px] px-3 text-xs text-emerald-700 hover:text-emerald-900 bg-white border border-slate-300 rounded-lg font-semibold"><i class="fa-solid fa-rotate-left"></i></button>
+        </div>
+      </div>
+      <div class="flex items-center justify-between -mt-2">
+        <span id="stok-table-count" class="text-[11px] font-bold text-slate-500">0 material</span>
+        <span class="text-[10px] text-slate-400">Klik kotak ringkasan di atas untuk filter cepat.</span>
+      </div>
+
       <div class="overflow-x-auto custom-scrollbar">
         <table class="w-full text-left border-collapse whitespace-nowrap text-xs">
           <thead>
@@ -788,6 +849,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-truck-ramp-box text-orange-600"></i> Incoming Goods</h3>
         <p class="text-xs text-slate-400">Barang dari PR yang sudah berstatus <strong>STORE ROOM</strong> (sudah dibeli & datang) tapi belum dikonfirmasi diterima tim Gudang. Klik "Terima Barang" untuk konfirmasi — stok Gudang otomatis bertambah.</p>
       </div>
+      <div id="tf-bar-incoming"></div>
       <div class="overflow-x-auto custom-scrollbar">
         <table class="w-full text-left border-collapse whitespace-nowrap text-xs">
           <thead>
@@ -810,8 +872,8 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
           <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-clipboard-check text-lime-600"></i> Receiving Goods</h3>
           <p class="text-xs text-slate-400">Riwayat barang yang sudah dikonfirmasi diterima tim Gudang (status PR: RECEIVED) — stok Gudang sudah bertambah otomatis untuk semua baris ini.</p>
         </div>
-        <input type="text" id="receiving-search" oninput="renderReceivingTable()" placeholder="Cari No. PR / Nama Barang..." class="w-full sm:w-72 p-2 bg-white border border-slate-300 rounded-lg text-xs">
       </div>
+      <div id="tf-bar-receiving"></div>
       <div class="overflow-x-auto custom-scrollbar">
         <table class="w-full text-left border-collapse whitespace-nowrap text-xs">
           <thead>
@@ -835,6 +897,8 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         </div>
         <button onclick="openProductionModal('add')" class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md"><i class="fa-solid fa-plus-circle"></i> + Tambah Produksi</button>
       </div>
+      <div id="tf-bar-produksi"></div>
+
       <div class="overflow-x-auto custom-scrollbar">
         <table class="w-full text-left border-collapse whitespace-nowrap text-xs">
           <thead>
@@ -859,6 +923,8 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         </div>
         <button onclick="openMovementModal()" class="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md"><i class="fa-solid fa-plus-circle"></i> + Catat Pergerakan</button>
       </div>
+      <div id="tf-bar-riwayat"></div>
+
       <div class="overflow-x-auto custom-scrollbar">
         <table class="w-full text-left border-collapse whitespace-nowrap text-xs">
           <thead>
@@ -1311,6 +1377,8 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         <i class="fa-solid fa-circle-info text-blue-600 mr-1"></i>
         Pelunasan dihitung <b>otomatis</b> saat ada transaksi Cash Flow (manual) dengan kolom Invoice/Ref berisi <b>No. DT</b> yang sama, berstatus TERBAYAR LUNAS.
       </div>
+
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm"><div id="tf-bar-talangan"></div></div>
 
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="overflow-x-auto custom-scrollbar">

@@ -21,23 +21,13 @@
   // Konfigurasi: tabel & daftar mana yang diberi fitur.
   // search:false = tabel sudah punya kotak pencarian sendiri, cukup tambah sortir.
   // ---------------------------------------------------------------------
+  // Semua tabel sudah punya panel filter (Pencarian + dropdown + Urutkan) di app.js,
+  // jadi di sini cukup: klik judul kolom untuk sortir cepat.
   const TABLES = [
-    { tbody: 'pr-table-body', search: false },
-    { tbody: 'wo-tracking-tbody', search: false },
-    { tbody: 'seal-table-tbody', search: true, placeholder: 'Cari WO, project, part, dimensi...' },
-    { tbody: 'transport-table-tbody', search: true, placeholder: 'Cari WO, tujuan, kendaraan, driver...' },
-    { tbody: 'supplier-detail-tbody', search: false },
-    { tbody: 'stok-table-tbody', search: true, placeholder: 'Cari SKU, nama material, kategori...' },
-    { tbody: 'incoming-table-tbody', search: true, placeholder: 'Cari No. PR, barang, supplier...' },
-    { tbody: 'receiving-table-tbody', search: false },
-    { tbody: 'produksi-table-tbody', search: true, placeholder: 'Cari No. produksi, WO, produk...' },
-    { tbody: 'riwayat-table-tbody', search: true, placeholder: 'Cari material, tipe, sumber, keterangan...' },
-    { tbody: 'mtc-dash-matrix-tbody', search: false },
-    { tbody: 'cashflow-tbody', search: false },
-    { tbody: 'ar-tbody', search: false },
-    { tbody: 'ap-tbody', search: false },
-    { tbody: 'talangan-tbody', search: true, placeholder: 'Cari nama, keterangan, status...' },
-  ];
+    'pr-table-body', 'wo-tracking-tbody', 'seal-table-tbody', 'transport-table-tbody', 'supplier-detail-tbody',
+    'stok-table-tbody', 'incoming-table-tbody', 'receiving-table-tbody', 'produksi-table-tbody', 'riwayat-table-tbody',
+    'mtc-dash-matrix-tbody', 'cashflow-tbody', 'ar-tbody', 'ap-tbody', 'talangan-tbody',
+  ].map(tbody => ({ tbody, search: false, info: false }));
 
   // key: elemen di dalam item yang dipakai untuk sortir A-Z (default: teks item).
   const LISTS = [
@@ -49,8 +39,9 @@
     { el: 'master-user-list', placeholder: 'Cari nama, username, role...' },
     { el: 'master-role-list', placeholder: 'Cari role...' },
     { el: 'mtcdivisi-records-list', placeholder: 'Cari divisi, item, surat jalan...' },
-    { el: 'customer-cards-container', search: false, key: 'h4, h3, .font-bold' },
   ];
+
+  const tableStates = {};
 
   const INPUT_CLASS = 'w-full pl-8 pr-7 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none';
 
@@ -131,7 +122,7 @@
 
     const state = { cfg, container: tbody, table, query: '', col: null, dir: 0, originalOrder: new WeakMap(), seq: 0 };
 
-    // --- Toolbar (cari + jumlah data) di atas area scroll tabel.
+    // --- Toolbar (cari + jumlah data) di atas area scroll tabel - hanya kalau diminta.
     const toolbar = document.createElement('div');
     toolbar.className = 'tt-toolbar flex flex-wrap items-center gap-2 mb-2';
     if (cfg.search) {
@@ -142,8 +133,10 @@
     info.className = 'tt-info text-[11px] text-slate-400 font-semibold ml-auto';
     toolbar.appendChild(info);
     state.info = info;
-    const anchor = table.parentElement && /overflow/.test(table.parentElement.className) ? table.parentElement : table;
-    anchor.parentElement.insertBefore(toolbar, anchor);
+    if (cfg.search || cfg.info !== false) {
+      const anchor = table.parentElement && /overflow/.test(table.parentElement.className) ? table.parentElement : table;
+      anchor.parentElement.insertBefore(toolbar, anchor);
+    }
 
     // --- Klik judul kolom = sortir (delegasi, jadi tetap jalan walau thead dibuat ulang).
     const thead = table.tHead;
@@ -156,6 +149,9 @@
         if (state.col !== col) { state.col = col; state.dir = 1; }
         else { state.dir = state.dir === 1 ? -1 : (state.dir === -1 ? 0 : 1); }
         if (state.dir === 0) state.col = null;
+        // Sortir lewat judul kolom menggantikan pilihan dropdown "Urutkan" (kembali ke Default).
+        const sel = document.querySelector(`select[data-sort-tbody="${cfg.tbody}"]`);
+        if (sel && sel.value) sel.value = '';
         apply(state);
       });
       decorateHeader(state);
@@ -164,7 +160,17 @@
 
     state.observer = new MutationObserver(() => apply(state, true));
     state.observer.observe(tbody, { childList: true });
+    tableStates[cfg.tbody] = state;
     apply(state, true);
+  }
+
+  /** Hapus sortir klik-judul-kolom (dipanggil saat dropdown "Urutkan" dipakai). */
+  function clearSort(tbodyId) {
+    const state = tableStates[tbodyId];
+    if (!state) return;
+    state.col = null;
+    state.dir = 0;
+    decorateHeader(state);
   }
 
   function isSortable(th) {
@@ -368,5 +374,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 
-  window.TableTools = { init, sortValue, compareValues };
+  window.TableTools = { init, clearSort, sortValue, compareValues };
 })();

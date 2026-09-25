@@ -135,15 +135,17 @@ Perlu diingat: role `buyer` di sini (akun login) **berbeda** dari **Master Buyer
 
 ---
 
-### Cari & Sortir di Semua Tabel
+### Pencarian, Filter & Urutkan di Semua Tabel
 
-- **Sortir:** klik judul kolom mana saja → naik (▲), klik lagi → turun (▼), klik ketiga → kembali ke urutan asli. Angka rupiah dan tanggal (DD/MM/YYYY) diurutkan sesuai nilainya, bukan sebagai teks.
-- **Cari cepat:** kotak pencarian di atas tabel yang belum punya pencarian sendiri (Seal CNC, Transportasi, Stok, Incoming, Produksi & BOM, Riwayat, Dana Talangan) serta di semua daftar (Product, Buyer, Karyawan, Mesin, Tarif, User, Role). Semua kata yang diketik harus cocok.
-- Jumlah data yang tampil muncul di kanan atas tabel (mis. "3 dari 20 data").
-- Pencarian & sortir tetap berlaku walaupun data di-refresh.
-- Tombol **Hapus Semua** hanya menghapus baris yang sedang terlihat, bukan yang tersembunyi oleh pencarian.
+Setiap tabel punya panel filter di atasnya:
+- **Pencarian**: ketik beberapa kata sekaligus, semua kata harus cocok.
+- **Dropdown filter** sesuai tabelnya, misalnya Status, Customer, Supplier, No WO, Progress, Kategori, dan **rentang Tanggal Dari–Sampai**.
+- **Urutkan**: misalnya Tanggal Terbaru/Terlama, Nilai/Total Terbesar, Jatuh Tempo Terdekat, atau **Status (dikelompokkan)** supaya baris dengan status sama berkumpul.
+- **Reset** mengembalikan semua filter & urutan ke awal. Teks "Menampilkan X dari Y data" menunjukkan hasil filter.
+- Alternatif cepat: klik judul kolom untuk sortir naik ▲ / turun ▼.
+- Daftar Product, Buyer, Karyawan, Mesin, Tarif, User, dan Role punya kotak cari + tombol A-Z.
 
-Kode: `assets/js/table-tools.js`. Untuk menambah tabel baru, cukup tambahkan id `<tbody>` ke daftar `TABLES` di file itu.
+Menambah pilihan urutan: edit `TABLE_SORTS` di `assets/js/app.js`. Menambah dropdown filter: edit `TABLE_FILTERS` di file yang sama.
 
 ---
 
