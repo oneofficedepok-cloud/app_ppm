@@ -1,8 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-// Baca: Purchasing (+ Produksi & Finance untuk rekap biaya WO). Ubah: modul Purchasing.
-require_module_access(['purchasing', 'produksi', 'finance'], ['purchasing']);
+// Baca: Transportasi + WO & Budget (rekap biaya) + Finance Dashboard. Ubah: menu Transportasi.
+require_perm(['transport', 'tracking', 'findash'], ['transport']);
 
 $method = http_method();
 $pdo = db();

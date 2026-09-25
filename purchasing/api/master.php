@@ -7,8 +7,8 @@ if ($type === 'users') {
     // mengubah data akunnya sendiri (nama/password) lewat PUT - dicek di bawah.
     http_method() === 'PUT' ? require_login() : require_admin();
 } else {
-    // Product/Buyer/Karyawan: baca = semua user login (dropdown), ubah = modul Master Data.
-    require_module_access(null, ['masterdata']);
+    // Product/Buyer/Karyawan: baca = semua user login (dropdown), ubah = menu Master Directory.
+    require_perm(null, ['master']);
 }
 
 /** Cek apakah role_key benar-benar ada di tabel roles (validasi dinamis, bukan hardcode). */

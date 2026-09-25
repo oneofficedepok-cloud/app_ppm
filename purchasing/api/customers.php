@@ -1,8 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-// Baca: semua user login (dropdown di form PR/WO/AR). Ubah: modul Master Data.
-require_module_access(null, ['masterdata']);
+// Baca: semua user login (dropdown di form PR/WO/AR). Ubah: menu Customer.
+require_perm(null, ['customers']);
 
 $method = http_method();
 $pdo = db();

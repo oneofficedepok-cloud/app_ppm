@@ -46,29 +46,42 @@ let statusChartObj = null;
 
 const currentUser = window.CURRENT_USER || null;
 const CSRF_TOKEN = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
-let appModules = {}; // daftar modul yang tersedia (key => label), dari api/roles.php
+let appModules = {}; // katalog modul -> menu (dari api/roles.php), dipakai form Role Management
 
-// ===================== HAK AKSES MODUL =====================
-// Hanya untuk menyembunyikan menu & tidak memuat data yang tidak perlu.
-// Pengaman SEBENARNYA ada di server (require_module di tiap api/*.php).
-const USER_MODULES = new Set((currentUser && currentUser.modules) || []);
-function can(module) {
-  return !!(currentUser && (currentUser.is_admin || USER_MODULES.has(module)));
+// ===================== HAK AKSES MENU =====================
+// Hanya untuk menyembunyikan menu/tombol & tidak memuat data yang tidak perlu.
+// Pengaman SEBENARNYA ada di server (require_perm di tiap api/*.php).
+// currentUser.access = {"dashboard":"edit","stok":"view", ...}
+const USER_ACCESS = (currentUser && currentUser.access) || {};
+const IS_ADMIN = !!(currentUser && currentUser.is_admin);
+/** Boleh melihat minimal salah satu menu. */
+function canView(...menus) {
+  return IS_ADMIN || menus.some(m => !!USER_ACCESS[m]);
 }
-function canAny(...modules) {
-  return modules.some(can);
+/** Boleh tambah/ubah/hapus di minimal salah satu menu. */
+function canEdit(...menus) {
+  return IS_ADMIN || menus.some(m => USER_ACCESS[m] === 'edit');
+}
+/** Modul level-1 (Purchasing/Gudang/...) tampil kalau minimal 1 menunya boleh dilihat. */
+function can(section) {
+  return (SECTION_TABS[section] || []).some(t => canView(t));
 }
 const ALL_MODULE_KEYS = ['purchasing', 'produksi', 'masterdata', 'gudang', 'finance', 'mtc'];
-// Aturan baca data per endpoint - harus sama dengan aturan di server.
+// Aturan baca data per endpoint - harus sama dengan aturan require_perm() di server.
 const READ_RULES = {
-  workOrders: () => canAny(...ALL_MODULE_KEYS),
-  prItems: () => canAny('purchasing', 'gudang', 'produksi', 'finance'),
-  sealItems: () => canAny('produksi', 'purchasing', 'finance'),
-  transportItems: () => canAny('purchasing', 'produksi', 'finance'),
-  masterUsers: () => !!(currentUser && currentUser.is_admin),
-  finance: () => can('finance'),
-  gudang: () => canAny('gudang', 'produksi'),
-  mtc: () => can('mtc'),
+  workOrders: () => IS_ADMIN || Object.keys(USER_ACCESS).length > 0,
+  prItems: () => canView('dashboard', 'incoming', 'receiving', 'tracking', 'findash'),
+  sealItems: () => canView('seal', 'tracking', 'findash'),
+  transportItems: () => canView('transport', 'tracking', 'findash'),
+  masterUsers: () => IS_ADMIN,
+  ar: () => canView('ar', 'findash', 'cashflow'),
+  ap: () => canView('ap', 'findash', 'cashflow'),
+  cashflow: () => canView('cashflow', 'findash', 'talangan'),
+  talangan: () => canView('talangan', 'findash', 'cashflow'),
+  inventoryItems: () => canView('stok', 'receiving', 'produksi', 'riwayat', 'tracking'),
+  inventoryMovements: () => canView('riwayat', 'stok', 'receiving', 'produksi'),
+  productionOrders: () => canView('produksi', 'riwayat', 'stok', 'tracking'),
+  mtcMaster: () => canView('mtcmaster', 'mtcdivisi', 'mtcdash'),
 };
 /** Panggil api() hanya kalau boleh, selain itu kembalikan array kosong. */
 function apiIf(allowed, url) {
@@ -517,16 +530,19 @@ function switchTab(tab) {
   if (tab === 'admin' && !(currentUser && currentUser.is_admin)) {
     tab = 'overview';
   }
-  // Tab milik modul yang tidak diizinkan untuk role ini -> kembali ke Dashboard.
-  const targetSection = TAB_SECTION[tab];
-  if (targetSection && ALL_MODULE_KEYS.includes(targetSection) && !can(targetSection)) {
+  // Menu yang tidak boleh dilihat role ini -> kembali ke Dashboard.
+  const isMenuTab = ALL_MODULE_KEYS.includes(TAB_SECTION[tab]);
+  if (isMenuTab && !canView(tab)) {
     tab = 'overview';
   }
 
-  // Tampilkan/sembunyikan konten tab.
+  // Tampilkan/sembunyikan konten tab. Menu yang hanya boleh DILIHAT diberi class
+  // perm-readonly -> tombol tambah/edit/hapus di dalamnya disembunyikan (lihat CSS di index.php).
   Object.keys(TAB_LOADERS).forEach(t => {
     const content = document.getElementById(`tab-content-${t}`);
-    if (content) content.classList.toggle('hidden', t !== tab);
+    if (!content) return;
+    content.classList.toggle('hidden', t !== tab);
+    if (ALL_MODULE_KEYS.includes(TAB_SECTION[t])) content.classList.toggle('perm-readonly', !canEdit(t));
   });
 
   const section = TAB_SECTION[tab] || 'overview';
@@ -577,8 +593,9 @@ function switchSection(section) {
     switchTab(section);
     return;
   }
-  const tab = lastTabForSection[section] || SECTION_TABS[section][0];
-  switchTab(tab);
+  const last = lastTabForSection[section];
+  const tab = (last && canView(last)) ? last : SECTION_TABS[section].find(t => canView(t));
+  switchTab(tab || 'overview');
 }
 
 // ===================== INIT & LOAD DATA =====================
@@ -601,16 +618,16 @@ async function loadAllData() {
       api('api/master.php?type=buyers'),
       apiIf(READ_RULES.masterUsers(), 'api/master.php?type=users'),
       api('api/roles.php'),
-      apiIf(READ_RULES.finance(), 'api/account_receivable.php'),
-      apiIf(READ_RULES.finance(), 'api/account_payable.php'),
-      apiIf(READ_RULES.finance(), 'api/dana_talangan.php'),
-      apiIf(READ_RULES.finance(), 'api/cashflow.php'),
-      apiIf(READ_RULES.gudang(), 'api/inventory_items.php'),
-      apiIf(READ_RULES.gudang(), 'api/production_orders.php'),
-      apiIf(READ_RULES.gudang(), 'api/inventory_movements.php'),
+      apiIf(READ_RULES.ar(), 'api/account_receivable.php'),
+      apiIf(READ_RULES.ap(), 'api/account_payable.php'),
+      apiIf(READ_RULES.talangan(), 'api/dana_talangan.php'),
+      apiIf(READ_RULES.cashflow(), 'api/cashflow.php'),
+      apiIf(READ_RULES.inventoryItems(), 'api/inventory_items.php'),
+      apiIf(READ_RULES.productionOrders(), 'api/production_orders.php'),
+      apiIf(READ_RULES.inventoryMovements(), 'api/inventory_movements.php'),
       api('api/master.php?type=karyawan'),
-      apiIf(READ_RULES.mtc(), 'api/mtc.php?resource=mesin'),
-      apiIf(READ_RULES.mtc(), 'api/mtc.php?resource=mp'),
+      apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mesin'),
+      apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mp'),
       api('api/mtc.php?resource=divisi_list'),
     ]);
     customers = cust; suppliers = supp; workOrders = wo; prItems = pr;
@@ -641,16 +658,16 @@ async function refresh(...keys) {
     masterBuyers: async () => (masterBuyers = await api('api/master.php?type=buyers')),
     masterUsers: async () => (masterUsers = await apiIf(READ_RULES.masterUsers(), 'api/master.php?type=users')),
     roles: async () => { const d = await api('api/roles.php'); roles = d.roles; appModules = d.modules; },
-    arData: async () => (arData = await apiIf(READ_RULES.finance(), 'api/account_receivable.php')),
-    apData: async () => (apData = await apiIf(READ_RULES.finance(), 'api/account_payable.php')),
-    danaTalangan: async () => (danaTalangan = await apiIf(READ_RULES.finance(), 'api/dana_talangan.php')),
-    cashflowCombined: async () => (cashflowCombined = await apiIf(READ_RULES.finance(), 'api/cashflow.php')),
-    inventoryItems: async () => (inventoryItems = await apiIf(READ_RULES.gudang(), 'api/inventory_items.php')),
-    productionOrders: async () => (productionOrders = await apiIf(READ_RULES.gudang(), 'api/production_orders.php')),
-    inventoryMovements: async () => (inventoryMovements = await apiIf(READ_RULES.gudang(), 'api/inventory_movements.php')),
+    arData: async () => (arData = await apiIf(READ_RULES.ar(), 'api/account_receivable.php')),
+    apData: async () => (apData = await apiIf(READ_RULES.ap(), 'api/account_payable.php')),
+    danaTalangan: async () => (danaTalangan = await apiIf(READ_RULES.talangan(), 'api/dana_talangan.php')),
+    cashflowCombined: async () => (cashflowCombined = await apiIf(READ_RULES.cashflow(), 'api/cashflow.php')),
+    inventoryItems: async () => (inventoryItems = await apiIf(READ_RULES.inventoryItems(), 'api/inventory_items.php')),
+    productionOrders: async () => (productionOrders = await apiIf(READ_RULES.productionOrders(), 'api/production_orders.php')),
+    inventoryMovements: async () => (inventoryMovements = await apiIf(READ_RULES.inventoryMovements(), 'api/inventory_movements.php')),
     karyawanList: async () => (karyawanList = await api('api/master.php?type=karyawan')),
-    mtcMesinList: async () => (mtcMesinList = await apiIf(READ_RULES.mtc(), 'api/mtc.php?resource=mesin')),
-    mtcMpList: async () => (mtcMpList = await apiIf(READ_RULES.mtc(), 'api/mtc.php?resource=mp')),
+    mtcMesinList: async () => (mtcMesinList = await apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mesin')),
+    mtcMpList: async () => (mtcMpList = await apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mp')),
   };
   await Promise.all(keys.map(k => map[k] ? map[k]() : Promise.resolve()));
   updateDropdownOptions();
@@ -3601,11 +3618,7 @@ function renderAdminSection() {
         ${Number(r.is_admin) ? '<span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-100 text-rose-700 uppercase">Admin Penuh</span>' : ''}
         ${Number(r.is_system) ? '<span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-200 text-slate-600 uppercase">Bawaan</span>' : ''}
         <div class="text-[10px] text-slate-400">${esc(r.role_key)}</div>
-        <div class="flex flex-wrap gap-1 mt-1">${Number(r.is_admin)
-          ? '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-100">SEMUA MODUL</span>'
-          : ((r.modules || []).length
-            ? r.modules.map(m => `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100">${esc(m.toUpperCase())}</span>`).join('')
-            : '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100">BELUM ADA AKSES MODUL</span>')}</div>
+        <div class="flex flex-wrap gap-1 mt-1">${roleAccessBadges(r)}</div>
       </div>
       <div class="flex items-center gap-1">
         <button onclick="openRoleModal('edit',${r.id})" class="text-rose-600 hover:text-rose-800 p-1"><i class="fa-solid fa-pen-to-square"></i></button>
@@ -3615,25 +3628,108 @@ function renderAdminSection() {
 }
 
 // --- Role Management ---
-/** Render checkbox modul di form role. */
-function renderRoleModuleCheckboxes(selected = []) {
-  const list = document.getElementById('role-modules-list');
-  list.innerHTML = Object.entries(appModules).map(([key, label]) => `
-    <label class="flex items-center gap-2 cursor-pointer">
-      <input type="checkbox" class="role-module-cb w-4 h-4 text-indigo-600 rounded border-slate-300" value="${esc(key)}" ${selected.includes(key) ? 'checked' : ''}>
-      <span class="text-slate-700">${esc(label)}</span>
-    </label>`).join('');
-  syncRoleModuleCheckboxes();
+/** Ringkasan hak akses role per modul, mis. "PURCHASING 2/2", untuk daftar role. */
+function roleAccessBadges(r) {
+  if (Number(r.is_admin)) {
+    return '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-100">SEMUA MENU</span>';
+  }
+  const access = r.access || {};
+  const badges = Object.values(appModules).map(mod => {
+    const keys = Object.keys(mod.menus);
+    const viewN = keys.filter(k => access[k]).length;
+    if (!viewN) return '';
+    const editN = keys.filter(k => access[k] === 'edit').length;
+    const title = keys.filter(k => access[k]).map(k => `${mod.menus[k]}: ${access[k] === 'edit' ? 'Ubah' : 'Lihat'}`).join('\n');
+    const tone = editN ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100 text-slate-600 border-slate-200';
+    return `<span title="${esc(title)}" class="px-1.5 py-0.5 rounded text-[9px] font-bold border ${tone}">${esc(mod.label.toUpperCase())} ${viewN}/${keys.length}${editN ? '' : ' (LIHAT)'}</span>`;
+  }).join('');
+  return badges || '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100">BELUM ADA AKSES</span>';
 }
 
-/** Role admin penuh otomatis semua modul: kunci checkbox-nya supaya jelas. */
-function syncRoleModuleCheckboxes() {
-  const isAdmin = document.getElementById('role-is-admin').checked;
-  document.querySelectorAll('.role-module-cb').forEach(cb => {
-    cb.disabled = isAdmin;
-    if (isAdmin) cb.checked = true;
+/**
+ * Render matriks hak akses (mirip policy editor AWS IAM):
+ * tiap modul = 1 grup, tiap menu = 1 baris dengan centang Lihat & Ubah.
+ */
+function renderRolePermissionMatrix(access = {}) {
+  const box = document.getElementById('role-perm-matrix');
+  box.innerHTML = Object.entries(appModules).map(([modKey, mod]) => `
+    <div class="role-perm-group" data-module="${esc(modKey)}">
+      <div class="flex items-center justify-between px-4 py-2 bg-slate-100/70">
+        <div class="font-bold text-slate-700 text-[11px] uppercase tracking-wide">${esc(mod.label)}</div>
+        <div class="flex items-center gap-4 text-[10px] font-bold text-slate-500">
+          <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" class="perm-group-cb w-3.5 h-3.5 accent-slate-600" data-level="view" onchange="toggleRolePermGroup('${esc(modKey)}', 'view', this.checked)"> Lihat semua</label>
+          <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" class="perm-group-cb w-3.5 h-3.5 accent-rose-600" data-level="edit" onchange="toggleRolePermGroup('${esc(modKey)}', 'edit', this.checked)"> Ubah semua</label>
+        </div>
+      </div>
+      ${Object.entries(mod.menus).map(([menuKey, label]) => `
+        <div class="flex items-center justify-between px-4 py-1.5 pl-7 hover:bg-slate-50">
+          <span class="text-slate-700">${esc(label)}</span>
+          <div class="flex items-center gap-4 text-[10px] font-semibold text-slate-500">
+            <label class="flex items-center gap-1 cursor-pointer w-[72px]"><input type="checkbox" class="perm-cb w-4 h-4 accent-slate-600" data-menu="${esc(menuKey)}" data-level="view" ${access[menuKey] ? 'checked' : ''} onchange="onRolePermChange(this)"> Lihat</label>
+            <label class="flex items-center gap-1 cursor-pointer w-[72px]"><input type="checkbox" class="perm-cb w-4 h-4 accent-rose-600" data-menu="${esc(menuKey)}" data-level="edit" ${access[menuKey] === 'edit' ? 'checked' : ''} onchange="onRolePermChange(this)"> Ubah</label>
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+  syncRolePermissionMatrix();
+}
+
+/** Ubah otomatis mencentang Lihat; mencabut Lihat otomatis mencabut Ubah. */
+function onRolePermChange(cb) {
+  const menu = cb.dataset.menu;
+  const view = document.querySelector(`.perm-cb[data-menu="${menu}"][data-level="view"]`);
+  const edit = document.querySelector(`.perm-cb[data-menu="${menu}"][data-level="edit"]`);
+  if (cb === edit && edit.checked) view.checked = true;
+  if (cb === view && !view.checked) edit.checked = false;
+  syncRolePermissionMatrix();
+}
+
+function toggleRolePermGroup(modKey, level, checked) {
+  document.querySelectorAll(`.role-perm-group[data-module="${modKey}"] .perm-cb[data-level="${level}"]`).forEach(cb => {
+    cb.checked = checked;
+    onRolePermChange(cb);
   });
-  document.getElementById('role-modules-admin-note').classList.toggle('hidden', !isAdmin);
+  syncRolePermissionMatrix();
+}
+
+/** level: 'view' | 'edit' | '' (kosongkan semua) */
+function setAllRolePermissions(level) {
+  document.querySelectorAll('.perm-cb').forEach(cb => {
+    cb.checked = level === 'edit' || (level === 'view' && cb.dataset.level === 'view');
+  });
+  syncRolePermissionMatrix();
+}
+
+/** Sinkronkan centang grup, kunci matriks kalau Admin Penuh, dan tampilkan ringkasan. */
+function syncRolePermissionMatrix() {
+  const isAdmin = document.getElementById('role-is-admin').checked;
+  document.querySelectorAll('.perm-cb, .perm-group-cb').forEach(cb => { cb.disabled = isAdmin; });
+  if (isAdmin) document.querySelectorAll('.perm-cb').forEach(cb => { cb.checked = true; });
+  document.getElementById('role-perm-admin-note').classList.toggle('hidden', !isAdmin);
+
+  document.querySelectorAll('.role-perm-group').forEach(g => {
+    ['view', 'edit'].forEach(level => {
+      const cbs = [...g.querySelectorAll(`.perm-cb[data-level="${level}"]`)];
+      const groupCb = g.querySelector(`.perm-group-cb[data-level="${level}"]`);
+      const n = cbs.filter(c => c.checked).length;
+      groupCb.checked = n === cbs.length;
+      groupCb.indeterminate = n > 0 && n < cbs.length;
+    });
+  });
+
+  const access = readRolePermissionMatrix();
+  const viewN = Object.keys(access).length;
+  const editN = Object.values(access).filter(v => v === 'edit').length;
+  document.getElementById('role-perm-summary').textContent = isAdmin
+    ? 'Role ini bisa membuka dan mengubah semua menu.'
+    : `${viewN} menu bisa dibuka, ${editN} di antaranya boleh diubah.${viewN ? '' : ' User dengan role ini hanya akan melihat Dashboard & Akun Saya.'}`;
+}
+
+/** Baca matriks jadi {"dashboard":"edit","stok":"view"}. */
+function readRolePermissionMatrix() {
+  const access = {};
+  document.querySelectorAll('.perm-cb[data-level="view"]:checked').forEach(cb => { access[cb.dataset.menu] = 'view'; });
+  document.querySelectorAll('.perm-cb[data-level="edit"]:checked').forEach(cb => { access[cb.dataset.menu] = 'edit'; });
+  return access;
 }
 
 function openRoleModal(mode, id = null) {
@@ -3648,7 +3744,7 @@ function openRoleModal(mode, id = null) {
   if (mode === 'add') {
     title.textContent = 'Tambah Role Baru';
     document.getElementById('role-key-preview').textContent = 'Kode teknis role akan dibuat otomatis dari nama ini.';
-    renderRoleModuleCheckboxes([]);
+    renderRolePermissionMatrix({});
   } else {
     const r = roles.find(x => x.id === id);
     if (!r) return;
@@ -3663,7 +3759,7 @@ function openRoleModal(mode, id = null) {
     if (Number(r.is_system)) {
       document.getElementById('role-system-note').classList.remove('hidden');
     }
-    renderRoleModuleCheckboxes(r.modules || []);
+    renderRolePermissionMatrix(r.access || {});
   }
   document.getElementById('role-modal').classList.remove('hidden');
 }
@@ -3692,7 +3788,7 @@ async function handleRoleSubmit(e) {
     id: id || undefined,
     label: document.getElementById('role-label').value.trim(),
     is_admin: document.getElementById('role-is-admin').checked,
-    modules: [...document.querySelectorAll('.role-module-cb:checked')].map(cb => cb.value),
+    access: readRolePermissionMatrix(),
   };
 
   try {
@@ -4922,5 +5018,58 @@ function renderOverviewDashboard() {
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } } },
     });
+  }
+}
+
+
+// ===================== AKUN SAYA =====================
+async function openAccountModal() {
+  document.getElementById('account-password-form').reset();
+  document.getElementById('account-modal').classList.remove('hidden');
+  const list = document.getElementById('account-access-list');
+  list.textContent = 'Memuat...';
+  try {
+    const me = await api('api/account.php');
+    if (me.is_admin) {
+      list.innerHTML = '<span class="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-100 font-bold">Akses Admin Penuh &mdash; semua menu + Administrator</span>';
+    } else if (!me.access.length) {
+      list.innerHTML = '<span class="text-amber-700">Belum ada menu yang diizinkan untuk role Anda. Hubungi admin.</span>';
+    } else {
+      list.innerHTML = me.access.map(g => `
+        <div class="border border-slate-200 rounded-lg px-3 py-2">
+          <div class="font-bold text-slate-700 text-[11px] uppercase mb-1">${esc(g.module)}</div>
+          <div class="flex flex-wrap gap-1.5">${g.menus.map(m => `
+            <span class="px-2 py-0.5 rounded-full border text-[10px] font-semibold ${m.level === 'edit' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-100 text-slate-600 border-slate-200'}">
+              ${esc(m.menu)} &middot; ${m.level === 'edit' ? 'Lihat &amp; Ubah' : 'Lihat saja'}
+            </span>`).join('')}</div>
+        </div>`).join('');
+    }
+  } catch (err) {
+    list.textContent = err.message;
+  }
+}
+
+function closeAccountModal() {
+  document.getElementById('account-modal').classList.add('hidden');
+}
+
+async function handleChangeOwnPassword(e) {
+  e.preventDefault();
+  const btn = document.getElementById('acc-submit-btn');
+  btn.disabled = true;
+  try {
+    await api('api/account.php?action=change_password', 'POST', {
+      current_password: document.getElementById('acc-current-password').value,
+      new_password: document.getElementById('acc-new-password').value,
+      confirm_password: document.getElementById('acc-confirm-password').value,
+    });
+    showToast('Password berhasil diganti.');
+    closeAccountModal();
+    // Muat ulang supaya peringatan "password lemah" hilang & sesi baru dipakai.
+    setTimeout(() => window.location.reload(), 900);
+  } catch (err) {
+    showApiError(err);
+  } finally {
+    btn.disabled = false;
   }
 }

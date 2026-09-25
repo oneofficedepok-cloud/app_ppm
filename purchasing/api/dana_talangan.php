@@ -2,7 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/cashflow.php';
 
-require_module('finance');
+require_perm(['talangan', 'findash', 'cashflow'], ['talangan']);
 
 $method = http_method();
 $pdo = db();

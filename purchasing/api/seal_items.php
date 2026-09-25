@@ -1,8 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-// Baca: Produksi (+ Purchasing & Finance untuk rekap biaya WO). Ubah: modul Produksi.
-require_module_access(['produksi', 'purchasing', 'finance'], ['produksi']);
+// Baca: Seal CNC + WO & Budget (rekap biaya) + Finance Dashboard. Ubah: menu Seal CNC.
+require_perm(['seal', 'tracking', 'findash'], ['seal']);
 
 $method = http_method();
 $pdo = db();

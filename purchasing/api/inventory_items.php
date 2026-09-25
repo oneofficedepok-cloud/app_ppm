@@ -1,8 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-// Baca: Gudang & Produksi (WO memakai stok). Ubah: modul Gudang.
-require_module_access(['gudang', 'produksi'], ['gudang']);
+// Baca: menu-menu Gudang + WO. Ubah: menu Stok Material.
+require_perm(['stok', 'receiving', 'produksi', 'riwayat', 'tracking'], ['stok']);
 
 $method = http_method();
 $pdo = db();

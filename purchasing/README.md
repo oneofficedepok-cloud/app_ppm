@@ -92,29 +92,42 @@ Cara tambah: Menu **Master Directory** → **Master User & Divisi** → **+ Tamb
 | `admin` | Semua + menu Administrator | Akses penuh (role sistem, tidak bisa dihapus) — kelola user, role, import data |
 | `manager_purchasing` | Semua modul | Approval final PR (tahap ke-3 alur approval) |
 | `staff_purchasing` | Purchasing, Gudang | Staff purchasing |
+| `staff_gudang` | Gudang (ubah), WO/Seal/PR (lihat) | Staff gudang |
 | `leader` | Purchasing, Gudang | Pengecekan PR (tahap ke-2 alur approval) |
 | `buyer` | Purchasing, Gudang | Membuat PR (tahap ke-1 alur approval) |
-| `user` | Purchasing | Staff biasa / pemohon PR (role sistem, default untuk akun baru) |
+| `user` | Purchase Request | Staff biasa / pemohon PR (role sistem, default untuk akun baru) |
 
-### Hak Akses per Modul
+### Hak Akses per Menu (mirip AWS IAM)
 
-Tiap role punya daftar **modul** yang boleh dibuka. Atur di **Administrator → Role Management → Edit role** lalu centang modulnya:
+Buka **Administrator → Role Management → + Tambah / Edit role**. Di bagian **Hak Akses Menu**, tiap modul punya daftar menu. Centang per menu:
 
-| Kode modul | Isi menu |
+- **Lihat**: menu tampil dan datanya bisa dibaca. Tombol tambah, edit, dan hapus disembunyikan.
+- **Ubah**: boleh tambah, edit, hapus, dan proses. Otomatis ikut mencentang Lihat.
+- Pintasan: **Lihat semua / Ubah semua** per modul, serta **Semua Lihat / Semua Ubah / Kosongkan** untuk seluruh menu.
+
+| Modul | Menu |
 |---|---|
-| `purchasing` | Purchase Request (PR), Transportasi |
-| `produksi` | WO & Budget, Seal CNC |
-| `masterdata` | Customer, Supplier, Master Directory (Product/Buyer/Karyawan) |
-| `gudang` | Stok Material, Incoming, Receiving, Produksi & BOM, Riwayat Pergerakan |
-| `finance` | Finance Dashboard, Cash Flow, AR, AP, Dana Talangan |
-| `mtc` | MTC Produksi |
+| Purchasing | Purchase Request (PR), Transportasi |
+| Produksi | WO & Budget, Seal CNC |
+| Master Data | Customer, Supplier, Master Directory |
+| Gudang & Produksi | Stok Material, Incoming Goods, Receiving Goods, Produksi & BOM, Riwayat Pergerakan |
+| Finance | Finance Dashboard, Cash Flow, AR, AP, Dana Talangan |
+| MTC Produksi | Dashboard MTC, Modul Divisi Produksi, Master Data MTC |
+
+Contoh role **Staff Gudang** (sudah dibuat otomatis oleh migrasi): Gudang & Produksi = Ubah semua; WO & Budget, Seal CNC, Purchase Request = Lihat.
 
 Aturannya:
-- Menu modul yang tidak dicentang **disembunyikan**, dan **diblokir juga di server** (API membalas 403), jadi tidak bisa dibobol lewat console browser.
-- Role yang dicentang **Akses Admin Penuh** otomatis boleh semua modul + menu Administrator.
-- Data referensi (daftar Customer, Supplier, Product, Buyer, Karyawan, WO) tetap bisa **dibaca** semua user untuk mengisi dropdown form. **Menambah/mengubah** data itu butuh modul `masterdata` (atau `produksi` untuk WO).
-- Perubahan role/status user langsung berlaku di request berikutnya — user yang dinonaktifkan langsung ter-logout.
-- Role baru yang belum dicentang modul apapun hanya bisa melihat Dashboard (aman secara default).
+- Menu yang tidak dicentang **disembunyikan**, dan **diblokir juga di server** (API membalas 403), jadi tidak bisa dibobol lewat console browser.
+- Role yang dicentang **Akses Admin Penuh** otomatis boleh semua menu + menu Administrator.
+- Data referensi (daftar Customer, Supplier, Product, Buyer, Karyawan, WO) tetap bisa **dibaca** semua user untuk mengisi dropdown form. Menambah atau mengubahnya butuh izin **Ubah** di menu terkait.
+- Perubahan role/status user langsung berlaku di request berikutnya. User yang dinonaktifkan langsung ter-logout.
+- Role baru yang belum dicentang apapun hanya bisa melihat Dashboard & Akun Saya (aman secara default).
+
+### Akun Saya
+
+Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:
+- melihat profil & daftar hak akses menunya sendiri
+- **mengganti password sendiri** (wajib isi password lama)
 
 Detail hak akses tiap role di alur approval PR ada di bagian **8b** di bawah. Untuk menambah role baru di luar daftar ini (misal "Supervisor Gudang"), buka menu Role Management — tidak perlu bantuan saya lagi untuk itu.
 
@@ -174,7 +187,7 @@ Semua endpoint di `api/` mengembalikan format JSON konsisten:
 - Session cookie: `HttpOnly`, `SameSite=Lax`, otomatis `Secure` kalau diakses via HTTPS
 - Kalkulasi uang (PPN, DPP, Total, Profit/Loss) dihitung **di server**, bukan percaya angka dari browser
 - Role-based access: hapus data master & user hanya bisa oleh role `admin`
-- **Hak akses per modul** per role, dicek di server di setiap endpoint API (lihat bagian 4)
+- **Hak akses per menu (Lihat/Ubah)** per role, dicek di server di setiap endpoint API (lihat bagian 4)
 - **Token CSRF** wajib untuk semua request yang mengubah data (situs lain tidak bisa menumpang sesi login)
 - **Anti brute-force login**: 5x salah password (per username + IP) atau 20x dari 1 IP → dikunci 15 menit (tabel `login_attempts`)
 - **Auto logout** setelah 2 jam tidak aktif; data user & hak akses dibaca ulang dari database setiap request

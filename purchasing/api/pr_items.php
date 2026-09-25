@@ -8,12 +8,12 @@ $pdo = db();
 $action = $_GET['action'] ?? '';
 
 if ($method === 'POST' && $action === 'receive') {
-    // Penerimaan barang dilakukan tim Gudang (atau Purchasing).
-    require_module(['gudang', 'purchasing']);
+    // Penerimaan barang dilakukan tim Gudang dari menu Incoming / Receiving Goods.
+    require_edit(['incoming', 'receiving']);
 } else {
-    // Baca: Purchasing + modul yang memakai data PR (Incoming/Receiving Gudang,
-    // biaya aktual WO di Produksi, Finance). Ubah/approval: modul Purchasing.
-    require_module_access(['purchasing', 'gudang', 'produksi', 'finance'], ['purchasing']);
+    // Baca: menu PR + menu yang memakai data PR (Incoming/Receiving Gudang,
+    // biaya aktual WO, Finance Dashboard). Ubah & approval: menu PR.
+    require_perm(['dashboard', 'incoming', 'receiving', 'tracking', 'findash'], ['dashboard']);
 }
 
 // ---------------------------------------------------------

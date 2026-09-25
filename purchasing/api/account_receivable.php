@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-require_module('finance');
+// Baca: menu AR + Finance Dashboard & Cash Flow (rekap). Ubah: menu AR.
+require_perm(['ar', 'findash', 'cashflow'], ['ar']);
 
 $method = http_method();
 $pdo = db();

@@ -2,7 +2,9 @@
 require_once __DIR__ . '/includes/auth.php';
 
 $user = require_login_redirect();
-$can = fn(string $module): bool => user_can($user, $module);
+$can = fn(string $module): bool => user_can($user, $module);           // modul level-1 tampil?
+$canView = fn(string $menu): bool => user_level($user, $menu) >= PERM_VIEW; // sub-menu tampil?
+$canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // boleh tambah/ubah/hapus?
 ?>
 <!DOCTYPE html>
 <html lang="id" class="h-full bg-slate-100">
@@ -22,6 +24,17 @@ $can = fn(string $module): bool => user_can($user, $module);
     .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Menu yang role-nya hanya boleh LIHAT: sembunyikan semua tombol tambah/edit/hapus/proses.
+       (Pengaman sebenarnya tetap di server - API menolak dengan 403.) */
+    .perm-readonly [onclick*="Modal('add"], .perm-readonly [onclick*="Modal('edit"],
+    .perm-readonly [onclick^="openAddMasterModal"], .perm-readonly [onclick^="delete"],
+    .perm-readonly [onclick^="bulkDelete"], .perm-readonly [onclick^="openCashflowModal"],
+    .perm-readonly [onclick^="editCashflowRow"], .perm-readonly [onclick^="openMovementModal"],
+    .perm-readonly [onclick^="openReceiveGoodsModal"], .perm-readonly [onclick^="consumeProductionMaterial"],
+    .perm-readonly [onclick^="openApprovalModal"], .perm-readonly [onclick^="resubmitPR"],
+    .perm-readonly [onclick^="jumpToEditWO"], .perm-readonly [onclick^="jumpToMTCRecordEdit"],
+    .perm-readonly input[data-bulk], .perm-readonly input[onchange^="toggleBulkAll"] { display: none !important; }
   </style>
 </head>
 <body class="h-full font-sans text-slate-800 antialiased flex flex-col min-h-screen">
@@ -43,7 +56,7 @@ $can = fn(string $module): bool => user_can($user, $module);
         </div>
 
         <div class="flex items-center gap-2">
-          <?php if ($can('purchasing')): ?>
+          <?php if ($canView('dashboard')): ?>
           <button onclick="downloadExcelTemplate()" class="hidden md:flex bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition items-center gap-1.5">
             <i class="fa-solid fa-file-csv"></i> Template Excel
           </button>
@@ -51,12 +64,12 @@ $can = fn(string $module): bool => user_can($user, $module);
             <i class="fa-solid fa-file-export"></i> Export Excel
           </button>
           <?php endif; ?>
-          <?php if ($can('produksi')): ?>
+          <?php if ($canEdit('tracking')): ?>
           <button onclick="openWOModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
             <i class="fa-solid fa-folder-plus"></i> + WO Baru
           </button>
           <?php endif; ?>
-          <?php if ($can('purchasing')): ?>
+          <?php if ($canEdit('dashboard')): ?>
           <button onclick="openModal('add')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
             <i class="fa-solid fa-plus-circle"></i> + PR Baru
           </button>
@@ -75,6 +88,10 @@ $can = fn(string $module): bool => user_can($user, $module);
               <span class="hidden sm:inline">Administrator</span>
             </button>
             <?php endif; ?>
+            <button onclick="openAccountModal()" title="Akun Saya" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-slate-700">
+              <i class="fa-solid fa-circle-user text-indigo-300"></i>
+              <span class="hidden sm:inline">Akun Saya</span>
+            </button>
             <a href="logout.php" onclick="return confirm('Yakin ingin logout?')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-slate-700">
               <i class="fa-solid fa-right-from-bracket text-rose-400"></i>
               <span class="hidden sm:inline">Logout</span>
@@ -131,12 +148,16 @@ $can = fn(string $module): bool => user_can($user, $module);
   <nav id="subnav-purchasing" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
+        <?php if ($canView('dashboard')): ?>
         <button id="tab-btn-dashboard" onclick="switchTab('dashboard')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-table-cells"></i> PURCHASE REQUEST (PR)
         </button>
+        <?php endif; ?>
+        <?php if ($canView('transport')): ?>
         <button id="tab-btn-transport" onclick="switchTab('transport')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-truck-fast text-blue-500"></i> TRANSPORTASI
         </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -145,12 +166,16 @@ $can = fn(string $module): bool => user_can($user, $module);
   <nav id="subnav-produksi" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
+        <?php if ($canView('tracking')): ?>
         <button id="tab-btn-tracking" onclick="switchTab('tracking')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-diagram-project text-indigo-600"></i> WO & BUDGET
         </button>
+        <?php endif; ?>
+        <?php if ($canView('seal')): ?>
         <button id="tab-btn-seal" onclick="switchTab('seal')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-compact-disc text-amber-500"></i> SEAL CNC
         </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -159,15 +184,21 @@ $can = fn(string $module): bool => user_can($user, $module);
   <nav id="subnav-masterdata" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
+        <?php if ($canView('customers')): ?>
         <button id="tab-btn-customers" onclick="switchTab('customers')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-building text-blue-600"></i> CUSTOMER
         </button>
+        <?php endif; ?>
+        <?php if ($canView('suppliers')): ?>
         <button id="tab-btn-suppliers" onclick="switchTab('suppliers')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-truck-field-un text-purple-600"></i> SUPPLIER
         </button>
+        <?php endif; ?>
+        <?php if ($canView('master')): ?>
         <button id="tab-btn-master" onclick="switchTab('master')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-database text-slate-700"></i> MASTER DIRECTORY
         </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -176,22 +207,32 @@ $can = fn(string $module): bool => user_can($user, $module);
   <nav id="subnav-gudang" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
+        <?php if ($canView('stok')): ?>
         <button id="tab-btn-stok" onclick="switchTab('stok')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-cubes text-emerald-600"></i> STOK MATERIAL
         </button>
+        <?php endif; ?>
+        <?php if ($canView('incoming')): ?>
         <button id="tab-btn-incoming" onclick="switchTab('incoming')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-truck-ramp-box text-orange-600"></i> INCOMING GOODS
           <span id="incoming-badge" class="hidden bg-orange-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">0</span>
         </button>
+        <?php endif; ?>
+        <?php if ($canView('receiving')): ?>
         <button id="tab-btn-receiving" onclick="switchTab('receiving')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-clipboard-check text-lime-600"></i> RECEIVING GOODS
         </button>
+        <?php endif; ?>
+        <?php if ($canView('produksi')): ?>
         <button id="tab-btn-produksi" onclick="switchTab('produksi')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-gears text-teal-600"></i> PRODUKSI & BOM
         </button>
+        <?php endif; ?>
+        <?php if ($canView('riwayat')): ?>
         <button id="tab-btn-riwayat" onclick="switchTab('riwayat')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-clock-rotate-left text-cyan-600"></i> RIWAYAT PERGERAKAN
         </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -200,21 +241,31 @@ $can = fn(string $module): bool => user_can($user, $module);
   <nav id="subnav-finance" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
+        <?php if ($canView('findash')): ?>
         <button id="tab-btn-findash" onclick="switchTab('findash')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-chart-line text-emerald-600"></i> FINANCE DASHBOARD
         </button>
+        <?php endif; ?>
+        <?php if ($canView('cashflow')): ?>
         <button id="tab-btn-cashflow" onclick="switchTab('cashflow')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-money-bill-transfer text-emerald-600"></i> CASH FLOW
         </button>
+        <?php endif; ?>
+        <?php if ($canView('ar')): ?>
         <button id="tab-btn-ar" onclick="switchTab('ar')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-file-invoice-dollar text-amber-600"></i> AR (PIUTANG)
         </button>
+        <?php endif; ?>
+        <?php if ($canView('ap')): ?>
         <button id="tab-btn-ap" onclick="switchTab('ap')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-receipt text-rose-600"></i> AP (HUTANG)
         </button>
+        <?php endif; ?>
+        <?php if ($canView('talangan')): ?>
         <button id="tab-btn-talangan" onclick="switchTab('talangan')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-hand-holding-dollar text-purple-600"></i> DANA TALANGAN
         </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -223,15 +274,21 @@ $can = fn(string $module): bool => user_can($user, $module);
   <nav id="subnav-mtc" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
+        <?php if ($canView('mtcdash')): ?>
         <button id="tab-btn-mtcdash" onclick="switchTab('mtcdash')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-chart-line text-indigo-600"></i> DASHBOARD MTC
         </button>
+        <?php endif; ?>
+        <?php if ($canView('mtcdivisi')): ?>
         <button id="tab-btn-mtcdivisi" onclick="switchTab('mtcdivisi')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-sitemap text-teal-600"></i> MODUL DIVISI PRODUKSI
         </button>
+        <?php endif; ?>
+        <?php if ($canView('mtcmaster')): ?>
         <button id="tab-btn-mtcmaster" onclick="switchTab('mtcmaster')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-database text-amber-600"></i> MASTER DATA
         </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -240,7 +297,7 @@ $can = fn(string $module): bool => user_can($user, $module);
     <?php if (!empty($user['weak_password'])): ?>
     <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-2xl p-4 flex items-start gap-2">
       <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
-      <div><b>Password Anda lemah atau masih default.</b> Segera ganti password (minimal <?= (int) PASSWORD_MIN_LENGTH ?> karakter, kombinasi huruf &amp; angka)<?= !empty($user['is_admin']) ? ' lewat menu Administrator &rarr; Master User &amp; Divisi' : ' — minta admin untuk menggantinya' ?>.</div>
+      <div><b>Password Anda lemah atau masih default.</b> Segera ganti password (minimal <?= (int) PASSWORD_MIN_LENGTH ?> karakter, kombinasi huruf &amp; angka) lewat <button onclick="openAccountModal()" class="underline font-bold">Akun Saya</button>.</div>
     </div>
     <?php endif; ?>
 
@@ -252,13 +309,13 @@ $can = fn(string $module): bool => user_can($user, $module);
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <?php if ($can('purchasing')): ?>
+        <?php if ($canView('dashboard')): ?>
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
           <div class="flex justify-between items-start"><span class="text-[11px] font-bold text-slate-400 uppercase">Total Belanja Purchasing</span><span class="p-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs"><i class="fa-solid fa-cart-shopping"></i></span></div>
           <div id="ov-total-purchasing" class="text-lg font-bold text-slate-800 mt-2">Rp 0</div>
         </div>
         <?php endif; ?>
-        <?php if ($can('finance')): ?>
+        <?php if ($canView('findash')): ?>
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
           <div class="flex justify-between items-start"><span class="text-[11px] font-bold text-slate-400 uppercase">Saldo Kas (Finance)</span><span class="p-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs"><i class="fa-solid fa-wallet"></i></span></div>
           <div id="ov-saldo-kas" class="text-lg font-bold text-emerald-600 mt-2">Rp 0</div>
@@ -275,7 +332,7 @@ $can = fn(string $module): bool => user_can($user, $module);
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <?php if ($can('purchasing')): ?>
+        <?php if ($canView('dashboard')): ?>
         <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col">
           <div class="flex items-center justify-between mb-1">
             <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><i class="fa-solid fa-boxes-packing text-indigo-600"></i> Ringkasan Purchasing</h3>
@@ -285,7 +342,7 @@ $can = fn(string $module): bool => user_can($user, $module);
           <div class="h-56 relative"><canvas id="chart-overview-purchasing"></canvas></div>
         </div>
         <?php endif; ?>
-        <?php if ($can('finance')): ?>
+        <?php if ($canView('findash')): ?>
         <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col">
           <div class="flex items-center justify-between mb-1">
             <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><i class="fa-solid fa-sack-dollar text-emerald-600"></i> Ringkasan Finance</h3>
@@ -1924,37 +1981,87 @@ $can = fn(string $module): bool => user_can($user, $module);
 
   <!-- MODAL: TAMBAH / EDIT ROLE -->
   <div id="role-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md max-h-[90vh] overflow-y-auto">
-      <div class="px-6 py-4 bg-rose-600 text-white flex items-center justify-between">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="px-6 py-4 bg-rose-600 text-white flex items-center justify-between shrink-0">
         <h3 id="role-modal-title" class="font-bold text-base">Tambah Role</h3>
         <button onclick="closeRoleModal()" class="text-white/80 hover:text-white p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
       </div>
-      <form id="role-form" onsubmit="handleRoleSubmit(event)" class="p-6 space-y-4 text-xs">
-        <input type="hidden" id="role-form-id">
-        <div>
-          <label class="block font-semibold text-slate-700 mb-1">Nama Role *</label>
-          <input type="text" id="role-label" placeholder="Contoh: Leader Gudang" required oninput="previewRoleKey()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
-          <p id="role-key-preview" class="text-[10px] text-slate-400 mt-1"></p>
+      <form id="role-form" onsubmit="handleRoleSubmit(event)" class="flex flex-col min-h-0 text-xs">
+        <div class="p-6 space-y-4 overflow-y-auto custom-scrollbar">
+          <input type="hidden" id="role-form-id">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Nama Role *</label>
+            <input type="text" id="role-label" placeholder="Contoh: Staff Gudang" required oninput="previewRoleKey()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
+            <p id="role-key-preview" class="text-[10px] text-slate-400 mt-1"></p>
+          </div>
+          <div class="flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-lg p-3">
+            <input type="checkbox" id="role-is-admin" onchange="syncRolePermissionMatrix()" class="w-4 h-4 mt-0.5 text-rose-600 rounded border-slate-300">
+            <label for="role-is-admin" class="text-xs text-rose-900 cursor-pointer">
+              <span class="font-bold">Akses Admin Penuh</span><br>
+              <span class="text-[10px] text-rose-700">Kalau dicentang, role ini bisa membuka SEMUA menu + menu Administrator (kelola user, role, import data) — setara akun Admin.</span>
+            </label>
+          </div>
+
+          <div id="role-perm-box" class="border border-slate-200 rounded-xl overflow-hidden">
+            <div class="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div class="font-bold text-slate-800 text-sm"><i class="fa-solid fa-key text-rose-600 mr-1"></i> Hak Akses Menu</div>
+                <p class="text-[10px] text-slate-500"><b>Lihat</b> = menu tampil &amp; data bisa dibaca. <b>Ubah</b> = boleh tambah / edit / hapus / proses (otomatis termasuk Lihat).</p>
+              </div>
+              <div class="flex gap-1.5 shrink-0">
+                <button type="button" onclick="setAllRolePermissions('view')" class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-600 font-bold text-[10px] hover:bg-slate-100">Semua Lihat</button>
+                <button type="button" onclick="setAllRolePermissions('edit')" class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-600 font-bold text-[10px] hover:bg-slate-100">Semua Ubah</button>
+                <button type="button" onclick="setAllRolePermissions('')" class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-rose-600 font-bold text-[10px] hover:bg-rose-50">Kosongkan</button>
+              </div>
+            </div>
+            <div id="role-perm-matrix" class="divide-y divide-slate-200"></div>
+            <p id="role-perm-admin-note" class="hidden px-4 py-2 text-[10px] text-rose-700 bg-rose-50 border-t border-rose-100">Role dengan Akses Admin Penuh otomatis bisa membuka &amp; mengubah semua menu.</p>
+          </div>
+          <p id="role-perm-summary" class="text-[10px] text-slate-500"></p>
+          <p id="role-system-note" class="hidden text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">Ini role bawaan sistem. Nama &amp; hak akses boleh diubah, tapi tidak bisa dihapus.</p>
         </div>
-        <div class="flex items-start gap-2 bg-rose-50 border border-rose-100 rounded-lg p-3">
-          <input type="checkbox" id="role-is-admin" onchange="syncRoleModuleCheckboxes()" class="w-4 h-4 mt-0.5 text-rose-600 rounded border-slate-300">
-          <label for="role-is-admin" class="text-xs text-rose-900 cursor-pointer">
-            <span class="font-bold">Akses Admin Penuh</span><br>
-            <span class="text-[10px] text-rose-700">Kalau dicentang, siapapun dengan role ini bisa hapus data master, hapus user, dan kelola role lain — setara akun Admin.</span>
-          </label>
-        </div>
-        <div id="role-modules-box" class="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-2">
-          <div class="font-bold text-slate-700">Hak Akses Modul</div>
-          <p class="text-[10px] text-slate-500 -mt-1">Centang modul yang boleh dibuka role ini. Menu yang tidak dicentang akan disembunyikan dan diblokir di server.</p>
-          <div id="role-modules-list" class="grid grid-cols-1 gap-1.5"></div>
-          <p id="role-modules-admin-note" class="hidden text-[10px] text-rose-700">Role dengan Akses Admin Penuh otomatis bisa membuka semua modul.</p>
-        </div>
-        <p id="role-system-note" class="hidden text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">Ini role bawaan sistem. Nama boleh diubah, tapi tidak bisa dihapus dan status Akses Admin Penuh-nya terkunci.</p>
-        <div class="pt-2 flex items-center justify-end space-x-2 border-t border-slate-100">
+        <div class="px-6 py-3 flex items-center justify-end space-x-2 border-t border-slate-100 bg-white shrink-0">
           <button type="button" onclick="closeRoleModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold">Batal</button>
           <button type="submit" class="px-5 py-2 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 shadow-md">Simpan Role</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AKUN SAYA (semua user) -->
+  <div id="account-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-lg max-h-[92vh] overflow-y-auto custom-scrollbar">
+      <div class="px-6 py-4 bg-indigo-600 text-white flex items-center justify-between">
+        <h3 class="font-bold text-base"><i class="fa-solid fa-circle-user mr-1"></i> Akun Saya</h3>
+        <button onclick="closeAccountModal()" class="text-white/80 hover:text-white p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div class="p-6 space-y-5 text-xs">
+        <div class="grid grid-cols-2 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <div><div class="text-[10px] text-slate-400 uppercase font-bold">Nama</div><div class="font-bold text-slate-800"><?= esc_html($user['full_name']) ?></div></div>
+          <div><div class="text-[10px] text-slate-400 uppercase font-bold">Username</div><div class="font-bold text-slate-800">@<?= esc_html($user['username']) ?></div></div>
+          <div><div class="text-[10px] text-slate-400 uppercase font-bold">Divisi</div><div class="font-bold text-slate-800"><?= esc_html($user['divisi']) ?></div></div>
+          <div><div class="text-[10px] text-slate-400 uppercase font-bold">Role</div><div class="font-bold text-slate-800"><?= esc_html($user['role_label']) ?></div></div>
+        </div>
+
+        <div>
+          <div class="font-bold text-slate-700 mb-2"><i class="fa-solid fa-key text-indigo-600 mr-1"></i> Hak Akses Saya</div>
+          <div id="account-access-list" class="space-y-2 text-[11px] text-slate-500">Memuat...</div>
+        </div>
+
+        <form id="account-password-form" onsubmit="handleChangeOwnPassword(event)" class="space-y-3 border-t border-slate-100 pt-4">
+          <div class="font-bold text-slate-700"><i class="fa-solid fa-lock text-indigo-600 mr-1"></i> Ganti Password</div>
+          <div><label class="block font-semibold text-slate-700 mb-1">Password Lama *</label><input type="password" id="acc-current-password" required autocomplete="current-password" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label class="block font-semibold text-slate-700 mb-1">Password Baru *</label><input type="password" id="acc-new-password" required autocomplete="new-password" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+            <div><label class="block font-semibold text-slate-700 mb-1">Ulangi Password Baru *</label><input type="password" id="acc-confirm-password" required autocomplete="new-password" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+          </div>
+          <p class="text-[10px] text-slate-400">Minimal <?= (int) PASSWORD_MIN_LENGTH ?> karakter, kombinasi huruf &amp; angka, jangan sama dengan username.</p>
+          <div class="flex justify-end gap-2">
+            <button type="button" onclick="closeAccountModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold">Tutup</button>
+            <button type="submit" id="acc-submit-btn" class="px-5 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-md">Simpan Password</button>
+          </div>
+        </form>
+      </div>
     </div>
   </div>
 

@@ -1,11 +1,19 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-$method = http_method();
-if (($_GET['resource'] ?? 'dashboard') === 'divisi_list' && $method === 'GET') {
-    require_login(); // daftar divisi baku = data referensi umum
-} else {
-    require_module('mtc');
+switch ($_GET['resource'] ?? 'dashboard') {
+    case 'divisi_list':
+        require_login(); // daftar divisi baku = data referensi umum
+        break;
+    case 'mesin':
+    case 'mp':
+        require_perm(['mtcmaster', 'mtcdivisi', 'mtcdash'], ['mtcmaster']);
+        break;
+    case 'records':
+        require_perm(['mtcdivisi', 'mtcdash'], ['mtcdivisi', 'mtcdash']);
+        break;
+    default: // dashboard
+        require_view(['mtcdash', 'mtcdivisi']);
 }
 
 $pdo = db();

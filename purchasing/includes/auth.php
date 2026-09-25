@@ -126,7 +126,12 @@ function load_user(string $where, array $params, bool $withPassword = false): ?a
 
     $user['id'] = (int) $user['id'];
     $user['is_admin'] = (bool) $user['is_admin'];
-    $user['modules'] = $user['is_admin'] ? array_keys(APP_MODULES) : parse_modules($user['modules'] ?? '');
+    // perms  : ['menu' => PERM_VIEW|PERM_EDIT] (dipakai server)
+    // access : {"menu": "view"|"edit"}        (dikirim ke browser untuk tampilan menu)
+    // modules: modul level-1 yang punya minimal 1 menu boleh dilihat
+    $user['perms'] = $user['is_admin'] ? full_permissions() : parse_permissions($user['modules'] ?? '');
+    $user['access'] = permissions_for_client($user['perms']);
+    $user['modules'] = visible_modules($user['perms']);
     return $user;
 }
 
@@ -230,21 +235,47 @@ function current_user(): ?array
     return $cached = $user;
 }
 
-/** Apakah user boleh mengakses modul tertentu. */
+/** Level izin user untuk satu menu: PERM_NONE / PERM_VIEW / PERM_EDIT. */
+function user_level(?array $user, string $menu): int
+{
+    if (!$user) return PERM_NONE;
+    if (!empty($user['is_admin'])) return PERM_EDIT;
+    return (int) ($user['perms'][$menu] ?? PERM_NONE);
+}
+
+/** Boleh MELIHAT minimal salah satu menu yang disebut. */
+function can_view(?array $user, array $menus): bool
+{
+    foreach ($menus as $m) {
+        if (user_level($user, $m) >= PERM_VIEW) return true;
+    }
+    return false;
+}
+
+/** Boleh MENGUBAH minimal salah satu menu yang disebut. */
+function can_edit(?array $user, array $menus): bool
+{
+    foreach ($menus as $m) {
+        if (user_level($user, $m) >= PERM_EDIT) return true;
+    }
+    return false;
+}
+
+/** Punya akses ke modul level-1 (minimal 1 menu di dalamnya boleh dilihat). */
 function user_can(?array $user, string $module): bool
 {
     if (!$user) return false;
-    if (!empty($user['is_admin'])) return true;
-    return in_array($module, $user['modules'] ?? [], true);
+    return !empty($user['is_admin']) || in_array($module, $user['modules'] ?? [], true);
 }
 
-/** Apakah user punya minimal salah satu dari modul yang disebut. */
-function user_can_any(?array $user, array $modules): bool
+function menu_labels(array $menus): string
 {
-    foreach ($modules as $m) {
-        if (user_can($user, $m)) return true;
+    $labels = [];
+    foreach ($menus as $m) {
+        $mod = all_menus()[$m] ?? null;
+        $labels[] = $mod ? APP_MODULES[$mod]['menus'][$m] : $m;
     }
-    return false;
+    return implode(' / ', $labels);
 }
 
 // ---------------------------------------------------------------------
@@ -331,32 +362,38 @@ function require_role(array $allowedRoleKeys): array
     return $user;
 }
 
-/**
- * Wajib punya akses ke minimal SATU dari modul yang disebut.
- * Contoh: require_module('finance'), require_module(['purchasing', 'gudang']).
- */
-function require_module($modules): array
+/** Wajib boleh MELIHAT minimal satu menu yang disebut. */
+function require_view(array $menus): array
 {
     $user = require_login();
-    $modules = (array) $modules;
-    if (!user_can_any($user, $modules)) {
-        $labels = array_map(fn($m) => APP_MODULES[$m] ?? $m, $modules);
-        json_error('Anda tidak memiliki akses ke modul ' . implode(' / ', $labels) . '. Hubungi admin untuk menambah hak akses role Anda.', 403);
+    if (!can_view($user, $menus)) {
+        json_error('Anda tidak memiliki akses ke menu ' . menu_labels($menus) . '. Hubungi admin untuk menambah hak akses role Anda.', 403);
+    }
+    return $user;
+}
+
+/** Wajib boleh MENGUBAH minimal satu menu yang disebut. */
+function require_edit(array $menus): array
+{
+    $user = require_login();
+    if (!can_edit($user, $menus)) {
+        json_error('Role Anda hanya boleh MELIHAT menu ' . menu_labels($menus) . ', tidak boleh menambah/mengubah/menghapus. Hubungi admin untuk menambah hak akses.', 403);
     }
     return $user;
 }
 
 /**
- * Aturan akses umum per endpoint: modul yang boleh MEMBACA (GET) dan
- * modul yang boleh MENGUBAH (POST/PUT/DELETE). Isi $readModules dengan
- * null untuk "semua user yang login boleh baca" (data referensi/dropdown).
+ * Aturan akses umum per endpoint:
+ *  - GET (baca)             : wajib boleh melihat salah satu $viewMenus
+ *                             (null = semua user login boleh baca, untuk data referensi/dropdown)
+ *  - POST/PUT/DELETE (ubah) : wajib boleh mengubah salah satu $editMenus
  */
-function require_module_access(?array $readModules, array $writeModules): array
+function require_perm(?array $viewMenus, array $editMenus): array
 {
     if (http_method() === 'GET') {
-        return $readModules === null ? require_login() : require_module($readModules);
+        return $viewMenus === null ? require_login() : require_view($viewMenus);
     }
-    return require_module($writeModules);
+    return require_edit($editMenus);
 }
 
 // ---------------------------------------------------------------------

@@ -11,10 +11,12 @@ switch ($method) {
     case 'GET':
         $rows = $pdo->query('SELECT * FROM roles ORDER BY is_system DESC, id ASC')->fetchAll();
         foreach ($rows as &$r) {
-            $r['modules'] = (int) $r['is_admin'] === 1 ? array_keys(APP_MODULES) : parse_modules($r['modules'] ?? '');
+            $perms = (int) $r['is_admin'] === 1 ? full_permissions() : parse_permissions($r['modules'] ?? '');
+            $r['access'] = permissions_for_client($perms); // {"dashboard":"edit","stok":"view"}
+            unset($r['modules']);
         }
         unset($r);
-        // Daftar modul yang tersedia ikut dikirim, supaya checkbox di UI selalu sinkron dengan server.
+        // Katalog modul & menu ikut dikirim, supaya checkbox di UI selalu sinkron dengan server.
         json_success(['roles' => $rows, 'modules' => APP_MODULES]);
         break;
 
@@ -26,7 +28,7 @@ switch ($method) {
             json_error('Nama role wajib diisi.', 422);
         }
         $isAdmin = (bool) arr_val($b, 'is_admin', false);
-        $modules = modules_to_string((array) arr_val($b, 'modules', []));
+        $modules = permissions_to_string(arr_val($b, 'access', []));
 
         // Generate role_key unik dari label, tambahkan angka kalau bentrok.
         $baseKey = slugify($label);
@@ -59,7 +61,7 @@ switch ($method) {
             json_error('ID dan nama role wajib diisi.', 422);
         }
         $isAdmin = (bool) arr_val($b, 'is_admin', false);
-        $modules = modules_to_string((array) arr_val($b, 'modules', []));
+        $modules = permissions_to_string(arr_val($b, 'access', []));
 
         // Cari role_key dulu untuk cek proteksi khusus role 'admin'.
         $find = $pdo->prepare('SELECT role_key FROM roles WHERE id = :id');

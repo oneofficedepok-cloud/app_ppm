@@ -2,8 +2,8 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/wo_functions.php';
 
-// Baca: semua modul (WO jadi referensi PR, Gudang, Finance, MTC). Ubah: modul Produksi.
-require_module_access(MODULES_ANY, ['produksi']);
+// Baca: semua menu (WO jadi referensi PR, Gudang, Finance, MTC). Ubah: menu WO & Budget.
+require_perm(array_keys(all_menus()), ['tracking']);
 
 $method = http_method();
 $pdo = db();

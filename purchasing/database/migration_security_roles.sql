@@ -2,10 +2,10 @@
 --  MIGRASI: Hak Akses per Modul + Keamanan Login
 --
 --  Isi:
---   1. Kolom roles.modules  -> daftar modul yang boleh diakses role
---      (dicentang admin di menu Administrator -> Role Management)
+--   1. Kolom roles.modules  -> daftar menu + level (Lihat/Ubah) yang boleh
+--      diakses role (dicentang admin di Administrator -> Role Management)
 --   2. Tabel login_attempts -> pembatas percobaan login (anti brute-force)
---   3. Role baru "Staff Purchasing" + hak akses default tiap role
+--   3. Role baru "Staff Purchasing" & "Staff Gudang" + hak akses default tiap role
 --
 --  AMAN dijalankan di database LIVE: tidak menghapus data apapun,
 --  dan boleh dijalankan berulang (IF NOT EXISTS / hanya mengisi
@@ -14,18 +14,24 @@
 --  Cara pakai: phpMyAdmin -> pilih database -> tab SQL -> paste -> Go.
 --  Butuh MariaDB 10.0.2+ (XAMPP & hosting cPanel umumnya sudah MariaDB).
 --
---  Kode modul yang valid:
---    purchasing, produksi, masterdata, gudang, finance, mtc
---  Role dengan "Akses Admin Penuh" otomatis boleh SEMUA modul.
+--  Format isi kolom roles.modules (diatur otomatis lewat UI, tidak perlu diketik manual):
+--    "menu:level,menu:level"  contoh: "dashboard:edit,transport:view,stok:edit"
+--    level: view = hanya lihat, edit = boleh tambah/ubah/hapus
+--    Nama modul saja (mis. "purchasing,gudang") juga diterima = semua menu di modul itu level edit.
+--  Role dengan "Akses Admin Penuh" otomatis boleh SEMUA menu.
+--
+--  Sudah pernah menjalankan versi sebelumnya file ini? Jalankan lagi saja -
+--  aman, dan kolom modules akan diperbesar ke TEXT.
 -- =========================================================
 
 -- ---------------------------------------------------------
 -- 1. Kolom daftar modul per role
 -- ---------------------------------------------------------
 ALTER TABLE `roles`
-  ADD COLUMN IF NOT EXISTS `modules` VARCHAR(255) NULL
-  COMMENT 'daftar modul dipisah koma, mis. purchasing,gudang (diabaikan jika is_admin=1)'
-  AFTER `is_system`;
+  ADD COLUMN IF NOT EXISTS `modules` TEXT NULL AFTER `is_system`;
+ALTER TABLE `roles`
+  MODIFY COLUMN `modules` TEXT NULL
+  COMMENT 'hak akses: menu:level dipisah koma, mis. dashboard:edit,stok:view (diabaikan jika is_admin=1)';
 
 -- ---------------------------------------------------------
 -- 2. Catatan percobaan login gagal (dibersihkan otomatis > 1 hari)
@@ -45,7 +51,9 @@ CREATE TABLE IF NOT EXISTS `login_attempts` (
 --     jadi pengaturan yang sudah Anda ubah lewat UI tidak ditimpa)
 -- ---------------------------------------------------------
 INSERT INTO `roles` (`role_key`, `label`, `is_admin`, `is_system`, `modules`) VALUES
-('staff_purchasing', 'Staff Purchasing', 0, 0, 'purchasing,gudang')
+('staff_purchasing', 'Staff Purchasing', 0, 0, 'purchasing,gudang'),
+('staff_gudang', 'Staff Gudang', 0, 0,
+ 'stok:edit,incoming:edit,receiving:edit,produksi:edit,riwayat:edit,tracking:view,seal:view,dashboard:view')
 ON DUPLICATE KEY UPDATE `role_key` = `role_key`;
 
 -- Manager Purchasing: semua modul (tanpa menu Administrator / kelola user)
@@ -57,7 +65,7 @@ UPDATE `roles` SET `modules` = 'purchasing,gudang'
   WHERE `role_key` IN ('leader', 'buyer') AND (`modules` IS NULL OR `modules` = '');
 
 -- User (Pemohon): hanya bisa buat & pantau PR
-UPDATE `roles` SET `modules` = 'purchasing'
+UPDATE `roles` SET `modules` = 'dashboard:edit'
   WHERE `role_key` = 'user' AND (`modules` IS NULL OR `modules` = '');
 
 -- Role lain buatan Anda sendiri yang belum diatur: TIDAK diberi modul apapun
