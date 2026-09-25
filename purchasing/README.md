@@ -135,6 +135,18 @@ Perlu diingat: role `buyer` di sini (akun login) **berbeda** dari **Master Buyer
 
 ---
 
+### Cari & Sortir di Semua Tabel
+
+- **Sortir:** klik judul kolom mana saja → naik (▲), klik lagi → turun (▼), klik ketiga → kembali ke urutan asli. Angka rupiah dan tanggal (DD/MM/YYYY) diurutkan sesuai nilainya, bukan sebagai teks.
+- **Cari cepat:** kotak pencarian di atas tabel yang belum punya pencarian sendiri (Seal CNC, Transportasi, Stok, Incoming, Produksi & BOM, Riwayat, Dana Talangan) serta di semua daftar (Product, Buyer, Karyawan, Mesin, Tarif, User, Role). Semua kata yang diketik harus cocok.
+- Jumlah data yang tampil muncul di kanan atas tabel (mis. "3 dari 20 data").
+- Pencarian & sortir tetap berlaku walaupun data di-refresh.
+- Tombol **Hapus Semua** hanya menghapus baris yang sedang terlihat, bukan yang tersembunyi oleh pencarian.
+
+Kode: `assets/js/table-tools.js`. Untuk menambah tabel baru, cukup tambahkan id `<tbody>` ke daftar `TABLES` di file itu.
+
+---
+
 ## 5. Struktur Kode (untuk referensi / pengembangan lanjutan)
 
 ```

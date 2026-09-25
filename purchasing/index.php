@@ -42,60 +42,70 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
   <!-- TOP HEADER -->
   <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16 gap-4">
-        <div class="flex items-center space-x-3">
-          <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg">
+      <div class="flex items-center justify-between h-16 gap-3">
+        <!-- Kiri: logo + nama aplikasi (tidak boleh terlipat) -->
+        <div class="flex items-center gap-3 min-w-0 shrink">
+          <div class="w-10 h-10 shrink-0 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg">
             <i class="fa-solid fa-boxes-packing"></i>
           </div>
-          <div>
-            <h1 class="text-base sm:text-lg font-extrabold tracking-tight leading-none text-white flex items-center gap-2">
-              PANCA PUTRA MADANI <span class="text-[10px] bg-indigo-500/30 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full uppercase">PPM 2026</span>
+          <div class="min-w-0">
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight leading-none text-white flex items-center gap-2 whitespace-nowrap">
+              PANCA PUTRA MADANI <span class="hidden sm:inline text-[10px] bg-indigo-500/30 text-indigo-300 border border-indigo-400/30 px-2 py-0.5 rounded-full uppercase">PPM 2026</span>
             </h1>
-            <p class="text-[11px] text-slate-400 mt-0.5">Sistem Purchasing, Work Order & Keuangan (Cash Flow / AR / AP)</p>
+            <p class="hidden lg:block text-[11px] text-slate-400 mt-1 truncate">Sistem Purchasing, Work Order &amp; Keuangan</p>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <!-- Kanan: aksi cepat + menu user. Semua tombol 1 baris (whitespace-nowrap). -->
+        <div class="flex items-center gap-2 shrink-0 whitespace-nowrap">
           <?php if ($canView('dashboard')): ?>
-          <button onclick="downloadExcelTemplate()" class="hidden md:flex bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition items-center gap-1.5">
-            <i class="fa-solid fa-file-csv"></i> Template Excel
+          <button onclick="downloadExcelTemplate()" title="Download Template Excel PR" class="hidden md:flex h-9 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 px-3 rounded-xl text-xs font-semibold transition items-center gap-1.5">
+            <i class="fa-solid fa-file-csv"></i><span class="hidden xl:inline">Template Excel</span>
           </button>
-          <button onclick="exportToExcel()" class="hidden md:flex bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition items-center gap-1.5">
-            <i class="fa-solid fa-file-export"></i> Export Excel
+          <button onclick="exportToExcel()" title="Export data PR ke Excel" class="hidden md:flex h-9 bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 px-3 rounded-xl text-xs font-semibold transition items-center gap-1.5">
+            <i class="fa-solid fa-file-export"></i><span class="hidden xl:inline">Export Excel</span>
           </button>
           <?php endif; ?>
           <?php if ($canEdit('tracking')): ?>
-          <button onclick="openWOModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
-            <i class="fa-solid fa-folder-plus"></i> + WO Baru
+          <button onclick="openWOModal('add')" title="Buat Work Order baru" class="h-9 bg-amber-600 hover:bg-amber-500 text-white px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
+            <i class="fa-solid fa-folder-plus"></i><span class="hidden sm:inline">WO Baru</span>
           </button>
           <?php endif; ?>
           <?php if ($canEdit('dashboard')): ?>
-          <button onclick="openModal('add')" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
-            <i class="fa-solid fa-plus-circle"></i> + PR Baru
+          <button onclick="openModal('add')" title="Buat Purchase Request baru" class="h-9 bg-indigo-600 hover:bg-indigo-500 text-white px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md">
+            <i class="fa-solid fa-plus-circle"></i><span class="hidden sm:inline">PR Baru</span>
+          </button>
+          <?php endif; ?>
+          <?php if (!empty($user['is_admin'])): ?>
+          <button id="section-btn-admin" onclick="switchSection('admin')" title="Administrator" class="h-9 bg-rose-700 hover:bg-rose-600 text-white px-3 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-rose-600">
+            <i class="fa-solid fa-user-shield"></i><span class="hidden lg:inline">Administrator</span>
           </button>
           <?php endif; ?>
 
-          <div class="pl-2 border-l border-slate-800 flex items-center gap-2">
-            <div class="text-right hidden sm:block">
-              <p class="text-xs font-bold text-white leading-tight"><?= esc_html($user['full_name']) ?></p>
-              <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">
-                <?= !empty($user['is_admin']) ? 'FULL ACCESS' : esc_html($user['role_label']) ?>
+          <!-- Menu user: nama + role, klik untuk Akun Saya / Logout -->
+          <div class="relative pl-2 ml-1 border-l border-slate-700" id="user-menu">
+            <button type="button" onclick="toggleUserMenu(event)" class="h-9 flex items-center gap-2 pl-1 pr-2 rounded-xl hover:bg-slate-800 transition">
+              <span class="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                <?= esc_html(mb_strtoupper(mb_substr(trim($user['full_name']) ?: $user['username'], 0, 1))) ?>
               </span>
+              <span class="hidden md:flex flex-col items-start leading-tight text-left max-w-[140px]">
+                <span class="text-xs font-bold text-white truncate max-w-[140px]"><?= esc_html($user['full_name']) ?></span>
+                <span class="text-[9px] font-bold uppercase tracking-wider text-indigo-300 truncate max-w-[140px]"><?= !empty($user['is_admin']) ? 'Full Access' : esc_html($user['role_label']) ?></span>
+              </span>
+              <i class="fa-solid fa-chevron-down text-[10px] text-slate-400"></i>
+            </button>
+            <div id="user-menu-panel" class="hidden absolute right-0 top-11 w-56 bg-white text-slate-700 rounded-xl shadow-xl border border-slate-200 overflow-hidden z-40">
+              <div class="px-4 py-3 border-b border-slate-100">
+                <p class="text-xs font-bold text-slate-800 truncate"><?= esc_html($user['full_name']) ?></p>
+                <p class="text-[10px] text-slate-400 truncate">@<?= esc_html($user['username']) ?> &middot; <?= esc_html($user['role_label']) ?></p>
+              </div>
+              <button type="button" onclick="closeUserMenu(); openAccountModal()" class="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-slate-50 flex items-center gap-2">
+                <i class="fa-solid fa-circle-user text-indigo-500 w-4"></i> Akun Saya &amp; Ganti Password
+              </button>
+              <a href="logout.php" onclick="return confirm('Yakin ingin logout?')" class="px-4 py-2.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 border-t border-slate-100">
+                <i class="fa-solid fa-right-from-bracket w-4"></i> Logout
+              </a>
             </div>
-            <?php if (!empty($user['is_admin'])): ?>
-            <button id="section-btn-admin" onclick="switchSection('admin')" class="bg-rose-700 hover:bg-rose-600 text-white p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-rose-600">
-              <i class="fa-solid fa-user-shield"></i>
-              <span class="hidden sm:inline">Administrator</span>
-            </button>
-            <?php endif; ?>
-            <button onclick="openAccountModal()" title="Akun Saya" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-slate-700">
-              <i class="fa-solid fa-circle-user text-indigo-300"></i>
-              <span class="hidden sm:inline">Akun Saya</span>
-            </button>
-            <a href="logout.php" onclick="return confirm('Yakin ingin logout?')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 border border-slate-700">
-              <i class="fa-solid fa-right-from-bracket text-rose-400"></i>
-              <span class="hidden sm:inline">Logout</span>
-            </a>
           </div>
         </div>
       </div>
@@ -2284,5 +2294,6 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
     window.CURRENT_USER = <?= json_encode($user, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
   </script>
   <script src="assets/js/app.js"></script>
+  <script src="assets/js/table-tools.js"></script>
 </body>
 </html>

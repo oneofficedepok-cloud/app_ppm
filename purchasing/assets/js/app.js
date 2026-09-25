@@ -1524,7 +1524,11 @@ function bulkCheckbox(key, id) {
 function bulkVisibleIds(key) {
   const tbody = document.getElementById(BULK_CFG[key].tbody);
   if (!tbody) return [];
-  return [...tbody.querySelectorAll(`input[data-bulk="${key}"]`)].map(cb => Number(cb.value));
+  // Baris yang disembunyikan oleh "Cari cepat" (atribut hidden, lihat table-tools.js)
+  // TIDAK dihitung - supaya "Hapus Semua" hanya menghapus baris yang terlihat.
+  return [...tbody.querySelectorAll(`input[data-bulk="${key}"]`)]
+    .filter(cb => !cb.closest('tr')?.hidden)
+    .map(cb => Number(cb.value));
 }
 
 function toggleBulkRow(key, id, checked) {
@@ -1535,6 +1539,7 @@ function toggleBulkRow(key, id, checked) {
 function toggleBulkAll(key, checked) {
   const tbody = document.getElementById(BULK_CFG[key].tbody);
   tbody.querySelectorAll(`input[data-bulk="${key}"]`).forEach(cb => {
+    if (cb.closest('tr')?.hidden) return; // abaikan baris yang tersembunyi oleh pencarian
     cb.checked = checked;
     if (checked) bulkSelected[key].add(Number(cb.value)); else bulkSelected[key].delete(Number(cb.value));
   });
@@ -1546,6 +1551,10 @@ function syncBulkBar(key) {
   const visible = bulkVisibleIds(key);
   const visibleSet = new Set(visible);
   [...bulkSelected[key]].forEach(id => { if (!visibleSet.has(id)) bulkSelected[key].delete(id); });
+  // Centang di baris yang tersembunyi ikut dilepas supaya tampilan sama dengan pilihan.
+  document.querySelectorAll(`input[data-bulk="${key}"]`).forEach(cb => {
+    if (cb.checked && !bulkSelected[key].has(Number(cb.value))) cb.checked = false;
+  });
   const n = bulkSelected[key].size;
 
   const all = document.getElementById(`bulk-all-${key}`);
@@ -5073,3 +5082,17 @@ async function handleChangeOwnPassword(e) {
     btn.disabled = false;
   }
 }
+
+// ===================== MENU USER (header) =====================
+function toggleUserMenu(e) {
+  e.stopPropagation();
+  document.getElementById('user-menu-panel').classList.toggle('hidden');
+}
+function closeUserMenu() {
+  const panel = document.getElementById('user-menu-panel');
+  if (panel) panel.classList.add('hidden');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#user-menu')) closeUserMenu();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeUserMenu(); });
