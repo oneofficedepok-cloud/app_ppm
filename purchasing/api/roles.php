@@ -9,8 +9,13 @@ $pdo = db();
 switch ($method) {
 
     case 'GET':
-        $stmt = $pdo->query('SELECT * FROM roles ORDER BY is_system DESC, id ASC');
-        json_success($stmt->fetchAll());
+        $rows = $pdo->query('SELECT * FROM roles ORDER BY is_system DESC, id ASC')->fetchAll();
+        foreach ($rows as &$r) {
+            $r['modules'] = (int) $r['is_admin'] === 1 ? array_keys(APP_MODULES) : parse_modules($r['modules'] ?? '');
+        }
+        unset($r);
+        // Daftar modul yang tersedia ikut dikirim, supaya checkbox di UI selalu sinkron dengan server.
+        json_success(['roles' => $rows, 'modules' => APP_MODULES]);
         break;
 
     case 'POST':
@@ -21,6 +26,7 @@ switch ($method) {
             json_error('Nama role wajib diisi.', 422);
         }
         $isAdmin = (bool) arr_val($b, 'is_admin', false);
+        $modules = modules_to_string((array) arr_val($b, 'modules', []));
 
         // Generate role_key unik dari label, tambahkan angka kalau bentrok.
         $baseKey = slugify($label);
@@ -35,12 +41,12 @@ switch ($method) {
         }
 
         $stmt = $pdo->prepare(
-            'INSERT INTO roles (role_key, label, is_admin, is_system) VALUES (:key, :label, :admin, 0)'
+            'INSERT INTO roles (role_key, label, is_admin, is_system, modules) VALUES (:key, :label, :admin, 0, :modules)'
         );
-        $stmt->execute([':key' => $key, ':label' => $label, ':admin' => $isAdmin ? 1 : 0]);
+        $stmt->execute([':key' => $key, ':label' => $label, ':admin' => $isAdmin ? 1 : 0, ':modules' => $modules]);
 
         $newId = (int) $pdo->lastInsertId();
-        log_activity('create', 'roles', $newId, $label);
+        log_activity('create', 'roles', $newId, "{$label} | admin=" . ($isAdmin ? 1 : 0) . " | modul={$modules}");
         json_success(['id' => $newId, 'role_key' => $key], 'Role berhasil ditambahkan.');
         break;
 
@@ -53,6 +59,7 @@ switch ($method) {
             json_error('ID dan nama role wajib diisi.', 422);
         }
         $isAdmin = (bool) arr_val($b, 'is_admin', false);
+        $modules = modules_to_string((array) arr_val($b, 'modules', []));
 
         // Cari role_key dulu untuk cek proteksi khusus role 'admin'.
         $find = $pdo->prepare('SELECT role_key FROM roles WHERE id = :id');
@@ -68,10 +75,17 @@ switch ($method) {
             $isAdmin = true;
         }
 
-        $stmt = $pdo->prepare('UPDATE roles SET label = :label, is_admin = :admin WHERE id = :id');
-        $stmt->execute([':label' => $label, ':admin' => $isAdmin ? 1 : 0, ':id' => $id]);
+        // Cegah admin mencabut "Akses Admin Penuh" dari role yang sedang ia pakai sendiri
+        // (bisa mengunci dirinya keluar dari menu Administrator).
+        $me = current_user();
+        if (!$isAdmin && $existing['role_key'] === $me['role']) {
+            json_error('Tidak bisa mencabut Akses Admin Penuh dari role yang sedang Anda pakai sendiri.', 409);
+        }
 
-        log_activity('update', 'roles', $id, $label);
+        $stmt = $pdo->prepare('UPDATE roles SET label = :label, is_admin = :admin, modules = :modules WHERE id = :id');
+        $stmt->execute([':label' => $label, ':admin' => $isAdmin ? 1 : 0, ':modules' => $modules, ':id' => $id]);
+
+        log_activity('update', 'roles', $id, "{$label} | admin=" . ($isAdmin ? 1 : 0) . " | modul={$modules}");
         json_success(['id' => $id], 'Role berhasil diperbarui.');
         break;
 

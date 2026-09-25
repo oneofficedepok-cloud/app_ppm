@@ -1,0 +1,41 @@
+# =========================================================
+#  KEAMANAN DASAR APLIKASI (Apache)
+#  File ini otomatis aktif di hosting berbasis Apache (mod_rewrite).
+#  Kalau hosting Anda pakai Nginx, minta admin hosting menerapkan
+#  aturan setara (blokir akses langsung ke folder di bawah).
+# =========================================================
+
+# Larang akses langsung browser ke folder-folder sensitif.
+# (config = kredensial DB, database = file SQL mentah, includes = source PHP internal)
+RewriteEngine On
+RewriteRule ^config/ - [F,L]
+RewriteRule ^database/ - [F,L]
+RewriteRule ^includes/ - [F,L]
+# Folder/berkas tersembunyi (.git, .env, dll).
+RewriteRule (^|/)\. - [F,L]
+
+# Paksa HTTPS (aktifkan setelah SSL terpasang di hosting - hapus tanda # di 2 baris bawah).
+# RewriteCond %{HTTPS} !=on
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+# Cegah folder tanpa index.php menampilkan listing isi folder.
+Options -Indexes
+
+# Sembunyikan file .sql / .md / backup / arsip dari akses langsung di seluruh folder.
+<FilesMatch "\.(sql|md|log|env|ini|bak|old|orig|swp|zip|tar|gz|rar|7z)$">
+  Require all denied
+</FilesMatch>
+
+# Header keamanan dasar (juga di-set dari PHP, lihat includes/auth.php).
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always unset X-Powered-By
+</IfModule>
+
+# Jangan tampilkan versi PHP & error ke pengunjung.
+<IfModule mod_php.c>
+  php_flag expose_php Off
+  php_flag display_errors Off
+</IfModule>

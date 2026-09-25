@@ -1,7 +1,15 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-require_login();
+$type = $_GET['type'] ?? '';
+if ($type === 'users') {
+    // Daftar akun login + role hanya untuk admin. Pengecualian: user boleh
+    // mengubah data akunnya sendiri (nama/password) lewat PUT - dicek di bawah.
+    http_method() === 'PUT' ? require_login() : require_admin();
+} else {
+    // Product/Buyer/Karyawan: baca = semua user login (dropdown), ubah = modul Master Data.
+    require_module_access(null, ['masterdata']);
+}
 
 /** Cek apakah role_key benar-benar ada di tabel roles (validasi dinamis, bukan hardcode). */
 function role_key_exists(PDO $pdo, ?string $key): bool
@@ -33,7 +41,6 @@ function count_active_admins(PDO $pdo, ?int $excludeUserId = null): int
 
 $method = http_method();
 $pdo = db();
-$type = $_GET['type'] ?? '';
 
 if (!in_array($type, ['products', 'buyers', 'users', 'karyawan'], true)) {
     json_error('Parameter type tidak valid (products|buyers|users|karyawan).', 422);
@@ -93,8 +100,19 @@ switch ($method) {
             $divisi   = strtoupper(clean_str(arr_val($b, 'divisi', 'GENERAL')));
             $role     = role_key_exists($pdo, arr_val($b, 'role', 'user')) ? arr_val($b, 'role', 'user') : 'user';
 
-            if ($username === '' || $fullName === '' || strlen($password) < 6) {
-                json_error('Username, nama lengkap wajib diisi & password minimal 6 karakter.', 422);
+            if ($username === '' || $fullName === '') {
+                json_error('Username dan nama lengkap wajib diisi.', 422);
+            }
+            if (!preg_match('/^[a-z0-9._-]{3,50}$/', $username)) {
+                json_error('Username 3-50 karakter, hanya huruf kecil, angka, titik, strip, atau underscore.', 422);
+            }
+            if ($err = password_policy_error($password, $username)) {
+                json_error($err, 422);
+            }
+            $dup = $pdo->prepare('SELECT COUNT(*) FROM users WHERE username = :u');
+            $dup->execute([':u' => $username]);
+            if ((int) $dup->fetchColumn() > 0) {
+                json_error('Username sudah dipakai.', 409);
             }
 
             $stmt = $pdo->prepare(
@@ -181,7 +199,11 @@ switch ($method) {
             // Password hanya diubah jika field diisi.
             $newPassword = (string) arr_val($b, 'password', '');
             if ($newPassword !== '') {
-                if (strlen($newPassword) < 6) json_error('Password baru minimal 6 karakter.', 422);
+                $uStmt = $pdo->prepare('SELECT username FROM users WHERE id = :id');
+                $uStmt->execute([':id' => $id]);
+                if ($err = password_policy_error($newPassword, (string) $uStmt->fetchColumn())) {
+                    json_error($err, 422);
+                }
                 $sql .= ', password = :p';
                 $params[':p'] = password_hash($newPassword, PASSWORD_DEFAULT);
             }

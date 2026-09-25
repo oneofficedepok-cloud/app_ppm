@@ -23,16 +23,28 @@ CREATE TABLE `roles` (
   `label`      VARCHAR(100) NOT NULL COMMENT 'nama yang tampil di UI, boleh diubah kapan saja',
   `is_admin`   TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = akses penuh setara admin (boleh hapus data master/user)',
   `is_system`  TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = role bawaan sistem, tidak bisa dihapus',
+  `modules`    VARCHAR(255) NULL COMMENT 'daftar modul dipisah koma, mis. purchasing,gudang (diabaikan jika is_admin=1)',
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `roles` (`role_key`,`label`,`is_admin`,`is_system`) VALUES
-('admin', 'Admin', 1, 1),
-('manager_purchasing', 'Manager Purchasing', 0, 0),
-('leader', 'Leader', 0, 0),
-('buyer', 'Buyer', 0, 0),
-('user', 'User (Pemohon)', 0, 1);
+INSERT INTO `roles` (`role_key`,`label`,`is_admin`,`is_system`,`modules`) VALUES
+('admin', 'Admin', 1, 1, NULL),
+('manager_purchasing', 'Manager Purchasing', 0, 0, 'purchasing,produksi,masterdata,gudang,finance,mtc'),
+('staff_purchasing', 'Staff Purchasing', 0, 0, 'purchasing,gudang'),
+('leader', 'Leader', 0, 0, 'purchasing,gudang'),
+('buyer', 'Buyer', 0, 0, 'purchasing,gudang'),
+('user', 'User (Pemohon)', 0, 1, 'purchasing');
+
+-- Catatan percobaan login gagal (anti brute-force)
+CREATE TABLE `login_attempts` (
+  `id`           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `username`     VARCHAR(100) NOT NULL,
+  `ip_address`   VARCHAR(45) NOT NULL,
+  `attempted_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_login_user (`username`, `attempted_at`),
+  INDEX idx_login_ip (`ip_address`, `attempted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =========================================================
 -- 1. USERS

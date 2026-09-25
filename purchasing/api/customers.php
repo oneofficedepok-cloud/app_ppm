@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-require_login(); // semua aksi di bawah wajib login
+// Baca: semua user login (dropdown di form PR/WO/AR). Ubah: modul Master Data.
+require_module_access(null, ['masterdata']);
 
 $method = http_method();
 $pdo = db();

@@ -1,7 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-require_login();
+require_module('finance');
 
 $method = http_method();
 $pdo = db();

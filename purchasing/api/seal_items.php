@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 
-require_login();
+// Baca: Produksi (+ Purchasing & Finance untuk rekap biaya WO). Ubah: modul Produksi.
+require_module_access(['produksi', 'purchasing', 'finance'], ['produksi']);
 
 $method = http_method();
 $pdo = db();

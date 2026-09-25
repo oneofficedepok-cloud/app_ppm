@@ -36,9 +36,10 @@ manapun.
    1. `database/schema.sql`
    2. `database/migration_gudang_produksi.sql`
    3. `database/migration_sync_live.sql`
+   4. `database/migration_security_roles.sql`
 3. File `migration_roles_and_approval.sql` dan `migration_finance_module.sql` hanya untuk upgrade database versi lama, tidak perlu untuk instalasi baru.
 
-> **Database yang sudah live:** cukup jalankan `database/migration_sync_live.sql` sekali. File ini aman: hanya membuat tabel/kolom yang belum ada (`IF NOT EXISTS`), tidak mengubah atau menghapus data. Butuh MariaDB (XAMPP & hosting cPanel umumnya sudah MariaDB).
+> **Database yang sudah live:** jalankan `database/migration_sync_live.sql` lalu `database/migration_security_roles.sql` (masing-masing sekali, **sebelum** upload file PHP versi baru). File ini aman: hanya membuat tabel/kolom yang belum ada (`IF NOT EXISTS`), tidak mengubah atau menghapus data. Butuh MariaDB (XAMPP & hosting cPanel umumnya sudah MariaDB).
 
 ### B. Upload File
 1. Upload **seluruh isi folder ini** (bukan foldernya sendiri, tapi isinya) ke `public_html` (atau subfolder/subdomain pilihan Anda) via File Manager cPanel atau FTP.
@@ -73,7 +74,7 @@ Buka `https://domainanda.com/login.php`.
 - Username: `admin`
 - Password: `admin123`
 
-**⚠️ WAJIB langsung ganti password ini** setelah login pertama (menu Master Directory → Master User & Divisi → Edit akun `admin` → isi password baru). Juga bisa hapus 2 akun contoh lain (`abdus.somad`, `budi`) atau edit sesuai nama tim Anda.
+**⚠️ WAJIB langsung ganti password ini** setelah login pertama — selama masih memakai password default, aplikasi menampilkan peringatan merah di atas halaman (menu Administrator → Master User & Divisi → Edit akun `admin` → isi password baru). Juga bisa hapus 2 akun contoh lain (`abdus.somad`, `budi`) atau edit sesuai nama tim Anda.
 
 ---
 
@@ -85,14 +86,35 @@ Setiap orang yang perlu login sebaiknya punya akunnya sendiri (bukan share 1 aku
 
 Cara tambah: Menu **Master Directory** → **Master User & Divisi** → **+ Tambah**. Isi username (untuk login), nama lengkap, divisi, role, dan password awal.
 
-**Role bawaan (bisa ditambah/diubah sendiri lewat menu Master Directory → Role Management, tanpa perlu edit kode):**
-| Role | Keterangan |
+**Role bawaan (bisa ditambah/diubah sendiri lewat menu Administrator → Role Management, tanpa perlu edit kode):**
+| Role | Modul default | Keterangan |
+|---|---|---|
+| `admin` | Semua + menu Administrator | Akses penuh (role sistem, tidak bisa dihapus) — kelola user, role, import data |
+| `manager_purchasing` | Semua modul | Approval final PR (tahap ke-3 alur approval) |
+| `staff_purchasing` | Purchasing, Gudang | Staff purchasing |
+| `leader` | Purchasing, Gudang | Pengecekan PR (tahap ke-2 alur approval) |
+| `buyer` | Purchasing, Gudang | Membuat PR (tahap ke-1 alur approval) |
+| `user` | Purchasing | Staff biasa / pemohon PR (role sistem, default untuk akun baru) |
+
+### Hak Akses per Modul
+
+Tiap role punya daftar **modul** yang boleh dibuka. Atur di **Administrator → Role Management → Edit role** lalu centang modulnya:
+
+| Kode modul | Isi menu |
 |---|---|
-| `admin` | Akses penuh (role sistem, tidak bisa dihapus) — boleh hapus data master, kelola user, kelola role |
-| `manager_purchasing` | Approval final PR (tahap ke-3 alur approval) |
-| `leader` | Pengecekan PR (tahap ke-2 alur approval) |
-| `buyer` | Membuat PR (tahap ke-1 alur approval) |
-| `user` | Staff biasa / pemohon PR (role sistem, default untuk akun baru) |
+| `purchasing` | Purchase Request (PR), Transportasi |
+| `produksi` | WO & Budget, Seal CNC |
+| `masterdata` | Customer, Supplier, Master Directory (Product/Buyer/Karyawan) |
+| `gudang` | Stok Material, Incoming, Receiving, Produksi & BOM, Riwayat Pergerakan |
+| `finance` | Finance Dashboard, Cash Flow, AR, AP, Dana Talangan |
+| `mtc` | MTC Produksi |
+
+Aturannya:
+- Menu modul yang tidak dicentang **disembunyikan**, dan **diblokir juga di server** (API membalas 403), jadi tidak bisa dibobol lewat console browser.
+- Role yang dicentang **Akses Admin Penuh** otomatis boleh semua modul + menu Administrator.
+- Data referensi (daftar Customer, Supplier, Product, Buyer, Karyawan, WO) tetap bisa **dibaca** semua user untuk mengisi dropdown form. **Menambah/mengubah** data itu butuh modul `masterdata` (atau `produksi` untuk WO).
+- Perubahan role/status user langsung berlaku di request berikutnya — user yang dinonaktifkan langsung ter-logout.
+- Role baru yang belum dicentang modul apapun hanya bisa melihat Dashboard (aman secara default).
 
 Detail hak akses tiap role di alur approval PR ada di bagian **8b** di bawah. Untuk menambah role baru di luar daftar ini (misal "Supervisor Gudang"), buka menu Role Management — tidak perlu bantuan saya lagi untuk itu.
 
@@ -152,7 +174,24 @@ Semua endpoint di `api/` mengembalikan format JSON konsisten:
 - Session cookie: `HttpOnly`, `SameSite=Lax`, otomatis `Secure` kalau diakses via HTTPS
 - Kalkulasi uang (PPN, DPP, Total, Profit/Loss) dihitung **di server**, bukan percaya angka dari browser
 - Role-based access: hapus data master & user hanya bisa oleh role `admin`
-- File konfigurasi (`config/`), skema SQL (`database/`), dan source internal (`includes/`) diblokir akses langsung lewat `.htaccess`
+- **Hak akses per modul** per role, dicek di server di setiap endpoint API (lihat bagian 4)
+- **Token CSRF** wajib untuk semua request yang mengubah data (situs lain tidak bisa menumpang sesi login)
+- **Anti brute-force login**: 5x salah password (per username + IP) atau 20x dari 1 IP → dikunci 15 menit (tabel `login_attempts`)
+- **Auto logout** setelah 2 jam tidak aktif; data user & hak akses dibaca ulang dari database setiap request
+- **Kebijakan password**: minimal 8 karakter, harus ada huruf & angka, tidak boleh password umum / sama dengan username
+- Error server tidak menampilkan detail teknis (SQL, path file) ke browser — dicatat ke error log server
+- Header keamanan (`X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, HSTS di HTTPS) dari PHP & `.htaccess`
+- File konfigurasi (`config/`), skema SQL (`database/`), source internal (`includes/`), file tersembunyi, serta file `.sql/.md/.zip/.bak` diblokir akses langsung lewat `.htaccess`
+
+Pengaturan di atas bisa diubah tanpa edit kode inti dengan menambah `define(...)` di `config/database.php`, contoh:
+```php
+define('SESSION_IDLE_TIMEOUT', 4 * 60 * 60); // auto logout 4 jam
+define('LOGIN_MAX_FAILS_PER_USER', 5);
+define('LOGIN_LOCK_MINUTES', 15);
+define('PASSWORD_MIN_LENGTH', 8);
+```
+
+> **Setelah SSL (HTTPS) terpasang di hosting**, buka `.htaccess` dan aktifkan 2 baris "Paksa HTTPS".
 
 ## 8b. Update Log — Role Management (UI) + Alur Approval PR
 
