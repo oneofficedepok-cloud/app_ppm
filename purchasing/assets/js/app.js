@@ -3270,6 +3270,10 @@ async function renderMTCDashboard() {
         if (r.surat_jalan) lastSJ = r.surat_jalan;
         if (divSums.hasOwnProperty(r.divisi)) divSums[r.divisi] += Number(r.total_biaya) || 0;
       }));
+      // Biaya otomatis dari PR / Seal CNC / Transportasi (dihitung server, lihat mtc_auto_costs).
+      (w.auto_records || []).forEach(a => {
+        if (divSums.hasOwnProperty(a.divisi)) divSums[a.divisi] += Number(a.total_biaya) || 0;
+      });
 
       grandTotalPO += Number(w.nilai_po) || 0;
       grandTotalCost += Number(w.total_biaya) || 0;
@@ -3320,7 +3324,29 @@ async function renderMTCDashboard() {
           });
         });
       });
-      if (!detailHtml) detailHtml = `<tr><td colspan="10" class="text-center py-3 text-slate-400">Belum ada rincian divisi yang diinput untuk WO ini.</td></tr>`;
+      const AUTO_TAB = { PR: 'dashboard', 'Seal CNC': 'seal', Transportasi: 'transport' };
+      (w.auto_records || []).forEach(a => {
+        a.lines.forEach(line => {
+          const tab = AUTO_TAB[a.sumber];
+          detailHtml += `
+            <tr class="border-b border-slate-100 bg-emerald-50/40 hover:bg-emerald-50 transition-colors">
+              <td class="py-2 px-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700" title="Otomatis dari menu ${esc(a.sumber)}"><i class="fa-solid fa-link mr-1"></i>Otomatis</span></td>
+              <td class="py-2 px-3 font-semibold text-slate-800">${esc(a.divisi)}</td>
+              <td class="py-2 px-3 text-slate-800 font-medium">${esc(line.pekerjaan || '-')} <span class="text-slate-400 font-normal">(${esc(line.deskripsi || '-')})</span></td>
+              <td class="py-2 px-3 text-center font-medium">${formatQty(line.qty)} ${esc(line.satuan || '')}</td>
+              <td class="py-2 px-3 font-mono text-slate-500">-</td>
+              <td class="py-2 px-3 text-right">${formatRupiah(line.harga)}</td>
+              <td class="py-2 px-3 text-right font-bold text-slate-800">${formatRupiah(line.total)}</td>
+              <td class="py-2 px-3 text-center text-[10px] font-bold text-emerald-700">${esc(a.sumber)}</td>
+              <td class="py-2 px-3 text-center">${line.status ? `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">${esc(line.status)}</span>` : '-'}</td>
+              <td class="py-2 px-3 text-center font-semibold text-slate-600">${esc(line.pic || '-')}</td>
+              <td class="py-2 px-3 text-center" onclick="event.stopPropagation()">
+                ${tab && canView(tab) ? `<button onclick="switchTab('${tab}')" title="Buka menu ${esc(a.sumber)}" class="bg-slate-600 hover:bg-slate-700 text-white px-2 py-0.5 rounded text-[10px] shadow"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>` : ''}
+              </td>
+            </tr>`;
+        });
+      });
+      if (!detailHtml) detailHtml = `<tr><td colspan="11" class="text-center py-3 text-slate-400">Belum ada rincian divisi yang diinput untuk WO ini.</td></tr>`;
 
       rowHtml += `
         <tr id="mtc-detail-${w.wo_id}" class="hidden bg-slate-50/90">

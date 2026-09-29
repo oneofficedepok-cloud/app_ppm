@@ -48,6 +48,50 @@ function fetch_records_for_wo(PDO $pdo, int $woId): array
     return $records;
 }
 
+/**
+ * Biaya OTOMATIS per WO yang sudah tercatat di modul lain, supaya ikut masuk
+ * matrix MTC tanpa perlu diinput ulang di Modul Divisi Produksi:
+ *   - Pembelian Material : item PR yang terhubung ke WO (DPP, kecuali CANCEL)
+ *                          - sama dengan "Aktual Pembelian" di menu WO & Budget
+ *   - CNC Seal           : data menu Seal CNC
+ *   - Transportasi       : data menu Transportasi
+ * Return: [wo_id => [ ['divisi', 'sumber', 'total_biaya', 'lines' => [...]], ... ]]
+ */
+function mtc_auto_costs(PDO $pdo): array
+{
+    $sources = [
+        ['Pembelian Material', 'PR', "
+            SELECT pr.wo_id, CONCAT(pr.pr_number, ' #', pr.item_no) AS pekerjaan,
+                   TRIM(CONCAT_WS(' ', pr.product, pr.type, pr.dimensi)) AS deskripsi,
+                   pr.qty, pr.uom AS satuan, pr.harga, pr.dpp AS total, pr.status, s.nama AS pic
+            FROM pr_items pr LEFT JOIN suppliers s ON s.id = pr.supplier_id
+            WHERE pr.wo_id IS NOT NULL AND pr.status != 'CANCEL'
+            ORDER BY pr.tanggal, pr.id"],
+        ['CNC Seal', 'Seal CNC', "
+            SELECT wo_id, product AS pekerjaan, TRIM(CONCAT_WS(' ', type, dimensi, brand)) AS deskripsi,
+                   qty, 'Pcs' AS satuan, harga, total, '' AS status, '' AS pic
+            FROM seal_items WHERE wo_id IS NOT NULL ORDER BY id"],
+        ['Transportasi', 'Transportasi', "
+            SELECT wo_id, deskripsi AS pekerjaan, TRIM(CONCAT_WS(' -> ', NULLIF(asal, ''), NULLIF(tujuan, ''))) AS deskripsi,
+                   qty, 'Trip' AS satuan, harga, total, '' AS status, '' AS pic
+            FROM transport_items WHERE wo_id IS NOT NULL ORDER BY id"],
+    ];
+
+    $out = [];
+    foreach ($sources as [$divisi, $sumber, $sql]) {
+        foreach ($pdo->query($sql)->fetchAll() as $row) {
+            $woId = (int) $row['wo_id'];
+            if (!isset($out[$woId][$divisi])) {
+                $out[$woId][$divisi] = ['divisi' => $divisi, 'sumber' => $sumber, 'total_biaya' => 0.0, 'lines' => []];
+            }
+            unset($row['wo_id']);
+            $out[$woId][$divisi]['lines'][] = $row;
+            $out[$woId][$divisi]['total_biaya'] += (float) $row['total'];
+        }
+    }
+    return array_map('array_values', $out);
+}
+
 // ---------------------------------------------------------
 // resource=divisi_list : daftar 16 divisi baku (untuk dropdown)
 // ---------------------------------------------------------
@@ -291,6 +335,8 @@ if ($resource === 'dashboard' && $method === 'GET') {
          GROUP BY r.id"
     );
 
+    $autoCosts = mtc_auto_costs($pdo);
+
     $result = [];
     foreach ($wos as $w) {
         $budgetStmt->execute([':wo' => $w['id']]);
@@ -301,6 +347,11 @@ if ($resource === 'dashboard' && $method === 'GET') {
         foreach ($items as $item) {
             $recStmt->execute([':wo' => $w['id'], ':item' => $item['nama_item']]);
             $records = $recStmt->fetchAll();
+            // Baris rincian tiap record (dipakai tampilan "klik WO -> buka rincian").
+            foreach ($records as &$r) {
+                $r['items'] = fetch_divisi_items($pdo, (int) $r['id']);
+            }
+            unset($r);
             $itemTotal = array_sum(array_map(fn($r) => (float) $r['total_biaya'], $records));
             $totalBiayaWO += $itemTotal;
             $itemsWithDivisi[] = [
@@ -313,13 +364,20 @@ if ($resource === 'dashboard' && $method === 'GET') {
             ];
         }
 
-        if (empty($items)) continue; // WO tanpa Item Pekerjaan tidak relevan ditampilkan di matrix MTC
+        // Biaya otomatis dari modul lain (PR, Seal CNC, Transportasi) untuk WO ini.
+        $auto = array_values(array_filter($autoCosts[(int) $w['id']] ?? [], fn($a) => !empty($a['lines'])));
+        $autoTotal = array_sum(array_map(fn($a) => $a['total_biaya'], $auto));
+        $totalBiayaWO += $autoTotal;
+
+        // WO ditampilkan kalau punya Item Pekerjaan ATAU sudah ada biaya otomatis.
+        if (empty($items) && empty($auto)) continue;
 
         $result[] = [
             'wo_id' => $w['id'], 'wo_number' => $w['wo_number'], 'project' => $w['project'], 'status' => $w['status'],
             'customer_nama' => $w['customer_nama'], 'nilai_po' => $w['wo_total'] ?: $w['nilai_po'],
             'total_biaya' => $totalBiayaWO, 'margin' => (float) ($w['wo_total'] ?: $w['nilai_po']) - $totalBiayaWO,
             'items' => $itemsWithDivisi,
+            'auto_records' => $auto,
         ];
     }
 
