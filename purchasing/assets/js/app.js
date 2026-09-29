@@ -114,10 +114,16 @@ async function api(url, method = 'GET', body = null) {
   }
 
   let json;
+  const text = await res.text();
   try {
-    json = await res.json();
+    json = JSON.parse(text);
   } catch (err) {
-    throw new Error('Respons server tidak valid.');
+    // Biasanya karena PHP mengeluarkan pesan error/warning (bukan JSON).
+    // Tampilkan file API-nya + cuplikan pesan supaya mudah dilacak.
+    const endpoint = url.split('?')[0].replace(/^.*\//, '');
+    const snippet = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+    console.error(`[API] Respons tidak valid dari ${url} (HTTP ${res.status}):\n`, text);
+    throw new Error(`Respons server tidak valid dari ${endpoint} (HTTP ${res.status})${snippet ? ': ' + snippet : ''}. Buka cek_instalasi.php untuk diagnosa.`);
   }
 
   if (!json.success) {

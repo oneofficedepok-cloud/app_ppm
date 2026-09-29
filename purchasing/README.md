@@ -78,6 +78,17 @@ Buka `https://domainanda.com/login.php`.
 
 ---
 
+### E. Cek Instalasi (setelah install / update)
+Buka `http://localhost/<folder-aplikasi>/cek_instalasi.php` dari komputer server. Halaman ini memeriksa:
+- versi PHP & ekstensi,
+- file yang masih versi lama, tidak ada, atau tercampur (termasuk zip yang terekstrak ke subfolder),
+- koneksi database,
+- tabel & kolom yang belum dimigrasi.
+
+Setiap masalah disertai cara memperbaikinya. Halaman ini hanya bisa dibuka dari localhost dan tidak mengubah data apapun.
+
+---
+
 ## 4. Menambahkan User Tim
 
 Setiap orang yang perlu login sebaiknya punya akunnya sendiri (bukan share 1 akun admin), supaya:
