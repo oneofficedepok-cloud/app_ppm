@@ -156,6 +156,8 @@ Setiap tabel punya panel filter di atasnya:
 - Alternatif cepat: klik judul kolom untuk sortir naik ▲ / turun ▼.
 - Daftar Product, Buyer, Karyawan, Mesin, Tarif, User, dan Role punya kotak cari + tombol A-Z.
 
+**Pagination:** setiap tabel hanya menampilkan 10 baris per halaman (bisa diganti ke 25 / 50 / 100 / Semua lewat pilihan "Tampilkan" di bawah tabel; pilihan diingat browser). Halaman 1 berisi data terbaru. Pencarian, filter, urutan, total, grafik dan Export Excel tetap memakai **semua** data. Ini membuat tabel dengan ribuan baris tetap cepat dibuka (uji 5.000 PR: dari ±9 detik menjadi <0,1 detik).
+
 Menambah pilihan urutan: edit `TABLE_SORTS` di `assets/js/app.js`. Menambah dropdown filter: edit `TABLE_FILTERS` di file yang sama.
 
 ---

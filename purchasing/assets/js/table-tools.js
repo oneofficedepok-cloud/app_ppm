@@ -21,13 +21,10 @@
   // Konfigurasi: tabel & daftar mana yang diberi fitur.
   // search:false = tabel sudah punya kotak pencarian sendiri, cukup tambah sortir.
   // ---------------------------------------------------------------------
-  // Semua tabel sudah punya panel filter (Pencarian + dropdown + Urutkan) di app.js,
-  // jadi di sini cukup: klik judul kolom untuk sortir cepat.
-  const TABLES = [
-    'pr-table-body', 'wo-tracking-tbody', 'seal-table-tbody', 'transport-table-tbody', 'supplier-detail-tbody',
-    'stok-table-tbody', 'incoming-table-tbody', 'receiving-table-tbody', 'produksi-table-tbody', 'riwayat-table-tbody',
-    'mtc-dash-matrix-tbody', 'cashflow-tbody', 'ar-tbody', 'ap-tbody', 'talangan-tbody',
-  ].map(tbody => ({ tbody, search: false, info: false }));
+  // Tabel data sekarang memakai pagination + dropdown "Urutkan" di app.js (mengurutkan
+  // SEMUA data, bukan hanya halaman yang tampil), jadi sortir klik-judul-kolom tidak
+  // dipasang lagi di tabel. Tambahkan id <tbody> di sini hanya untuk tabel tanpa pagination.
+  const TABLES = [].map(tbody => ({ tbody, search: false, info: false }));
 
   // key: elemen di dalam item yang dipakai untuk sortir A-Z (default: teks item).
   const LISTS = [

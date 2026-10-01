@@ -961,7 +961,7 @@ function renderPRTable() {
     return;
   }
 
-  tbody.innerHTML = sortRows('pr', filtered).map(p => `
+  tbody.innerHTML = pageRows('pr', sortRows('pr', filtered)).map(p => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -1644,7 +1644,7 @@ function renderWOTracking() {
   };
   const categoryBadge = { 'PROJECT': 'bg-indigo-100 text-indigo-800', 'MAINTENANCE': 'bg-amber-100 text-amber-800', 'INVENTARIS': 'bg-slate-200 text-slate-700' };
 
-  tbody.innerHTML = sortRows('wo', filtered).map(w => {
+  tbody.innerHTML = pageRows('wo', sortRows('wo', filtered)).map(w => {
     const isProfit = Number(w.profit_loss) >= 0;
     const plBadgeClass = isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800 font-bold';
     return `
@@ -1945,6 +1945,7 @@ function sortText(r, f) {
   return v === null || v === undefined || v === '' ? '￿' : String(v); // kosong selalu di bawah
 }
 
+// Catatan: Cash Flow dihitung kronologis (saldo berjalan) tapi ditampilkan terbaru di atas.
 const TABLE_SORTS = {
   pr: [SORT_BY.dateDesc('tanggal'), SORT_BY.dateAsc('tanggal'), SORT_BY.numDesc('total', 'Total Terbesar'), SORT_BY.numAsc('total', 'Total Terkecil'),
     SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('approval_status', 'Status Approval (dikelompokkan)'),
@@ -2002,6 +2003,127 @@ function sortRows(name, rows) {
   if (!opt) return rows;
   return rows.map((r, i) => [r, i]).sort((a, b) => opt.cmp(a[0], b[0]) || a[1] - b[1]).map(x => x[0]);
 }
+
+// ===================== PAGINATION TABEL =====================
+// Hanya baris di halaman aktif yang digambar ke layar, supaya tabel dengan ribuan
+// data tetap cepat dibuka. Filter, pencarian, total, grafik & export Excel tetap
+// memakai SEMUA data (yang dipotong hanya tampilannya).
+const PAGE_SIZES = [10, 25, 50, 100, 0]; // 0 = Semua
+const DEFAULT_PAGE_SIZE = 10;
+const pageState = {}; // name -> { page, size }
+
+function getPageState(name) {
+  if (!pageState[name]) {
+    let size = DEFAULT_PAGE_SIZE;
+    try {
+      const saved = localStorage.getItem(`pageSize:${name}`);
+      if (saved !== null && PAGE_SIZES.includes(Number(saved))) size = Number(saved);
+    } catch (e) { /* localStorage tidak tersedia */ }
+    pageState[name] = { page: 1, size };
+  }
+  return pageState[name];
+}
+
+/** Potong baris sesuai halaman aktif + gambar kontrol halaman di bawah tabel. */
+function pageRows(name, rows) {
+  const st = getPageState(name);
+  const total = rows.length;
+  const pages = st.size ? Math.max(1, Math.ceil(total / st.size)) : 1;
+  if (st.page > pages) st.page = pages;
+  if (st.page < 1) st.page = 1;
+  const start = st.size ? (st.page - 1) * st.size : 0;
+  const slice = st.size ? rows.slice(start, start + st.size) : rows;
+  renderPager(name, total, start, slice.length, pages);
+  return slice;
+}
+
+function renderPager(name, total, start, shown, pages) {
+  const [targetId] = SORT_TARGETS[name] || [];
+  const target = targetId && document.getElementById(targetId);
+  if (!target) return;
+  let pager = document.getElementById(`pager-${name}`);
+  if (!pager) {
+    pager = document.createElement('div');
+    pager.id = `pager-${name}`;
+    pager.className = 'flex flex-wrap items-center justify-between gap-3 pt-3 text-xs text-slate-600';
+    // Letakkan di bawah area scroll tabel (atau di bawah kontainer kartu).
+    const table = target.closest('table');
+    const anchor = table ? (table.parentElement && /overflow/.test(table.parentElement.className) ? table.parentElement : table) : target;
+    anchor.after(pager);
+    // Kartu tabel tanpa padding (mis. tabel PR): beri jarak sendiri supaya tidak menempel ke tepi.
+    if (parseFloat(getComputedStyle(pager.parentElement).paddingLeft) < 8) pager.classList.add('px-4', 'pb-4');
+    // Render yang berhenti lebih awal (data kosong / tidak cocok filter) tidak memanggil
+    // pageRows -> sembunyikan pager kalau isi tabel tinggal baris pesan saja.
+    new MutationObserver(() => {
+      const hasData = [...target.children].some(el => !(el.tagName === 'TR' && el.cells.length === 1) && !/col-span-full/.test(el.className));
+      pager.classList.toggle('hidden', !hasData);
+    }).observe(target, { childList: true });
+  }
+  pager.classList.remove('hidden');
+  const st = getPageState(name);
+  if (total === 0) { pager.innerHTML = ''; return; }
+
+  const btn = (p, label, disabled, active = false) =>
+    `<button type="button" ${disabled ? 'disabled' : `onclick="goToPage('${name}', ${p})"`}
+      class="min-w-[32px] h-8 px-2 rounded-lg border text-xs font-bold transition ${active ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-100'} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}">${label}</button>`;
+  // Nomor halaman ringkas: 1 … 4 5 [6] 7 8 … 20
+  const nums = [];
+  for (let p = 1; p <= pages; p++) {
+    if (p === 1 || p === pages || Math.abs(p - st.page) <= 2) nums.push(p);
+    else if (nums[nums.length - 1] !== '…') nums.push('…');
+  }
+  const numBtns = nums.map(p => p === '…' ? '<span class="px-1 text-slate-400">…</span>' : btn(p, p, false, p === st.page)).join('');
+
+  pager.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span>Tampilkan</span>
+      <select onchange="setPageSize('${name}', this.value)" class="h-8 px-2 bg-white border border-slate-300 rounded-lg text-xs font-bold">
+        ${PAGE_SIZES.map(s => `<option value="${s}" ${s === st.size ? 'selected' : ''}>${s || 'Semua'}</option>`).join('')}
+      </select>
+      <span class="text-slate-500">Baris <b>${(start + 1).toLocaleString('id-ID')}–${(start + shown).toLocaleString('id-ID')}</b> dari <b>${total.toLocaleString('id-ID')}</b></span>
+    </div>
+    ${pages > 1 ? `<div class="flex items-center gap-1 flex-wrap">
+      ${btn(st.page - 1, '<i class="fa-solid fa-chevron-left"></i>', st.page <= 1)}
+      ${numBtns}
+      ${btn(st.page + 1, '<i class="fa-solid fa-chevron-right"></i>', st.page >= pages)}
+    </div>` : ''}`;
+}
+
+function rerenderTable(name) {
+  const [, render] = SORT_TARGETS[name] || [];
+  if (render) render();
+}
+
+function goToPage(name, page) {
+  getPageState(name).page = page;
+  rerenderTable(name);
+  // Gulir ke awal tabel supaya halaman baru langsung terlihat.
+  const [targetId] = SORT_TARGETS[name] || [];
+  const el = targetId && document.getElementById(targetId);
+  const top = el && (el.closest('table') || el);
+  if (top) top.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function setPageSize(name, size) {
+  const st = getPageState(name);
+  st.size = Number(size);
+  st.page = 1;
+  try { localStorage.setItem(`pageSize:${name}`, String(st.size)); } catch (e) { /* abaikan */ }
+  rerenderTable(name);
+}
+
+// Saat filter / pencarian / urutan di sebuah tab diubah, kembali ke halaman 1.
+// Pakai fase "capture" supaya halaman sudah di-reset SEBELUM handler oninput/onchange
+// milik filter itu sendiri merender ulang tabel.
+['input', 'change'].forEach(evt => document.addEventListener(evt, e => {
+  const el = e.target;
+  if (!(el instanceof HTMLElement) || el.closest('[id^=pager-]') || el.closest('table')) return;
+  const tab = el.closest('[id^=tab-content-]');
+  if (!tab) return;
+  Object.entries(SORT_TARGETS).forEach(([name, [targetId]]) => {
+    if (tab.querySelector(`#${targetId}`)) getPageState(name).page = 1;
+  });
+}, true));
 
 function sortSelectHtml(name, selectClass) {
   return `<select id="sort-${name}" data-sort-tbody="${(SORT_TARGETS[name] || [])[0] || ''}" onchange="onSortChange('${name}')" class="${selectClass}">
@@ -2300,7 +2422,7 @@ function renderSealTable() {
     syncBulkBar('seal');
     return;
   }
-  tbody.innerHTML = rows.map(s => `
+  tbody.innerHTML = pageRows('seal', rows).map(s => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-4 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -2600,7 +2722,7 @@ function renderStokTable() {
     tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 font-semibold">Tidak ada material yang cocok dengan filter.</td></tr>`;
     return;
   }
-  tbody.innerHTML = sortRows('stok', items).map(i => {
+  tbody.innerHTML = pageRows('stok', sortRows('stok', items)).map(i => {
     const low = Number(i.stok_qty) <= Number(i.stok_min);
     return `
     <tr class="hover:bg-slate-50 transition group ${low ? 'bg-rose-50/60' : ''}">
@@ -2733,7 +2855,7 @@ function renderIncomingTable() {
     return;
   }
 
-  tbody.innerHTML = incoming.map(p => `
+  tbody.innerHTML = pageRows('incoming', incoming).map(p => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-4 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <button onclick="openReceiveGoodsModal(${p.id})" class="bg-lime-600 hover:bg-lime-700 text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 whitespace-nowrap"><i class="fa-solid fa-check"></i> Terima Barang</button>
@@ -2762,7 +2884,7 @@ function renderReceivingTable() {
     return;
   }
 
-  tbody.innerHTML = received.map(p => `
+  tbody.innerHTML = pageRows('receiving', received).map(p => `
     <tr class="hover:bg-slate-50 transition">
       <td class="py-2.5 px-4 font-extrabold text-lime-900">${esc(p.pr_number)}</td>
       <td class="py-2.5 px-4 font-semibold">${esc(p.product)}</td>
@@ -2824,7 +2946,7 @@ function renderRiwayatTable() {
     tbody.innerHTML = tfNoMatchRow(9);
     return;
   }
-  tbody.innerHTML = rows.map(m => {
+  tbody.innerHTML = pageRows('riwayat', rows).map(m => {
     const ref = m.wo_number ? `WO: ${esc(m.wo_number)}` : (m.ref_production_id ? `Produksi #${m.ref_production_id}` : (m.ref_pr_id ? `PR #${m.ref_pr_id}` : '-'));
     return `
     <tr class="hover:bg-slate-50 transition group">
@@ -2913,7 +3035,7 @@ function renderProduksiTable() {
     tbody.innerHTML = tfNoMatchRow(8);
     return;
   }
-  tbody.innerHTML = rows.map(p => {
+  tbody.innerHTML = pageRows('produksi', rows).map(p => {
     const totalButuh = (p.bom_items || []).reduce((s, b) => s + Number(b.qty_dibutuhkan), 0);
     const totalPakai = (p.bom_items || []).reduce((s, b) => s + Number(b.qty_terpakai), 0);
     const pct = totalButuh > 0 ? Math.min(100, Math.round((totalPakai / totalButuh) * 100)) : 0;
@@ -3269,7 +3391,7 @@ async function renderMTCDashboard() {
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="${mtcDivisiList.length + 7}" class="text-center py-10 text-slate-400 text-sm">Belum ada WO dengan "Item Pekerjaan" tercatat. Tambahkan Item Pekerjaan lewat Edit WO (Tracking WO & Budget) dulu, baru catat biaya per divisi di "Modul Divisi Produksi".</td></tr>`;
   } else {
-    tbody.innerHTML = sortRows('mtcdash', filtered).map(w => {
+    tbody.innerHTML = pageRows('mtcdash', sortRows('mtcdash', filtered)).map(w => {
       const divSums = {}; mtcDivisiList.forEach(d => divSums[d] = 0);
       let lastSJ = '-';
       w.items.forEach(it => it.divisi_records.forEach(r => {
@@ -3683,7 +3805,7 @@ function renderTransportTable() {
     syncBulkBar('transport');
     return;
   }
-  tbody.innerHTML = rows.map(t => `
+  tbody.innerHTML = pageRows('transport', rows).map(t => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-4 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -3817,7 +3939,7 @@ function renderCustomerDirectory() {
     return;
   }
 
-  container.innerHTML = sortRows('customers', filtered).map(c => {
+  container.innerHTML = pageRows('customers', sortRows('customers', filtered)).map(c => {
     const relatedWO = workOrders.filter(w => w.customer_id === c.id);
     return `
     <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden flex flex-col">
@@ -3950,7 +4072,7 @@ function renderSupplierDirectory() {
     return;
   }
 
-  tbody.innerHTML = sortRows('suppliers', filtered).map(s => {
+  tbody.innerHTML = pageRows('suppliers', sortRows('suppliers', filtered)).map(s => {
     // Rekap DPP/PPN/Total dihitung dari data PR yang sudah dimuat (bukan CANCEL).
     const relatedPR = prItems.filter(p => p.supplier_id === s.id && p.status !== 'CANCEL');
     const totalDPP = relatedPR.reduce((acc, p) => acc + (Number(p.dpp) || 0), 0);
@@ -4709,7 +4831,7 @@ function renderCashflowTable() {
     return;
   }
 
-  tbody.innerHTML = sortRows('cashflow', filtered).map(c => `
+  tbody.innerHTML = pageRows('cashflow', sortRows('cashflow', filtered.slice().reverse())).map(c => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -4861,7 +4983,7 @@ function renderARTable() {
     return;
   }
 
-  tbody.innerHTML = sortRows('ar', filtered).map(a => `
+  tbody.innerHTML = pageRows('ar', sortRows('ar', filtered)).map(a => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -5070,7 +5192,7 @@ function renderAPTable() {
     return;
   }
 
-  tbody.innerHTML = sortRows('ap', filtered).map(a => `
+  tbody.innerHTML = pageRows('ap', sortRows('ap', filtered)).map(a => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
@@ -5239,7 +5361,7 @@ function renderTalanganTable() {
     tbody.innerHTML = tfNoMatchRow(10);
     return;
   }
-  tbody.innerHTML = rows.map(t => `
+  tbody.innerHTML = pageRows('talangan', rows).map(t => `
     <tr class="hover:bg-slate-50 transition group">
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
