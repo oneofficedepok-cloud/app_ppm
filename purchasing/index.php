@@ -415,6 +415,24 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         </div>
       </section>
 
+      <!-- Charts -->
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2"><i class="fa-solid fa-chart-column text-indigo-600"></i> Pengeluaran per Supplier (Rp)</h3>
+            <span class="text-xs text-slate-400">Termasuk PPN</span>
+          </div>
+          <div class="h-60 relative"><canvas id="supplierChart"></canvas></div>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2"><i class="fa-solid fa-chart-pie text-indigo-600"></i> Distribusi Status PR</h3>
+            <span class="text-xs text-slate-400">Persentase (%)</span>
+          </div>
+          <div class="h-60 relative flex items-center justify-center"><canvas id="statusChart"></canvas></div>
+        </div>
+      </section>
+
       <!-- Filter Bar -->
       <section class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
         <div class="flex items-center justify-between">
@@ -465,24 +483,6 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
               <option value="REJECTED">Ditolak</option>
             </select>
           </div>
-        </div>
-      </section>
-
-      <!-- Charts -->
-      <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div class="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2"><i class="fa-solid fa-chart-column text-indigo-600"></i> Pengeluaran per Supplier (Rp)</h3>
-            <span class="text-xs text-slate-400">Termasuk PPN</span>
-          </div>
-          <div class="h-60 relative"><canvas id="supplierChart"></canvas></div>
-        </div>
-        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-slate-800 text-sm sm:text-base flex items-center gap-2"><i class="fa-solid fa-chart-pie text-indigo-600"></i> Distribusi Status PR</h3>
-            <span class="text-xs text-slate-400">Persentase (%)</span>
-          </div>
-          <div class="h-60 relative flex items-center justify-center"><canvas id="statusChart"></canvas></div>
         </div>
       </section>
 
