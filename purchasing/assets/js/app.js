@@ -1755,6 +1755,21 @@ function addWOBudgetItemBlock(data = null) {
     block.querySelector('.wobi-budget').value = data.budget || 0;
     block.querySelector('.wobi-actual').value = data.actual || 0;
     block.querySelector('.wobi-status').value = data.status || 'ON PROCESS';
+    if (data.actual_from_mtc) {
+      // Aktual item ini dihitung otomatis dari rincian MTC (Modul Divisi Produksi) -> kunci input.
+      const act = block.querySelector('.wobi-actual');
+      act.readOnly = true;
+      act.classList.remove('bg-white');
+      act.classList.add('bg-emerald-50', 'border-emerald-300', 'text-emerald-800', 'font-bold');
+      act.title = 'Otomatis dari total rincian MTC (Modul Divisi Produksi) untuk item ini. Ubah lewat menu MTC Produksi.';
+      // Nama item jadi kunci penghubung ke MTC: ganti nama = putus hubungan dengan rinciannya.
+      block.querySelector('.wobi-nama').title = 'Nama ini dipakai untuk menghubungkan rincian MTC. Jangan diganti, atau total MTC tidak terhubung lagi.';
+      const badge = document.createElement('span');
+      badge.className = 'text-[9px] font-bold text-emerald-700 whitespace-nowrap';
+      badge.innerHTML = '<i class="fa-solid fa-link"></i> MTC';
+      badge.title = act.title;
+      act.after(badge);
+    }
   }
   recalcWOBudgetTotals();
   return block;

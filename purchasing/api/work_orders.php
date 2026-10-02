@@ -84,7 +84,12 @@ switch ($method) {
         $rows = $pdo->query($sql)->fetchAll();
 
         foreach ($rows as &$w) {
-            $w['budget_items'] = fetch_wo_budget_items($pdo, (int) $w['id']);
+            // Aktual tiap Item Pekerjaan = total rincian MTC (Modul Divisi Produksi) dengan
+            // nama item yang sama; Aktual Produksi WO = jumlah semua Item Pekerjaan.
+            $w['budget_items'] = apply_mtc_actuals(fetch_wo_budget_items($pdo, (int) $w['id']), mtc_totals_per_item($pdo, (int) $w['id']));
+            if ($w['budget_items']) {
+                $w['aktual_prod'] = array_sum(array_map(fn($it) => (float) $it['actual'], $w['budget_items']));
+            }
 
             $totalProduksi = (float) $w['aktual_prod'] + (float) $w['aktual_pem'] + (float) $w['total_seal'] + (float) $w['total_transport'] + (float) $w['total_lain'];
             $w['total_produksi'] = $totalProduksi;
@@ -196,6 +201,7 @@ switch ($method) {
                 ->execute([':b' => $sums[0], ':a' => $sums[1], ':id' => $newId]);
         }
 
+        sync_wo_actual_from_mtc($pdo, $newId);
         log_activity('create', 'work_orders', $newId, $woNumber);
         json_success(['id' => $newId, 'wo_number' => $woNumber, 'dpp' => $dpp, 'wo_total' => $woTotal], 'Work Order berhasil ditambahkan.');
         break;
@@ -271,6 +277,7 @@ switch ($method) {
             throw $e;
         }
 
+        sync_wo_actual_from_mtc($pdo, $id);
         log_activity('update', 'work_orders', $id, $woNumber);
         json_success(['id' => $id, 'dpp' => $dpp, 'wo_total' => $woTotal], 'Work Order berhasil diperbarui.');
         break;

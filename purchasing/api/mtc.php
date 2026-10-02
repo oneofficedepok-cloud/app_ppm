@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/wo_functions.php';
 
 switch ($_GET['resource'] ?? 'dashboard') {
     case 'divisi_list':
@@ -33,6 +34,13 @@ function fetch_divisi_items(PDO $pdo, int $recordId): array
     $stmt = $pdo->prepare('SELECT * FROM mtc_divisi_items WHERE record_id = :id ORDER BY id ASC');
     $stmt->execute([':id' => $recordId]);
     return $stmt->fetchAll();
+}
+
+function record_wo_id(PDO $pdo, int $recordId): int
+{
+    $stmt = $pdo->prepare('SELECT wo_id FROM mtc_divisi_records WHERE id = :id');
+    $stmt->execute([':id' => $recordId]);
+    return (int) $stmt->fetchColumn();
 }
 
 function fetch_records_for_wo(PDO $pdo, int $woId): array
@@ -252,6 +260,7 @@ if ($resource === 'records') {
                 throw $e;
             }
 
+            sync_wo_actual_from_mtc($pdo, (int) $woId); // Aktual Item Pekerjaan WO ikut terupdate
             log_activity('create', 'mtc_divisi_records', $recordId, "{$divisi} - {$namaItem}");
             json_success(['id' => $recordId], 'Data Divisi Produksi berhasil disimpan.');
             break;
@@ -297,6 +306,7 @@ if ($resource === 'records') {
                 throw $e;
             }
 
+            sync_wo_actual_from_mtc($pdo, record_wo_id($pdo, $id));
             log_activity('update', 'mtc_divisi_records', $id, '');
             json_success(['id' => $id], 'Data Divisi Produksi berhasil diperbarui.');
             break;
@@ -305,7 +315,9 @@ if ($resource === 'records') {
         case 'DELETE':
             $id = to_int_or_null($_GET['id'] ?? null);
             if (!$id) json_error('ID wajib diisi.', 422);
+            $woOfRecord = record_wo_id($pdo, $id);
             $pdo->prepare('DELETE FROM mtc_divisi_records WHERE id = :id')->execute([':id' => $id]);
+            if ($woOfRecord) sync_wo_actual_from_mtc($pdo, $woOfRecord);
             log_activity('delete', 'mtc_divisi_records', $id, '');
             json_success([], 'Data Divisi Produksi berhasil dihapus.');
             break;

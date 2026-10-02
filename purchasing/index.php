@@ -1588,12 +1588,12 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
             <h4 class="font-bold text-slate-700 uppercase text-[10px] tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-calculator text-amber-600"></i> Budgeting Produksi Perusahaan</h4>
             <button type="button" onclick="addWOBudgetItemBlock()" class="text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-2.5 py-1 rounded-lg flex items-center gap-1"><i class="fa-solid fa-plus"></i> Item Pekerjaan</button>
           </div>
-          <p class="text-[10px] text-slate-400 -mt-2">Kalau diisi, Budget & Aktual Produksi di bawah dihitung otomatis dari total baris-baris ini. Kosongkan untuk isi manual (kompatibel dengan WO lama).</p>
+          <p class="text-[10px] text-slate-400 -mt-2">Kalau diisi, Budget & Aktual Produksi di bawah dihitung otomatis dari total baris-baris ini. Kolom <b class="text-emerald-700">Aktual</b> terisi otomatis dari total rincian di <b>MTC Produksi → Modul Divisi Produksi</b> untuk item dengan nama yang sama (bertanda <i class="fa-solid fa-link"></i> MTC). Kosongkan semua baris untuk isi manual (kompatibel dengan WO lama).</p>
           <div id="wo-budget-items-container" class="space-y-2"></div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
             <div><label class="block font-semibold text-slate-600 mb-1">Budget Produksi (Rp) <span id="wo-bprod-auto-hint" class="hidden font-normal text-amber-600">(auto dari Item Pekerjaan)</span></label><input type="number" id="wo-form-budget-prod" min="0" value="0" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
-            <div><label class="block font-semibold text-slate-600 mb-1">Aktual Produksi (Rp) <span id="wo-aprod-auto-hint" class="hidden font-normal text-amber-600">(auto dari Item Pekerjaan)</span></label><input type="number" id="wo-form-aktual-prod" min="0" value="0" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+            <div><label class="block font-semibold text-slate-600 mb-1">Aktual Produksi (Rp) <span id="wo-aprod-auto-hint" class="hidden font-normal text-amber-600">(auto dari Item Pekerjaan / rincian MTC)</span></label><input type="number" id="wo-form-aktual-prod" min="0" value="0" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><label class="block font-semibold text-slate-600 mb-1">Budget Pembelian (Rp)</label><input type="number" id="wo-form-budget-pem" min="0" value="0" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>

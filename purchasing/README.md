@@ -162,6 +162,17 @@ Menambah pilihan urutan: edit `TABLE_SORTS` di `assets/js/app.js`. Menambah drop
 
 ---
 
+### Aktual Item Pekerjaan WO otomatis dari MTC
+
+Di form Work Order, kolom **Aktual** setiap Item Pekerjaan (mis. ROD, MAN POWER COST) terisi otomatis dari total rincian di **MTC Produksi → Modul Divisi Produksi** untuk item dengan **nama yang sama**. Kolom ini terkunci dan bertanda 🔗 MTC.
+
+- **Aktual Produksi** WO = jumlah Aktual semua Item Pekerjaan. Angka ini ikut dipakai di Total Produksi, P/L, dan Status Budget.
+- Angka diperbarui setiap kali record MTC ditambah, diedit, atau dihapus, dan setiap kali WO disimpan.
+- Item yang belum punya rincian MTC tetap bisa diisi manual.
+- **Jangan mengganti nama Item Pekerjaan** yang sudah punya rincian MTC. Nama itu adalah penghubungnya (huruf besar/kecil tidak berpengaruh).
+
+---
+
 ## 5. Struktur Kode (untuk referensi / pengembangan lanjutan)
 
 ```
