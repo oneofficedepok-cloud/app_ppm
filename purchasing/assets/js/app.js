@@ -3579,6 +3579,8 @@ async function handleMTCDivisiWOChange() {
   const addBtn = document.getElementById('mtc-add-record-btn');
   const emptyHint = document.getElementById('mtcdivisi-empty-hint');
   const listEl = document.getElementById('mtcdivisi-records-list');
+  const exportBtn = document.getElementById('mtc-export-wo-btn');
+  if (exportBtn) exportBtn.disabled = !mtcCurrentWOId;
 
   if (!mtcCurrentWOId) {
     addBtn.disabled = true;
@@ -5724,3 +5726,110 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#user-menu')) closeUserMenu();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeUserMenu(); });
+
+
+// ===================== EXPORT EXCEL: MTC PRODUKSI =====================
+/**
+ * Export biaya MTC ke Excel (3 sheet):
+ *   1. Rekap per WO      : nilai PO, biaya per divisi, total biaya, margin
+ *   2. Rincian Pekerjaan : semua baris pekerjaan per divisi (manual + otomatis PR/Seal/Transport)
+ *   3. Rekap per Item    : budget vs aktual tiap Item Pekerjaan WO
+ * woId diisi  -> hanya WO itu (tombol di Modul Divisi Produksi).
+ * woId kosong -> WO yang sedang tampil di Dashboard MTC (ikut pencarian & urutan).
+ */
+async function exportMTCExcel(woId = null) {
+  if (typeof XLSX === 'undefined') {
+    showToast('Library Excel belum termuat. Periksa koneksi internet lalu muat ulang halaman.', 'error');
+    return;
+  }
+  let data;
+  try {
+    data = await api('api/mtc.php?resource=dashboard'); // selalu ambil data terbaru
+  } catch (err) {
+    showApiError(err);
+    return;
+  }
+
+  let wos;
+  if (woId) {
+    wos = data.filter(w => String(w.wo_id) === String(woId));
+  } else {
+    const search = (document.getElementById('mtc-dash-search')?.value || '').toLowerCase();
+    wos = sortRows('mtcdash', data.filter(w =>
+      !search || w.wo_number.toLowerCase().includes(search) || (w.project || '').toLowerCase().includes(search) || (w.customer_nama || '').toLowerCase().includes(search)));
+  }
+  if (!wos.length) {
+    showToast(woId ? 'WO ini belum punya rincian biaya MTC untuk diexport.' : 'Tidak ada data MTC untuk diexport.', 'error');
+    return;
+  }
+
+  const num = v => Math.round((Number(v) || 0) * 100) / 100; // 2 desimal, hindari 17025.400000000023
+  const divisi = mtcDivisiList.length ? mtcDivisiList : [...new Set(wos.flatMap(w => [
+    ...w.items.flatMap(it => it.divisi_records.map(r => r.divisi)), ...(w.auto_records || []).map(a => a.divisi)]))];
+  const woInfo = w => [w.wo_number, w.project || '', w.customer_nama || '', w.status || ''];
+
+  // ---- Sheet 1: Rekap per WO
+  const rekap = [['No WO', 'Project', 'Customer', 'Status WO', 'Nilai PO', ...divisi, 'Total Biaya', 'Margin', 'Margin %']];
+  const totals = { po: 0, cost: 0, div: Object.fromEntries(divisi.map(d => [d, 0])) };
+  wos.forEach(w => {
+    const perDiv = Object.fromEntries(divisi.map(d => [d, 0]));
+    w.items.forEach(it => it.divisi_records.forEach(r => { if (r.divisi in perDiv) perDiv[r.divisi] += num(r.total_biaya); }));
+    (w.auto_records || []).forEach(a => { if (a.divisi in perDiv) perDiv[a.divisi] += num(a.total_biaya); });
+    const po = num(w.nilai_po), cost = num(w.total_biaya);
+    rekap.push([...woInfo(w), po, ...divisi.map(d => perDiv[d]), cost, num(po - cost), po ? (po - cost) / po : 0]);
+    totals.po += po; totals.cost += cost;
+    divisi.forEach(d => { totals.div[d] += perDiv[d]; });
+  });
+  rekap.push(['TOTAL', '', '', '', totals.po, ...divisi.map(d => totals.div[d]), num(totals.cost), num(totals.po - totals.cost), totals.po ? (totals.po - totals.cost) / totals.po : 0]);
+
+  // ---- Sheet 2: Rincian Pekerjaan
+  const rincian = [['No WO', 'Project', 'Customer', 'Item Pekerjaan', 'Divisi', 'Sumber', 'Status Workflow', 'PIC', 'No. Surat Jalan',
+    'Pekerjaan', 'Deskripsi', 'Qty', 'Satuan', 'Kode Mesin', 'Harga/Satuan', 'Total', 'Status']];
+  wos.forEach(w => {
+    w.items.forEach(it => it.divisi_records.forEach(r => (r.items || []).forEach(line => {
+      rincian.push([w.wo_number, w.project || '', w.customer_nama || '', it.nama_item, r.divisi, 'Manual (MTC)', r.status_workflow || '',
+        r.pic || '', r.surat_jalan || '', line.pekerjaan || '', line.deskripsi || '', num(line.qty), line.satuan || '',
+        line.kode_mesin || '', num(line.harga), num(line.total), line.status || '']);
+    })));
+    (w.auto_records || []).forEach(a => a.lines.forEach(line => {
+      rincian.push([w.wo_number, w.project || '', w.customer_nama || '', '(Otomatis)', a.divisi, `Otomatis - ${a.sumber}`, '',
+        line.pic || '', '', line.pekerjaan || '', line.deskripsi || '', num(line.qty), line.satuan || '',
+        '', num(line.harga), num(line.total), line.status || '']);
+    }));
+  });
+  const rincianTotal = num(rincian.slice(1).reduce((s, r) => s + r[15], 0));
+  rincian.push(['TOTAL', '', '', '', '', '', '', '', '', '', '', '', '', '', '', rincianTotal, '']);
+
+  // ---- Sheet 3: Rekap per Item Pekerjaan (budget vs aktual)
+  const perItem = [['No WO', 'Project', 'Item Pekerjaan', 'Qty', 'Budget', 'Aktual (MTC)', 'Selisih (Budget - Aktual)', 'Status Item']];
+  wos.forEach(w => w.items.forEach(it => {
+    perItem.push([w.wo_number, w.project || '', it.nama_item, num(it.qty), num(it.budget), num(it.aktual), num(num(it.budget) - num(it.aktual)), it.status || '']);
+  }));
+
+  // ---- Format: lebar kolom, angka ribuan, persen, baris header & total tebal
+  const sheet = (rows, moneyCols, pctCols = [], widths = {}) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = 1; R <= range.e.r; R++) {
+      for (let C = 0; C <= range.e.c; C++) {
+        const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+        if (!cell || cell.t !== 'n') continue;
+        if (moneyCols.includes(C)) cell.z = '#,##0';
+        else if (pctCols.includes(C)) cell.z = '0.0%';
+      }
+    }
+    ws['!cols'] = rows[0].map((h, i) => ({ wch: widths[i] || Math.max(10, Math.min(40, String(h).length + 4)) }));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: range.e.r - (rows[rows.length - 1][0] === 'TOTAL' ? 1 : 0), c: range.e.c } }) };
+    return ws;
+  };
+  const divCols = divisi.map((_, i) => 5 + i);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, sheet(rekap, [4, ...divCols, 5 + divisi.length, 6 + divisi.length], [7 + divisi.length], { 1: 36, 2: 28 }), 'Rekap per WO');
+  XLSX.utils.book_append_sheet(wb, sheet(rincian, [14, 15], [], { 1: 32, 2: 26, 3: 20, 4: 18, 5: 22, 9: 28, 10: 30 }), 'Rincian Pekerjaan');
+  XLSX.utils.book_append_sheet(wb, sheet(perItem, [4, 5, 6], [], { 1: 36, 2: 24 }), 'Rekap per Item');
+
+  const today = new Date().toISOString().slice(0, 10);
+  const label = woId ? `WO_${String(wos[0].wo_number).replace(/[^\w-]+/g, '_')}` : `${wos.length}_WO`;
+  XLSX.writeFile(wb, `MTC_Produksi_${label}_${today}.xlsx`);
+  showToast(`Export Excel MTC berhasil (${wos.length} WO, ${rincian.length - 2} baris pekerjaan).`);
+}

@@ -975,7 +975,10 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
       <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
         <div class="flex justify-between items-center">
           <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fa-solid fa-table-cells text-indigo-600"></i> Rincian Biaya MTC Produksi Per Divisi</h3>
-          <span class="text-xs text-indigo-600 font-medium"><i class="fa-solid fa-circle-info mr-1"></i>Klik baris untuk buka rincian pekerjaan</span>
+          <div class="flex items-center gap-3">
+            <span class="hidden sm:inline text-xs text-indigo-600 font-medium"><i class="fa-solid fa-circle-info mr-1"></i>Klik baris untuk buka rincian pekerjaan</span>
+            <button type="button" onclick="exportMTCExcel()" title="Export WO yang sedang tampil (ikut pencarian & urutan) ke Excel" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm flex items-center gap-1.5 whitespace-nowrap"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
+          </div>
         </div>
         <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-lg">
           <table class="w-full text-xs text-left border-collapse" id="mtc-dash-table">
@@ -992,13 +995,16 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-sitemap text-teal-600"></i> Modul Divisi Produksi</h3>
         <p class="text-xs text-slate-400">Catat biaya aktual (mesin/manpower) yang dikeluarkan tiap divisi untuk mengerjakan Item Pekerjaan sebuah WO.</p>
       </div>
-      <div class="bg-teal-50/60 p-4 rounded-xl border border-teal-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="bg-teal-50/60 p-4 rounded-xl border border-teal-200 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3">
         <div>
           <label class="block font-semibold text-slate-600 mb-1 text-xs">Pilih Work Order *</label>
           <select id="mtcdivisi-wo-select" onchange="handleMTCDivisiWOChange()" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold"><option value="">-- Pilih WO --</option></select>
         </div>
         <div class="flex items-end">
           <button onclick="openMTCRecordModal('add')" id="mtc-add-record-btn" disabled class="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center justify-center gap-2"><i class="fa-solid fa-plus-circle"></i> + Catat Biaya Divisi</button>
+        </div>
+        <div class="flex items-end">
+          <button onclick="exportMTCExcel(mtcCurrentWOId)" id="mtc-export-wo-btn" disabled title="Export rincian biaya divisi WO ini ke Excel" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 whitespace-nowrap"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
         </div>
       </div>
       <div id="mtcdivisi-empty-hint" class="text-center py-10 text-slate-400 text-sm">Pilih Work Order dulu untuk melihat/mencatat biaya per divisi.</div>
