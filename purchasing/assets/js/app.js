@@ -2767,6 +2767,50 @@ function nextSkuSuggestion() {
   return 'MAT-' + String(inventoryItems.length + 1).padStart(4, '0');
 }
 
+/**
+ * Kolom stok di form Material:
+ *  - Tambah : "Stok Awal" (opening balance), bisa diisi semua yang boleh menambah material.
+ *  - Edit   : "Stok Saat Ini" - admin boleh mengoreksi (dicatat otomatis di Riwayat Pergerakan
+ *             sebagai ADJUSTMENT / OPNAME), user lain hanya melihat.
+ */
+function setInventoryStockField(mode, item = null) {
+  const input = document.getElementById('inv-stok-awal');
+  const label = document.getElementById('inv-stok-label');
+  const lock = document.getElementById('inv-stok-lock');
+  const hint = document.getElementById('inv-stok-hint');
+  document.getElementById('inv-stok-awal-wrapper').classList.remove('hidden');
+  input.classList.remove('bg-slate-100', 'text-slate-500', 'cursor-not-allowed', 'bg-amber-50', 'border-amber-300');
+  input.dataset.original = '';
+
+  if (mode === 'add') {
+    label.textContent = 'Stok Awal (opening balance, hanya saat tambah baru)';
+    input.readOnly = false;
+    input.value = 0;
+    lock.classList.add('hidden');
+    hint.classList.add('hidden');
+    return;
+  }
+
+  const satuan = item.satuan || '';
+  label.textContent = `Stok Saat Ini (${satuan})`;
+  input.value = Number(item.stok_qty) || 0;
+  input.dataset.original = String(Number(item.stok_qty) || 0);
+  if (IS_ADMIN) {
+    input.readOnly = false;
+    input.classList.add('bg-amber-50', 'border-amber-300');
+    lock.classList.add('hidden');
+    hint.className = 'text-[10px] mt-1 text-amber-700';
+    hint.innerHTML = '<i class="fa-solid fa-circle-info"></i> Mengubah angka ini = koreksi stok (stock opname). Selisihnya dicatat otomatis di <b>Riwayat Pergerakan</b> sebagai ADJUSTMENT.';
+  } else {
+    input.readOnly = true;
+    input.classList.add('bg-slate-100', 'text-slate-500', 'cursor-not-allowed');
+    lock.classList.remove('hidden');
+    hint.className = 'text-[10px] mt-1 text-slate-400';
+    hint.textContent = 'Untuk barang masuk/keluar gunakan menu Riwayat Pergerakan. Koreksi stok langsung hanya bisa dilakukan admin.';
+  }
+  hint.classList.remove('hidden');
+}
+
 function openInventoryItemModal(mode, id = null) {
   document.getElementById('inventory-form').reset();
   document.getElementById('inv-form-id').value = '';
@@ -2777,7 +2821,7 @@ function openInventoryItemModal(mode, id = null) {
     title.textContent = 'Tambah Material Baru';
     document.getElementById('inv-sku').value = nextSkuSuggestion();
     document.getElementById('inv-satuan').value = 'Pcs';
-    stokAwalWrapper.classList.remove('hidden');
+    setInventoryStockField('add');
   } else {
     const i = inventoryItems.find(x => x.id === id);
     if (!i) return;
@@ -2792,8 +2836,7 @@ function openInventoryItemModal(mode, id = null) {
     document.getElementById('inv-stok-min').value = i.stok_min;
     document.getElementById('inv-lokasi').value = i.lokasi_rak || '';
     document.getElementById('inv-status').value = i.status;
-    // Stok berjalan tidak diedit lewat form ini (lihat komentar di API) - sembunyikan field opening balance.
-    stokAwalWrapper.classList.add('hidden');
+    setInventoryStockField('edit', i);
   }
   document.getElementById('inventory-modal').classList.remove('hidden');
 }
@@ -2819,8 +2862,17 @@ async function handleInventoryItemSubmit(e) {
   try {
     if (id) {
       payload.id = id;
+      const stokInput = document.getElementById('inv-stok-awal');
+      const stokChanged = IS_ADMIN && stokInput.value !== '' && Number(stokInput.value) !== Number(stokInput.dataset.original);
+      if (stokChanged) {
+        const ok = await showConfirm(`Stok akan dikoreksi dari ${formatQty(stokInput.dataset.original)} menjadi ${formatQty(stokInput.value)}. Selisihnya dicatat di Riwayat Pergerakan sebagai koreksi stok (ADJUSTMENT). Lanjutkan?`,
+          { title: 'Koreksi Stok', danger: false, yesText: 'Ya, Koreksi' });
+        if (!ok) return;
+        payload.stok_qty = stokInput.value;
+      }
       await api('api/inventory_items.php', 'PUT', payload);
-      showToast('Data Material berhasil diperbarui.');
+      showToast(stokChanged ? 'Material diperbarui. Koreksi stok dicatat di Riwayat Pergerakan.' : 'Data Material berhasil diperbarui.');
+      if (stokChanged) await refresh('inventoryMovements');
     } else {
       payload.stok_qty = document.getElementById('inv-stok-awal').value;
       await api('api/inventory_items.php', 'POST', payload);

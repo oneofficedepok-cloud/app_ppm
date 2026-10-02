@@ -1743,7 +1743,11 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
           <div><label class="block font-semibold text-slate-700 mb-1">Harga Satuan (Rp)</label><input type="number" id="inv-harga" min="0" value="0" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></div>
           <div><label class="block font-semibold text-slate-700 mb-1">Stok Minimum (Alert)</label><input type="number" id="inv-stok-min" min="0" step="any" value="0" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></div>
         </div>
-        <div id="inv-stok-awal-wrapper"><label class="block font-semibold text-slate-700 mb-1">Stok Awal (opening balance, hanya saat tambah baru)</label><input type="number" id="inv-stok-awal" min="0" step="any" value="0" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></div>
+        <div id="inv-stok-awal-wrapper">
+          <label class="block font-semibold text-slate-700 mb-1"><span id="inv-stok-label">Stok Awal (opening balance, hanya saat tambah baru)</span> <span id="inv-stok-lock" class="hidden text-[10px] font-normal text-slate-400"><i class="fa-solid fa-lock"></i> hanya admin yang bisa mengubah</span></label>
+          <input type="number" id="inv-stok-awal" min="0" step="any" value="0" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
+          <p id="inv-stok-hint" class="hidden text-[10px] mt-1"></p>
+        </div>
         <div><label class="block font-semibold text-slate-700 mb-1">Lokasi Rak</label><input type="text" id="inv-lokasi" placeholder="Rak A-01" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
         <div><label class="block font-semibold text-slate-700 mb-1">Status</label>
           <select id="inv-status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"><option value="AKTIF">AKTIF</option><option value="NON AKTIF">NON AKTIF</option></select>

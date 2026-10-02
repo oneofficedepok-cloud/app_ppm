@@ -60,33 +60,75 @@ switch ($method) {
         $id = to_int_or_null(arr_val($b, 'id'));
         if (!$id) json_error('ID wajib diisi.', 422);
 
-        // stok_qty SENGAJA tidak diedit lewat form ini - hanya lewat Riwayat
-        // Pergerakan (inventory_movements), supaya saldo selalu bisa ditelusuri asalnya.
-        $stmt = $pdo->prepare(
-            'UPDATE inventory_items SET sku=:sku, nama=:nama, kategori=:kat, satuan=:satuan,
-                harga_satuan=:harga, stok_min=:min, lokasi_rak=:rak, barcode=:barcode, status=:status
-             WHERE id = :id'
-        );
+        // Koreksi stok lewat form Edit: KHUSUS ADMIN. Stok tidak ditimpa diam-diam -
+        // selisihnya dicatat sebagai pergerakan ADJUSTMENT (sumber OPNAME) di Riwayat
+        // Pergerakan, supaya saldo tetap bisa ditelusuri asalnya.
+        $user = current_user();
+        $wantStok = array_key_exists('stok_qty', $b) && $b['stok_qty'] !== '' && $b['stok_qty'] !== null;
+        $newStok = $wantStok ? to_float($b['stok_qty']) : null;
+        if ($wantStok && $newStok < 0) json_error('Stok tidak boleh negatif.', 422);
+
+        $pdo->beginTransaction();
         try {
+            $cur = $pdo->prepare('SELECT stok_qty, harga_satuan, satuan FROM inventory_items WHERE id = :id FOR UPDATE');
+            $cur->execute([':id' => $id]);
+            $row = $cur->fetch();
+            if (!$row) {
+                $pdo->rollBack();
+                json_error('Material tidak ditemukan.', 404);
+            }
+
+            $stmt = $pdo->prepare(
+                'UPDATE inventory_items SET sku=:sku, nama=:nama, kategori=:kat, satuan=:satuan,
+                    harga_satuan=:harga, stok_min=:min, lokasi_rak=:rak, barcode=:barcode, status=:status
+                 WHERE id = :id'
+            );
+            $harga = to_float(arr_val($b, 'harga_satuan', 0));
             $stmt->execute([
                 ':sku'    => arr_val($b, 'sku', ''),
                 ':nama'   => arr_val($b, 'nama', ''),
                 ':kat'    => arr_val($b, 'kategori', ''),
                 ':satuan' => arr_val($b, 'satuan', 'Pcs'),
-                ':harga'  => to_float(arr_val($b, 'harga_satuan', 0)),
+                ':harga'  => $harga,
                 ':min'    => to_float(arr_val($b, 'stok_min', 0)),
                 ':rak'    => arr_val($b, 'lokasi_rak', ''),
                 ':barcode'=> arr_val($b, 'barcode') ?: null,
                 ':status' => arr_val($b, 'status', 'AKTIF'),
                 ':id'     => $id,
             ]);
+
+            $oldStok = (float) $row['stok_qty'];
+            $delta = $wantStok ? round($newStok - $oldStok, 3) : 0.0;
+            if ($delta != 0.0) {
+                if (empty($user['is_admin'])) {
+                    $pdo->rollBack();
+                    json_error('Hanya admin yang boleh mengoreksi stok lewat form Edit Material. Gunakan Riwayat Pergerakan untuk mencatat barang masuk/keluar.', 403);
+                }
+                $fmt = fn($n) => rtrim(rtrim(number_format($n, 3, ',', '.'), '0'), ',');
+                $pdo->prepare(
+                    "INSERT INTO inventory_movements (item_id, tanggal, tipe, qty, harga_satuan, sumber, keterangan, user_id)
+                     VALUES (:item, CURDATE(), 'ADJUSTMENT', :qty, :harga, 'OPNAME', :ket, :uid)"
+                )->execute([
+                    ':item' => $id, ':qty' => $delta, ':harga' => $harga ?: $row['harga_satuan'],
+                    ':ket' => 'Koreksi stok oleh admin lewat Edit Material: ' . $fmt($oldStok) . ' -> ' . $fmt($newStok) . ' ' . $row['satuan'],
+                    ':uid' => $user['id'] ?? null,
+                ]);
+                $pdo->prepare('UPDATE inventory_items SET stok_qty = :s WHERE id = :id')->execute([':s' => $newStok, ':id' => $id]);
+            }
+            $pdo->commit();
         } catch (PDOException $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
             if ($e->getCode() === '23000') json_error('SKU atau Barcode sudah dipakai material lain.', 409);
             throw $e;
         }
 
+        if ($delta != 0.0) {
+            log_activity('stock_adjust', 'inventory_items', $id, "stok {$oldStok} -> {$newStok}");
+        }
         log_activity('update', 'inventory_items', $id, '');
-        json_success(['id' => $id], 'Data material berhasil diperbarui.');
+        json_success(['id' => $id], $delta != 0.0
+            ? 'Data material diperbarui. Koreksi stok dicatat di Riwayat Pergerakan.'
+            : 'Data material berhasil diperbarui.');
         break;
 
     case 'DELETE':
