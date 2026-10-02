@@ -221,6 +221,8 @@ if ($resource === 'records') {
 
             $pdo->beginTransaction();
             try {
+                // Item Pekerjaan diisi dari MTC: item baru otomatis dibuat di WO.
+                $namaItem = ensure_wo_item($pdo, (int) $woId, $namaItem);
                 $stmt = $pdo->prepare(
                     'INSERT INTO mtc_divisi_records (wo_id, nama_item, divisi, status_workflow, pic, surat_jalan)
                      VALUES (:wo,:item,:div,:status,:pic,:sj)'
@@ -266,8 +268,15 @@ if ($resource === 'records') {
             if (!$id) json_error('ID wajib diisi.', 422);
             $items = is_array($b['items'] ?? null) ? $b['items'] : [];
 
+            $namaItemPut = clean_str(arr_val($b, 'nama_item', ''));
+            if ($namaItemPut === '') json_error('Item Pekerjaan wajib diisi.', 422);
+            $oldRec = $pdo->prepare('SELECT wo_id, nama_item FROM mtc_divisi_records WHERE id = :id');
+            $oldRec->execute([':id' => $id]);
+            $oldRec = $oldRec->fetch();
+            if (!$oldRec) json_error('Data tidak ditemukan.', 404);
             $pdo->beginTransaction();
             try {
+                $b['nama_item'] = ensure_wo_item($pdo, record_wo_id($pdo, $id), $namaItemPut);
                 $stmt = $pdo->prepare(
                     'UPDATE mtc_divisi_records SET nama_item=:item, divisi=:div, status_workflow=:status, pic=:pic, surat_jalan=:sj WHERE id=:id'
                 );
@@ -300,7 +309,8 @@ if ($resource === 'records') {
                 throw $e;
             }
 
-            sync_wo_actual_from_mtc($pdo, record_wo_id($pdo, $id));
+            reset_item_actual_if_no_mtc($pdo, (int) $oldRec['wo_id'], $oldRec['nama_item']);
+            sync_wo_actual_from_mtc($pdo, (int) $oldRec['wo_id']);
             log_activity('update', 'mtc_divisi_records', $id, '');
             json_success(['id' => $id], 'Data Divisi Produksi berhasil diperbarui.');
             break;
@@ -309,9 +319,14 @@ if ($resource === 'records') {
         case 'DELETE':
             $id = to_int_or_null($_GET['id'] ?? null);
             if (!$id) json_error('ID wajib diisi.', 422);
-            $woOfRecord = record_wo_id($pdo, $id);
+            $oldRec = $pdo->prepare('SELECT wo_id, nama_item FROM mtc_divisi_records WHERE id = :id');
+            $oldRec->execute([':id' => $id]);
+            $oldRec = $oldRec->fetch();
             $pdo->prepare('DELETE FROM mtc_divisi_records WHERE id = :id')->execute([':id' => $id]);
-            if ($woOfRecord) sync_wo_actual_from_mtc($pdo, $woOfRecord);
+            if ($oldRec) {
+                reset_item_actual_if_no_mtc($pdo, (int) $oldRec['wo_id'], $oldRec['nama_item']);
+                sync_wo_actual_from_mtc($pdo, (int) $oldRec['wo_id']);
+            }
             log_activity('delete', 'mtc_divisi_records', $id, '');
             json_success([], 'Data Divisi Produksi berhasil dihapus.');
             break;

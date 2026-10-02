@@ -545,7 +545,8 @@ $handlers['pr_items'] = function (array $r) use ($pdo, &$ref, &$lastAutoPr): str
     return 'ok';
 };
 
-// Import pekerjaan MTC: 1 baris = 1 baris pekerjaan. Baris dengan No WO + Item Pekerjaan +
+// Import pekerjaan MTC: 1 baris = 1 baris pekerjaan. Item Pekerjaan yang belum ada di WO
+// dibuat otomatis (Item Pekerjaan diisi dari MTC, lalu muncul di Edit WO). Baris dengan No WO + Item Pekerjaan +
 // Divisi + No Surat Jalan yang sama masuk ke 1 record divisi (record lama dipakai ulang kalau
 // sudah ada). Pekerjaan yang sama persis (pekerjaan + qty + harga) di record itu dilewati,
 // jadi file yang sama aman di-upload ulang.
@@ -557,13 +558,9 @@ $handlers['mtc'] = function (array $r) use ($pdo, &$ref, &$touchedWo): string {
 
     $itemInput = cell_str($r['nama_item']);
     if ($itemInput === '') throw new ImportRowError('Item Pekerjaan wajib diisi.');
+    // Item Pekerjaan diisi dari MTC: kalau belum ada di WO, otomatis dibuat.
     $namaItem = $ref['items'][$woId][norm_key($itemInput)] ?? null;
-    if ($namaItem === null) {
-        $ada = array_values($ref['items'][$woId] ?? []);
-        throw new ImportRowError("Item Pekerjaan \"$itemInput\" belum ada di WO $woNo. "
-            . ($ada ? 'Item yang ada: ' . implode(', ', $ada) . '.' : 'WO ini belum punya Item Pekerjaan.')
-            . ' Tambahkan lewat Edit WO > Budgeting Produksi.');
-    }
+    $itemBaru = $namaItem === null;
 
     $divInput = cell_str($r['divisi']);
     $divisi = $ref['divisi'][norm_key($divInput)] ?? null;
@@ -590,6 +587,11 @@ $handlers['mtc'] = function (array $r) use ($pdo, &$ref, &$touchedWo): string {
     $workflow = cell_enum($r['status_workflow'], 'Status Workflow', ['NORMAL', 'REWORK', 'CLAIM', 'REJECT'], 'NORMAL');
     $status = cell_enum($r['status'], 'Status', ['ON PROCESS', 'FINISH'], 'ON PROCESS');
     $sj = cell_str($r['surat_jalan']);
+
+    if ($itemBaru) {
+        $namaItem = ensure_wo_item($pdo, $woId, $itemInput);
+        $ref['items'][$woId][norm_key($namaItem)] = $namaItem;
+    }
 
     // Cari / buat record divisi.
     $find = $pdo->prepare(

@@ -162,14 +162,14 @@ Menambah pilihan urutan: edit `TABLE_SORTS` di `assets/js/app.js`. Menambah drop
 
 ---
 
-### Aktual Item Pekerjaan WO otomatis dari MTC
+### Item Pekerjaan WO diisi dari MTC
 
-Di form Work Order, kolom **Aktual** setiap Item Pekerjaan (mis. ROD, MAN POWER COST) terisi otomatis dari total rincian di **MTC Produksi → Modul Divisi Produksi** untuk item dengan **nama yang sama**. Kolom ini terkunci dan bertanda 🔗 MTC.
+Item Pekerjaan (mis. ROD, MAN POWER COST) diisi di **MTC Produksi → Modul Divisi Produksi → Catat Biaya Divisi**: pilih item yang sudah ada atau ketik item baru. Item baru otomatis dibuat di WO dan muncul di form **Edit WO**, dengan **Aktual** = total rinciannya (terkunci, bertanda 🔗 MTC). Di Edit WO cukup isi **Budget**-nya. Nama item dari MTC tidak bisa diganti atau dihapus dari form WO; kalau baris itu terhapus, akan otomatis dibuat ulang.
 
 - **Aktual Produksi** WO = jumlah Aktual semua Item Pekerjaan. Angka ini ikut dipakai di Total Produksi, P/L, dan Status Budget.
 - Angka diperbarui setiap kali record MTC ditambah, diedit, atau dihapus, dan setiap kali WO disimpan.
 - Item yang belum punya rincian MTC tetap bisa diisi manual.
-- **Jangan mengganti nama Item Pekerjaan** yang sudah punya rincian MTC. Nama itu adalah penghubungnya (huruf besar/kecil tidak berpengaruh).
+- Penghubung antara item WO dan MTC adalah **nama item** (huruf besar/kecil tidak berpengaruh). Pakai nama yang sama untuk item yang sama.
 
 ---
 
@@ -387,7 +387,7 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 ### Import Pekerjaan MTC
 Menu **MTC Produksi → Modul Divisi Produksi → "Import Pekerjaan MTC dari Excel"** (role dengan izin Ubah di menu Modul Divisi Produksi), atau dari Administrator → Import Data Excel → "Pekerjaan MTC".
 - Template: 1 baris = 1 pekerjaan. Kolom wajib: No WO, Item Pekerjaan, Divisi, Pekerjaan, Qty. Divisi, Status Workflow, dan Status tersedia sebagai pilihan dropdown di Excel. Petunjuk lengkap ada di sheet **Petunjuk**.
-- Item Pekerjaan harus sudah ada di WO-nya. Baris dengan No WO + Item + Divisi + No Surat Jalan yang sama digabung menjadi 1 catatan divisi.
+- Item Pekerjaan yang belum ada di WO otomatis dibuat. Baris dengan No WO + Item + Divisi + No Surat Jalan yang sama digabung menjadi 1 catatan divisi.
 - Harga Satuan kosong: dipakai harga Kode Mesin, atau tarif Manpower divisi kalau tidak ada mesin.
 - File yang sama aman di-upload ulang (pekerjaan identik dilewati). Setelah import, Aktual Item Pekerjaan WO langsung terupdate.
 - Untuk kolom uang di semua import, `12.500` dibaca sebagai dua belas ribu lima ratus (format Indonesia).

@@ -1762,8 +1762,13 @@ function addWOBudgetItemBlock(data = null) {
       act.classList.remove('bg-white');
       act.classList.add('bg-emerald-50', 'border-emerald-300', 'text-emerald-800', 'font-bold');
       act.title = 'Otomatis dari total rincian MTC (Modul Divisi Produksi) untuk item ini. Ubah lewat menu MTC Produksi.';
-      // Nama item jadi kunci penghubung ke MTC: ganti nama = putus hubungan dengan rinciannya.
-      block.querySelector('.wobi-nama').title = 'Nama ini dipakai untuk menghubungkan rincian MTC. Jangan diganti, atau total MTC tidak terhubung lagi.';
+      // Item dari MTC: nama dikunci (kunci penghubung ke rinciannya) & tidak bisa dihapus dari sini.
+      const nama = block.querySelector('.wobi-nama');
+      nama.readOnly = true;
+      nama.classList.add('bg-slate-100', 'cursor-not-allowed');
+      nama.title = 'Item ini berasal dari MTC Produksi. Ubah/hapus lewat MTC Produksi → Modul Divisi Produksi.';
+      const del = block.querySelector('[onclick^="removeWOBudgetItemBlock"]');
+      if (del) del.classList.add('invisible');
       const badge = document.createElement('span');
       badge.className = 'text-[9px] font-bold text-emerald-700 whitespace-nowrap';
       badge.innerHTML = '<i class="fa-solid fa-link"></i> MTC';
@@ -3644,14 +3649,8 @@ async function handleMTCDivisiWOChange() {
   const w = workOrders.find(x => String(x.id) === String(mtcCurrentWOId));
   mtcCurrentWOBudgetItems = (w && w.budget_items) || [];
 
-  if (mtcCurrentWOBudgetItems.length === 0) {
-    addBtn.disabled = true;
-    emptyHint.classList.remove('hidden');
-    emptyHint.textContent = 'WO ini belum punya "Item Pekerjaan" - tambahkan dulu lewat tombol Edit WO di menu Tracking WO & Budget (bagian Budgeting Produksi Perusahaan).';
-    listEl.innerHTML = '';
-    return;
-  }
-
+  // Item Pekerjaan diisi langsung dari sini (ketik item baru di form Catat Biaya Divisi),
+  // jadi WO tanpa Item Pekerjaan tetap bisa dicatat.
   addBtn.disabled = false;
   emptyHint.classList.add('hidden');
   listEl.innerHTML = '<div class="text-center py-6 text-slate-400 text-sm"><i class="fa-solid fa-spinner fa-spin"></i> Memuat...</div>';
@@ -3793,7 +3792,10 @@ function openMTCRecordModal(mode, id = null) {
   document.getElementById('mtc-items-container').innerHTML = '';
 
   const itemSel = document.getElementById('mtcr-item-select');
-  itemSel.innerHTML = mtcCurrentWOBudgetItems.map(bi => opt(bi.nama_item, `${bi.nama_item} (Qty: ${formatQty(bi.qty)})`)).join('');
+  // Saran item: Item Pekerjaan WO + item yang sudah pernah dicatat di MTC untuk WO ini.
+  const itemNames = [...new Set([...mtcCurrentWOBudgetItems.map(bi => bi.nama_item), ...mtcCurrentRecords.map(r => r.nama_item)])];
+  document.getElementById('mtcr-item-options').innerHTML = itemNames.map(n => `<option value="${esc(n)}"></option>`).join('');
+  itemSel.value = itemNames.length === 1 ? itemNames[0] : '';
   const divSel = document.getElementById('mtcr-divisi-select');
   divSel.innerHTML = mtcDivisiList.map(d => opt(d, d)).join('');
 
@@ -3834,7 +3836,7 @@ async function handleMTCRecordSubmit(e) {
 
   const payload = {
     wo_id: mtcCurrentWOId,
-    nama_item: document.getElementById('mtcr-item-select').value,
+    nama_item: document.getElementById('mtcr-item-select').value.trim().toUpperCase(),
     divisi: document.getElementById('mtcr-divisi-select').value,
     pic: document.getElementById('mtcr-pic').value,
     surat_jalan: document.getElementById('mtcr-suratjalan').value,
@@ -3846,6 +3848,7 @@ async function handleMTCRecordSubmit(e) {
     if (id) { payload.id = id; await api('api/mtc.php?resource=records', 'PUT', payload); showToast('Data Divisi Produksi berhasil diperbarui.'); }
     else { await api('api/mtc.php?resource=records', 'POST', payload); showToast('Data Divisi Produksi berhasil disimpan.'); }
     closeMTCRecordModal();
+    await refresh('workOrders'); // Item Pekerjaan & Aktual WO ikut berubah
     await handleMTCDivisiWOChange();
   } catch (err) { showApiError(err); }
 }
@@ -3855,6 +3858,7 @@ async function deleteMTCRecord(id) {
   try {
     await api(`api/mtc.php?resource=records&id=${id}`, 'DELETE');
     showToast('Data Divisi Produksi berhasil dihapus.');
+    await refresh('workOrders');
     await handleMTCDivisiWOChange();
   } catch (err) { showApiError(err); }
 }

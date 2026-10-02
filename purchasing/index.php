@@ -1016,7 +1016,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         <div class="px-4 pb-4 space-y-3 border-t border-slate-100 pt-3">
           <ol class="text-[11px] text-slate-500 list-decimal ml-4 space-y-0.5">
             <li>Download template, isi 1 baris per pekerjaan (No WO, Item Pekerjaan, Divisi, Pekerjaan, Qty, Harga...). Petunjuk lengkap ada di sheet <b>Petunjuk</b>.</li>
-            <li>Item Pekerjaan harus sudah ada di WO-nya (Edit WO → Budgeting Produksi). Harga kosong = harga mesin / tarif manpower divisi.</li>
+            <li>Item Pekerjaan yang belum ada di WO otomatis dibuat (dan muncul di Edit WO). Harga kosong = harga mesin / tarif manpower divisi.</li>
             <li>Upload file .xlsx. File yang sama aman di-upload ulang (pekerjaan yang sudah ada dilewati).</li>
           </ol>
           <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
@@ -1616,7 +1616,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
             <h4 class="font-bold text-slate-700 uppercase text-[10px] tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-calculator text-amber-600"></i> Budgeting Produksi Perusahaan</h4>
             <button type="button" onclick="addWOBudgetItemBlock()" class="text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-2.5 py-1 rounded-lg flex items-center gap-1"><i class="fa-solid fa-plus"></i> Item Pekerjaan</button>
           </div>
-          <p class="text-[10px] text-slate-400 -mt-2">Kalau diisi, Budget & Aktual Produksi di bawah dihitung otomatis dari total baris-baris ini. Kolom <b class="text-emerald-700">Aktual</b> terisi otomatis dari total rincian di <b>MTC Produksi → Modul Divisi Produksi</b> untuk item dengan nama yang sama (bertanda <i class="fa-solid fa-link"></i> MTC). Kosongkan semua baris untuk isi manual (kompatibel dengan WO lama).</p>
+          <p class="text-[10px] text-slate-400 -mt-2">Kalau diisi, Budget & Aktual Produksi di bawah dihitung otomatis dari total baris-baris ini. Item Pekerjaan diisi dari <b>MTC Produksi → Modul Divisi Produksi</b> dan muncul otomatis di sini (bertanda <i class="fa-solid fa-link"></i> MTC) lengkap dengan <b class="text-emerald-700">Aktual</b>-nya; di sini cukup isi <b>Budget</b>-nya. Kosongkan semua baris untuk isi manual (kompatibel dengan WO lama).</p>
           <div id="wo-budget-items-container" class="space-y-2"></div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
@@ -2035,7 +2035,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         <input type="hidden" id="mtcr-form-id">
         <div class="bg-teal-50 p-3.5 rounded-xl border border-teal-200 space-y-3">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><label class="block font-semibold text-slate-700 mb-1">Item Pekerjaan (dari WO) *</label><select id="mtcr-item-select" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></select></div>
+            <div><label class="block font-semibold text-slate-700 mb-1">Item Pekerjaan *</label><input type="text" id="mtcr-item-select" list="mtcr-item-options" required autocomplete="off" placeholder="Pilih / ketik, mis. ROD, MAN POWER COST" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold uppercase"><datalist id="mtcr-item-options"></datalist><p class="text-[10px] text-slate-400 mt-1">Pilih item yang sudah ada atau ketik item baru — otomatis masuk ke Item Pekerjaan WO.</p></div>
             <div><label class="block font-semibold text-slate-700 mb-1">Divisi *</label><select id="mtcr-divisi-select" required onchange="handleMTCDivisiSelectChange()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></select></div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">

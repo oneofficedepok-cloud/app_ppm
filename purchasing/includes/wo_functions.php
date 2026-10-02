@@ -101,6 +101,58 @@ function apply_mtc_actuals(array $items, array $mtcTotals): array
 }
 
 /**
+ * Pastikan Item Pekerjaan $namaItem ada di WO (perbandingan tanpa beda huruf besar/kecil).
+ * Item Pekerjaan diisi dari MTC: kalau belum ada, dibuat otomatis (qty 1, budget 0) supaya
+ * langsung muncul di form Edit WO. Return nama item versi yang tersimpan di WO.
+ */
+function ensure_wo_item(PDO $pdo, int $woId, string $namaItem): string
+{
+    $namaItem = trim(preg_replace('/\s+/', ' ', $namaItem));
+    $stmt = $pdo->prepare('SELECT nama_item FROM work_order_budget_items WHERE wo_id = :wo');
+    $stmt->execute([':wo' => $woId]);
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $existing) {
+        if (mb_strtolower(trim($existing)) === mb_strtolower($namaItem)) return $existing;
+    }
+    $pdo->prepare(
+        "INSERT INTO work_order_budget_items (wo_id, nama_item, qty, budget, actual, status) VALUES (:wo, :nama, 1, 0, 0, 'ON PROCESS')"
+    )->execute([':wo' => $woId, ':nama' => $namaItem]);
+    return $namaItem;
+}
+
+/**
+ * Item Pekerjaan yang punya record MTC tapi (sudah) tidak ada di WO - mis. baris itu
+ * terhapus dari form Edit WO - dibuat ulang, supaya biaya MTC-nya tidak "hilang".
+ */
+function ensure_wo_items_from_mtc(PDO $pdo, int $woId): void
+{
+    try {
+        $stmt = $pdo->prepare('SELECT DISTINCT nama_item FROM mtc_divisi_records WHERE wo_id = :wo');
+        $stmt->execute([':wo' => $woId]);
+        $names = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        return; // tabel MTC belum ada
+    }
+    foreach ($names as $nama) {
+        if (trim((string) $nama) !== '') ensure_wo_item($pdo, $woId, (string) $nama);
+    }
+}
+
+/**
+ * Dipanggil setelah record MTC dihapus / dipindah ke item lain: kalau item lama sudah
+ * tidak punya record MTC sama sekali, aktualnya (yang tadinya dari MTC) di-nol-kan
+ * supaya tidak tertinggal angka lama.
+ */
+function reset_item_actual_if_no_mtc(PDO $pdo, int $woId, string $namaItem): void
+{
+    $chk = $pdo->prepare('SELECT COUNT(*) FROM mtc_divisi_records WHERE wo_id = :wo AND nama_item = :item');
+    $chk->execute([':wo' => $woId, ':item' => $namaItem]);
+    if ((int) $chk->fetchColumn() === 0) {
+        $pdo->prepare('UPDATE work_order_budget_items SET actual = 0 WHERE wo_id = :wo AND nama_item = :item')
+            ->execute([':wo' => $woId, ':item' => $namaItem]);
+    }
+}
+
+/**
  * Simpan total MTC ke database: kolom actual tiap Item Pekerjaan dan
  * work_orders.aktual_prod (= jumlah actual semua Item Pekerjaan).
  * Dipanggil setiap kali record MTC atau WO disimpan, supaya angka di semua
@@ -108,6 +160,7 @@ function apply_mtc_actuals(array $items, array $mtcTotals): array
  */
 function sync_wo_actual_from_mtc(PDO $pdo, int $woId): void
 {
+    ensure_wo_items_from_mtc($pdo, $woId);
     $stmt = $pdo->prepare('SELECT id, nama_item, actual FROM work_order_budget_items WHERE wo_id = :wo');
     $stmt->execute([':wo' => $woId]);
     $items = $stmt->fetchAll();
