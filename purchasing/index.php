@@ -2256,7 +2256,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="block font-semibold text-slate-700 mb-1">No PO Customer</label>
-            <input type="text" id="ar-po" list="ar-po-list" oninput="renderARWOSuggest()" autocomplete="off" placeholder="Pilih / ketik No PO" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
+            <input type="text" id="ar-po" list="ar-po-list" onchange="autoFillARFromPO()" autocomplete="off" placeholder="Pilih / ketik No PO" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
             <datalist id="ar-po-list"></datalist>
           </div>
           <div><label class="block font-semibold text-slate-700 mb-1">TOP (Term of Payment)</label>
@@ -2266,14 +2266,10 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           </div>
         </div>
         <div>
-          <label class="block font-semibold text-slate-700 mb-1">No WO <span class="font-normal text-slate-400">(ketik manual, boleh lebih dari satu &mdash; pisahkan dengan koma)</span></label>
-          <div class="flex gap-2">
-            <input type="text" id="ar-wo-numbers" onchange="autoFillARFromWO()" autocomplete="off" placeholder="contoh: 246843, 246844" class="flex-1 p-2 bg-white border border-slate-300 rounded-lg font-semibold">
-            <button type="button" onclick="autoFillARFromWO(true)" title="Isi Penjualan, Deskripsi, PPN & PPh23 dari WO yang diketik" class="px-3 rounded-lg bg-orange-50 border border-orange-200 text-orange-700 font-bold text-[11px] hover:bg-orange-100 whitespace-nowrap"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Isi dari WO</button>
-          </div>
+          <label class="block font-semibold text-slate-700 mb-1">Deskripsi Pekerjaan <span class="font-normal text-slate-400">(tulis No WO di sini, mis. "WO 246843, 246844 - Repair Cylinder")</span></label>
+          <input type="text" id="ar-deskripsi" class="w-full p-2 bg-white border border-slate-300 rounded-lg">
           <div id="ar-wo-suggest" class="mt-1.5 text-[10px] text-slate-500"></div>
         </div>
-        <div><label class="block font-semibold text-slate-700 mb-1">Deskripsi Pekerjaan</label><input type="text" id="ar-deskripsi" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
         <div class="grid grid-cols-3 gap-3">
           <div><label class="block font-semibold text-slate-700 mb-1">Penjualan (DPP) *</label><input type="number" id="ar-penjualan" required value="0" oninput="calcARSisa()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></div>
           <div><label class="block font-semibold text-slate-700 mb-1">PPN (11%)</label>

@@ -33,42 +33,38 @@ function resolve_due_date(?string $dueDate, ?string $baseDate, int $topDays): ?s
 }
 
 /**
- * No. WO diketik manual di form AR (boleh lebih dari satu, pisahkan koma / spasi / baris baru).
- * Dicocokkan ke work_orders.wo_number (tanpa beda huruf besar/kecil). No. WO yang tidak
- * ditemukan ditolak supaya tidak ada salah ketik. Return [id WO..., "WO-1, WO-2"].
+ * WO yang termasuk invoice AR ini, dicari dari No PO customer (1 PO bisa berisi beberapa WO).
+ * No WO ditulis user manual di Deskripsi: kalau Deskripsi menyebut No WO tertentu dari PO tsb,
+ * hanya WO itu yang dihubungkan (invoice sebagian); kalau tidak menyebut, semua WO di PO itu.
+ * Return [id WO..., "WO-1, WO-2", [daftar WO di PO: wo_number, project, nilai_po, ...]].
  */
 function resolve_ar_wos(PDO $pdo, array $b): array
 {
-    $raw = trim((string) arr_val($b, 'wo_numbers', ''));
-    if ($raw === '') {
-        // Kompatibel dengan pemanggil lama yang masih mengirim wo_id tunggal.
-        $legacy = to_int_or_null(arr_val($b, 'wo_id'));
-        if (!$legacy) return [[], ''];
-        $raw = (string) $pdo->query('SELECT wo_number FROM work_orders WHERE id = ' . (int) $legacy)->fetchColumn();
-        if ($raw === '') return [[], ''];
-    }
-    $tokens = array_values(array_unique(array_filter(array_map('trim', preg_split('/[\s,;]+/', $raw)))));
-    if (count($tokens) > 100) json_error('Maksimal 100 No. WO per invoice.', 422);
+    $po = trim((string) arr_val($b, 'po_no', ''));
+    $custId = to_int_or_null(arr_val($b, 'customer_id'));
+    if ($po === '') return [[], '', []];
 
-    $ph = implode(',', array_fill(0, count($tokens), '?'));
-    $stmt = $pdo->prepare("SELECT id, wo_number FROM work_orders WHERE wo_number IN ($ph)");
-    $stmt->execute($tokens);
-    $found = [];
-    foreach ($stmt->fetchAll() as $r) $found[mb_strtoupper($r['wo_number'])] = $r;
+    $sql = 'SELECT id, wo_number, project, nilai_po, is_ppn, pph23 FROM work_orders WHERE TRIM(po_no) = :po';
+    $params = [':po' => $po];
+    if ($custId) { $sql .= ' AND customer_id = :cust'; $params[':cust'] = $custId; }
+    $stmt = $pdo->prepare($sql . ' ORDER BY wo_number');
+    $stmt->execute($params);
+    $wos = $stmt->fetchAll();
+    if (!$wos) {
+        // Data AR lama: WO tanpa No PO dulu tersimpan dengan No WO di kolom No PO.
+        $stmt = $pdo->prepare('SELECT id, wo_number, project, nilai_po, is_ppn, pph23 FROM work_orders WHERE wo_number = :po');
+        $stmt->execute([':po' => $po]);
+        $wos = $stmt->fetchAll();
+    }
+    if (!$wos) return [[], '', []];
 
-    $ids = []; $names = []; $missing = [];
-    foreach ($tokens as $t) {
-        $r = $found[mb_strtoupper($t)] ?? null;
-        if (!$r) { $missing[] = $t; continue; }
-        if (in_array((int) $r['id'], $ids, true)) continue;
-        $ids[] = (int) $r['id'];
-        $names[] = $r['wo_number'];
-    }
-    if ($missing) json_error('No. WO tidak ditemukan: ' . implode(', ', $missing) . '. Periksa kembali penulisannya.', 422);
-    if (count($ids) > 1 && !ar_wo_link_ready($pdo)) {
-        json_error('Untuk 1 invoice dengan beberapa WO, jalankan dulu database/migration_ar_multi_wo.sql.', 422);
-    }
-    return [$ids, implode(', ', $names)];
+    $desk = mb_strtoupper((string) arr_val($b, 'deskripsi', ''));
+    $mentioned = array_values(array_filter($wos, function ($w) use ($desk) {
+        $no = preg_quote(mb_strtoupper($w['wo_number']), '/');
+        return $desk !== '' && preg_match('/(?<![A-Z0-9])' . $no . '(?![A-Z0-9])/u', $desk);
+    }));
+    $picked = $mentioned ?: $wos;
+    return [array_map(fn($w) => (int) $w['id'], $picked), implode(', ', array_column($picked, 'wo_number')), $wos];
 }
 
 /** Simpan daftar WO sebuah invoice AR (hapus yang lama, isi yang baru). */
@@ -84,21 +80,14 @@ switch ($method) {
 
     case 'GET':
         if (isset($_GET['action']) && $_GET['action'] === 'auto_fill') {
-            // Dipakai form AR: setelah No. WO diisi, auto-isi Penjualan (jumlah DPP semua WO),
-            // Deskripsi, PPN & PPh23 dari data WO.
-            [$woIds, $woNames] = resolve_ar_wos($pdo, ['wo_numbers' => $_GET['wo_numbers'] ?? '', 'wo_id' => $_GET['wo_id'] ?? null]);
-            if (!$woIds) json_error('No. WO wajib diisi.', 422);
-            $ph = implode(',', array_fill(0, count($woIds), '?'));
-            $stmt = $pdo->prepare("SELECT wo_number, nilai_po, project, po_no, is_ppn, pph23 FROM work_orders WHERE id IN ($ph) ORDER BY wo_number");
-            $stmt->execute($woIds);
-            $wos = $stmt->fetchAll();
+            // Dipakai form AR: begitu No PO dipilih, auto-isi Penjualan (jumlah DPP semua WO
+            // di PO tsb), PPN & PPh23, dan tampilkan daftar WO-nya sebagai info.
+            [, , $wos] = resolve_ar_wos($pdo, ['po_no' => $_GET['po_no'] ?? '', 'customer_id' => $_GET['customer_id'] ?? null]);
             json_success([
-                'penjualan'  => array_sum(array_map(fn($w) => (float) $w['nilai_po'], $wos)),
-                'pph23'      => array_sum(array_map(fn($w) => (float) $w['pph23'], $wos)),
-                'is_ppn'     => (int) ($wos[0]['is_ppn'] ?? 1),
-                'deskripsi'  => implode(' / ', array_unique(array_filter(array_column($wos, 'project')))),
-                'po_numbers' => array_values(array_unique(array_filter(array_column($wos, 'po_no')))),
-                'wo_numbers' => $woNames,
+                'penjualan' => array_sum(array_map(fn($w) => (float) $w['nilai_po'], $wos)),
+                'pph23'     => array_sum(array_map(fn($w) => (float) $w['pph23'], $wos)),
+                'is_ppn'    => (int) ($wos[0]['is_ppn'] ?? 1),
+                'wos'       => array_map(fn($w) => ['wo_number' => $w['wo_number'], 'project' => $w['project']], $wos),
             ]);
         }
 

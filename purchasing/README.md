@@ -153,16 +153,17 @@ tidak bisa diintip lewat Inspect Element. Admin selalu bisa melihat. Saat update
 Catatan: menu Finance (AR, Cash Flow, Finance Dashboard) tetap menampilkan nilai invoice/penjualan
 bagi role yang punya akses menu Finance.
 
-### AR (Invoice): Pilih No PO, No WO diisi manual
+### AR (Invoice): Pilih No PO, No WO ditulis di Deskripsi
 
 1 PO customer bisa berisi beberapa WO, jadi di form **Tambah/Edit Record AR**:
 
-- **No PO Customer**: pilih dari daftar PO milik customer (atau ketik sendiri).
-- **No WO**: diketik manual, boleh lebih dari satu (pisahkan koma), mis. `246843, 246844`.
-  WO yang ada di PO terpilih tampil sebagai tombol cepat (klik untuk menambah, atau "Pilih semua").
-- Penjualan (DPP) otomatis = jumlah Nilai PO semua WO tsb (bisa diubah manual; tombol **Isi dari WO**
-  untuk mengisi ulang). No WO yang salah ketik / tidak ada akan ditolak saat simpan.
-- Status invoice di WO (BELUM INVOICE / PENDING / LUNAS) ikut semua WO di invoice itu.
+- **No PO Customer**: pilih dari daftar PO milik customer (atau ketik sendiri). Tidak ada lagi pilihan WO.
+- **No WO ditulis manual di Deskripsi Pekerjaan**, mis. `WO 246843, 246844 - Repair Cylinder`.
+  Di bawah Deskripsi tampil daftar WO yang ada di PO tsb sebagai panduan.
+- Record baru: Penjualan (DPP) otomatis = jumlah Nilai PO semua WO di PO tsb (bisa diubah manual;
+  tombol **Isi nilai dari PO** untuk mengisi ulang saat edit).
+- Status invoice di WO (BELUM INVOICE / PENDING / LUNAS): kalau Deskripsi menyebut No WO dari PO itu,
+  hanya WO tsb yang ditandai sudah di-invoice; kalau tidak menyebut, semua WO di PO itu.
 
 Saat update, import `database/migration_ar_multi_wo.sql` (aman dijalankan ulang; data AR lama ikut dipindahkan).
 
