@@ -70,3 +70,14 @@ UPDATE `roles` SET `modules` = 'dashboard:edit'
 
 -- Role lain buatan Anda sendiri yang belum diatur: TIDAK diberi modul apapun
 -- (aman secara default). Atur lewat menu Administrator -> Role Management.
+
+
+-- ---------------------------------------------------------
+-- 4. Izin data sensitif (Nilai PO, Profit/Loss, Margin)
+--    Default: hanya Admin (otomatis) & Manager Purchasing.
+--    Role lain bisa diberi lewat Administrator -> Role Management
+--    (centang "Lihat Nilai PO, Profit/Loss & Margin").
+-- ---------------------------------------------------------
+UPDATE `roles` SET `modules` = CONCAT(`modules`, ',cap_nilai_po:view')
+  WHERE `role_key` = 'manager_purchasing' AND `modules` IS NOT NULL AND `modules` <> ''
+    AND `modules` NOT LIKE '%cap_nilai_po%';

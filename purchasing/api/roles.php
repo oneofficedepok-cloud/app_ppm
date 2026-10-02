@@ -17,7 +17,7 @@ switch ($method) {
         }
         unset($r);
         // Katalog modul & menu ikut dikirim, supaya checkbox di UI selalu sinkron dengan server.
-        json_success(['roles' => $rows, 'modules' => APP_MODULES]);
+        json_success(['roles' => $rows, 'modules' => APP_MODULES, 'capabilities' => APP_CAPABILITIES]);
         break;
 
     case 'POST':

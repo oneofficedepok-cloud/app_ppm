@@ -402,6 +402,12 @@ if ($resource === 'dashboard' && $method === 'GET') {
         ];
     }
 
+    // Role tanpa izin "Lihat Nilai PO": nilai PO & margin tidak dikirim.
+    if (!can_see_nilai_po(current_user())) {
+        foreach ($result as &$r) { $r['nilai_po'] = null; $r['margin'] = null; $r['nilai_hidden'] = true; }
+        unset($r);
+    }
+
     json_success($result);
     exit;
 }

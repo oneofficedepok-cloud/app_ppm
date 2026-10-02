@@ -58,6 +58,13 @@ const IS_ADMIN = !!(currentUser && currentUser.is_admin);
 function canView(...menus) {
   return IS_ADMIN || menus.some(m => !!USER_ACCESS[m]);
 }
+/**
+ * Izin khusus data sensitif: Nilai PO / harga jual WO, Profit & Loss, Margin.
+ * Tanpa izin ini server sudah TIDAK mengirim nilainya (null) - di UI kolom/kartunya
+ * disembunyikan supaya tidak tampil "Rp 0" yang menyesatkan.
+ */
+const CAN_NILAI = IS_ADMIN || !!USER_ACCESS.cap_nilai_po;
+let appCapabilities = {}; // katalog izin khusus (dari api/roles.php), untuk form Role Management
 /** Boleh tambah/ubah/hapus di minimal salah satu menu. */
 function canEdit(...menus) {
   return IS_ADMIN || menus.some(m => USER_ACCESS[m] === 'edit');
@@ -374,7 +381,7 @@ function printWO(id) {
       <div><span class="lbl">Atasan Direct</span> ${esc(w.atasan_nama || '-')}</div>
       <div><span class="lbl">Manager Head</span> ${esc(w.manager_nama || '-')}</div>
     </div>
-    <h2>Perhitungan Nilai Jual</h2>
+    ${CAN_NILAI ? `<h2>Perhitungan Nilai Jual</h2>
     <table>
       <thead><tr><th>Qty</th><th>Satuan</th><th class="num">Harga Satuan</th><th class="num">Diskon</th><th class="num">DPP</th><th class="num">PPN</th><th class="num">PPh23</th><th class="num">Total</th></tr></thead>
       <tbody><tr>
@@ -383,7 +390,7 @@ function printWO(id) {
         <td class="num">${formatRupiah(w.nilai_po)}</td><td class="num">${formatRupiah(w.ppn)}</td>
         <td class="num">${formatRupiah(w.pph23)}</td><td class="num" style="font-weight:800;">${formatRupiah(w.wo_total)}</td>
       </tr></tbody>
-    </table>
+    </table>` : ''}
     <h2 style="margin-top:16px;">Budgeting Produksi Perusahaan</h2>
     <table>
       <thead><tr><th>Item Pekerjaan</th><th class="num">Budget</th><th class="num">Actual</th></tr></thead>
@@ -394,7 +401,7 @@ function printWO(id) {
       <div><span>Aktual Produksi</span><span>${formatRupiah(w.aktual_prod)}</span></div>
       <div><span>Budget Pembelian</span><span>${formatRupiah(w.budget_pem)}</span></div>
       <div><span>Aktual Pembelian (DPP PR)</span><span>${formatRupiah(w.aktual_pem)}</span></div>
-      <div class="grand"><span>PROFIT / LOSS</span><span>${formatRupiah(w.profit_loss)}</span></div>
+      ${CAN_NILAI ? `<div class="grand"><span>PROFIT / LOSS</span><span>${formatRupiah(w.profit_loss)}</span></div>` : ''}
     </div>
     <div class="sign-grid">
       <div class="box">User Peminta</div>
@@ -639,7 +646,7 @@ async function loadAllData() {
     customers = cust; suppliers = supp; workOrders = wo; prItems = pr;
     sealItems = seal; transportItems = trans;
     masterProducts = prod; masterBuyers = buyers; masterUsers = users;
-    roles = rolesData.roles; appModules = rolesData.modules;
+    roles = rolesData.roles; appModules = rolesData.modules; appCapabilities = rolesData.capabilities || {};
     arData = ar; apData = ap; danaTalangan = talangan; cashflowCombined = cashflow;
     inventoryItems = invItems; productionOrders = prodOrders; inventoryMovements = invMoves;
     karyawanList = karyawanData;
@@ -663,7 +670,7 @@ async function refresh(...keys) {
     masterProducts: async () => (masterProducts = await api('api/master.php?type=products')),
     masterBuyers: async () => (masterBuyers = await api('api/master.php?type=buyers')),
     masterUsers: async () => (masterUsers = await apiIf(READ_RULES.masterUsers(), 'api/master.php?type=users')),
-    roles: async () => { const d = await api('api/roles.php'); roles = d.roles; appModules = d.modules; },
+    roles: async () => { const d = await api('api/roles.php'); roles = d.roles; appModules = d.modules; appCapabilities = d.capabilities || {}; },
     arData: async () => (arData = await apiIf(READ_RULES.ar(), 'api/account_receivable.php')),
     apData: async () => (apData = await apiIf(READ_RULES.ap(), 'api/account_payable.php')),
     danaTalangan: async () => (danaTalangan = await apiIf(READ_RULES.talangan(), 'api/dana_talangan.php')),
@@ -1662,7 +1669,7 @@ function renderWOTracking() {
       <td class="py-3 px-3 font-bold text-slate-800">${esc(w.project)}</td>
       <td class="py-3 px-3 font-semibold text-slate-700">${esc(w.customer_nama || '-')}</td>
       <td class="py-3 px-3 text-center font-mono">${formatDateID(w.est_kirim)}</td>
-      <td class="py-3 px-3 text-right font-mono font-bold text-emerald-700">${formatRupiah(w.wo_total)}</td>
+      ${CAN_NILAI ? `<td class="py-3 px-3 text-right font-mono font-bold text-emerald-700">${formatRupiah(w.wo_total)}</td>` : ''}
       <td class="py-3 px-3 text-right font-mono">${formatRupiah(w.budget_prod)}</td>
       <td class="py-3 px-3 text-right font-mono">${formatRupiah(w.aktual_prod)}</td>
       <td class="py-3 px-3 text-right font-mono">${formatRupiah(w.budget_pem)}</td>
@@ -1671,9 +1678,9 @@ function renderWOTracking() {
       <td class="py-3 px-3 text-right font-mono bg-blue-50/70 font-bold text-blue-900">${formatRupiah(w.total_transport)}</td>
       <td class="py-3 px-3 text-right font-mono">${formatRupiah(w.total_lain)}</td>
       <td class="py-3 px-3 text-right font-mono font-extrabold text-slate-900 bg-slate-100">${formatRupiah(w.total_produksi)}</td>
-      <td class="py-3 px-3 text-right font-mono font-extrabold ${isProfit ? 'text-emerald-600' : 'text-rose-600'}">
+      ${CAN_NILAI ? `<td class="py-3 px-3 text-right font-mono font-extrabold ${isProfit ? 'text-emerald-600' : 'text-rose-600'}">
         <span class="px-2 py-0.5 rounded ${plBadgeClass}">${formatRupiah(w.profit_loss)}</span>
-      </td>
+      </td>` : ''}
       <td class="py-3 px-3 text-center">
         <span class="px-2.5 py-1 rounded-full text-[10px] uppercase font-bold ${budgetBadge[w.status_budget] || 'bg-slate-100 text-slate-600'}">${esc(w.status_budget || '-')}</span>
       </td>
@@ -1972,7 +1979,7 @@ const TABLE_SORTS = {
     SORT_BY.text('supplier_nama', 'Supplier A-Z'), SORT_BY.text('pr_number', 'No. PR')],
   wo: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.dateDesc('est_kirim', 'Est. Kirim Terbaru'), SORT_BY.dateAsc('est_kirim', 'Est. Kirim Terdekat'),
     SORT_BY.text(r => r.computed_status || r.status, 'Status (dikelompokkan)'), SORT_BY.text('customer_nama', 'Customer A-Z'),
-    SORT_BY.numDesc('wo_total', 'Nilai WO Terbesar'), SORT_BY.numDesc('profit_loss', 'Profit Terbesar'), SORT_BY.numAsc('profit_loss', 'Profit Terkecil / Rugi')],
+    ...(CAN_NILAI ? [SORT_BY.numDesc('wo_total', 'Nilai WO Terbesar'), SORT_BY.numDesc('profit_loss', 'Profit Terbesar'), SORT_BY.numAsc('profit_loss', 'Profit Terkecil / Rugi')] : [])],
   seal: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('product', 'Product A-Z'),
     SORT_BY.numDesc('total', 'Total Terbesar'), SORT_BY.numAsc('total', 'Total Terkecil')],
   transport: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('tujuan', 'Tujuan A-Z'),
@@ -2002,7 +2009,7 @@ const TABLE_SORTS = {
   talangan: [SORT_BY.dateDesc('tanggal'), SORT_BY.dateAsc('tanggal'), SORT_BY.numDesc('sisa', 'Sisa Terbesar'),
     SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('pic', 'PIC A-Z')],
   mtcdash: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('status', 'Status (dikelompokkan)'),
-    SORT_BY.numDesc('nilai_po', 'Nilai PO Terbesar'), SORT_BY.numDesc('total_biaya', 'Total Biaya Terbesar')],
+    ...(CAN_NILAI ? [SORT_BY.numDesc('nilai_po', 'Nilai PO Terbesar')] : []), SORT_BY.numDesc('total_biaya', 'Total Biaya Terbesar')],
 };
 // tbody tiap tabel (untuk mereset sortir klik-judul-kolom saat dropdown dipakai) & fungsi render ulangnya.
 const SORT_TARGETS = {
@@ -3428,7 +3435,7 @@ function buildMTCDashTableHeader() {
   const row = document.getElementById('mtc-dash-thead-row');
   let html = `<th class="py-3 px-3 border-r border-slate-700 min-w-[180px] sticky left-0 bg-slate-800 z-20">WO & Project</th>`;
   html += `<th class="py-3 px-3 border-r border-slate-700 min-w-[160px]">Customer & No PO</th>`;
-  html += `<th class="py-3 px-3 border-r border-slate-700 text-right min-w-[130px]">Total PO</th>`;
+  if (CAN_NILAI) html += `<th class="py-3 px-3 border-r border-slate-700 text-right min-w-[130px]">Total PO</th>`;
   html += `<th class="py-3 px-3 border-r border-slate-700 text-center min-w-[110px]">Status WO</th>`;
   mtcDivisiList.forEach(d => { html += `<th class="py-3 px-3 border-r border-slate-700 text-right min-w-[110px]">${esc(d)}</th>`; });
   html += `<th class="py-3 px-3 border-r border-slate-700 text-center min-w-[130px]">Surat Jalan</th>`;
@@ -3437,10 +3444,13 @@ function buildMTCDashTableHeader() {
   row.innerHTML = html;
 }
 
+/** Jumlah kolom tabel Dashboard MTC (kolom Total PO hanya untuk yang punya izin Nilai PO). */
+function mtcDashColCount() { return mtcDivisiList.length + (CAN_NILAI ? 7 : 6); }
+
 async function renderMTCDashboard() {
   buildMTCDashTableHeader();
   const tbody = document.getElementById('mtc-dash-matrix-tbody');
-  tbody.innerHTML = `<tr><td colspan="${mtcDivisiList.length + 7}" class="text-center py-8 text-slate-400 text-sm"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data...</td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="${mtcDashColCount()}" class="text-center py-8 text-slate-400 text-sm"><i class="fa-solid fa-spinner fa-spin"></i> Memuat data...</td></tr>`;
   try {
     mtcDashboardData = await api('api/mtc.php?resource=dashboard');
   } catch (err) {
@@ -3453,7 +3463,9 @@ async function renderMTCDashboard() {
     !search || w.wo_number.toLowerCase().includes(search) || (w.project || '').toLowerCase().includes(search) || (w.customer_nama || '').toLowerCase().includes(search)
   );
 
+  // Total kartu dihitung dari SEMUA WO yang cocok filter (bukan hanya halaman yang tampil).
   let grandTotalPO = 0, grandTotalCost = 0;
+  filtered.forEach(w => { grandTotalPO += Number(w.nilai_po) || 0; grandTotalCost += Number(w.total_biaya) || 0; });
   const STATUS_BADGE = {
     'ON PROGRESS': 'bg-blue-100 text-blue-700', HOLD: 'bg-amber-100 text-amber-700', CANCEL: 'bg-rose-100 text-rose-700',
     DELIVERY: 'bg-purple-100 text-purple-700', FINISHED: 'bg-emerald-100 text-emerald-700',
@@ -3461,7 +3473,7 @@ async function renderMTCDashboard() {
   const WORKFLOW_BADGE_SM = { NORMAL: 'bg-blue-100 text-blue-700', REWORK: 'bg-amber-100 text-amber-800', CLAIM: 'bg-orange-100 text-orange-800', REJECT: 'bg-rose-100 text-rose-800' };
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="${mtcDivisiList.length + 7}" class="text-center py-10 text-slate-400 text-sm">Belum ada WO dengan "Item Pekerjaan" tercatat. Tambahkan Item Pekerjaan lewat Edit WO (Tracking WO & Budget) dulu, baru catat biaya per divisi di "Modul Divisi Produksi".</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${mtcDashColCount()}" class="text-center py-10 text-slate-400 text-sm">Belum ada WO dengan "Item Pekerjaan" tercatat. Tambahkan Item Pekerjaan lewat Edit WO (Tracking WO & Budget) dulu, baru catat biaya per divisi di "Modul Divisi Produksi".</td></tr>`;
   } else {
     tbody.innerHTML = pageRows('mtcdash', sortRows('mtcdash', filtered)).map(w => {
       const divSums = {}; mtcDivisiList.forEach(d => divSums[d] = 0);
@@ -3475,9 +3487,6 @@ async function renderMTCDashboard() {
         if (divSums.hasOwnProperty(a.divisi)) divSums[a.divisi] += Number(a.total_biaya) || 0;
       });
 
-      grandTotalPO += Number(w.nilai_po) || 0;
-      grandTotalCost += Number(w.total_biaya) || 0;
-
       let rowHtml = `
         <tr class="hover:bg-indigo-50/40 cursor-pointer transition-colors" onclick="toggleMTCDashDetail(${w.wo_id})">
           <td class="py-2.5 px-3 border-r border-slate-100 font-bold text-slate-800 sticky left-0 bg-white z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
@@ -3485,7 +3494,7 @@ async function renderMTCDashboard() {
             <div class="text-[11px] font-normal text-slate-500">${esc(w.project)}</div>
           </td>
           <td class="py-2.5 px-3 border-r border-slate-100"><div class="font-semibold text-slate-700">${esc(w.customer_nama || '-')}</div></td>
-          <td class="py-2.5 px-3 border-r border-slate-100 text-right font-bold text-indigo-600">${formatRupiah(w.nilai_po)}</td>
+          ${CAN_NILAI ? `<td class="py-2.5 px-3 border-r border-slate-100 text-right font-bold text-indigo-600">${formatRupiah(w.nilai_po)}</td>` : ''}
           <td class="py-2.5 px-3 border-r border-slate-100 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${STATUS_BADGE[w.status] || 'bg-slate-100 text-slate-600'}">${esc(w.status || '-')}</span></td>
       `;
       mtcDivisiList.forEach(d => {
@@ -3550,7 +3559,7 @@ async function renderMTCDashboard() {
 
       rowHtml += `
         <tr id="mtc-detail-${w.wo_id}" class="hidden bg-slate-50/90">
-          <td colspan="${mtcDivisiList.length + 7}" class="p-4">
+          <td colspan="${mtcDashColCount()}" class="p-4">
             <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-inner space-y-2">
               <div class="flex justify-between items-center border-b border-slate-100 pb-2">
                 <h4 class="font-bold text-xs text-indigo-900 uppercase tracking-wider"><i class="fa-solid fa-list-ul mr-1"></i> Rincian Pekerjaan Divisi (${esc(w.wo_number)})</h4>
@@ -3577,9 +3586,11 @@ async function renderMTCDashboard() {
   }
 
   document.getElementById('mtc-dash-total-wo').textContent = filtered.length;
-  document.getElementById('mtc-dash-total-po').textContent = formatRupiah(grandTotalPO);
   document.getElementById('mtc-dash-total-cost').textContent = formatRupiah(grandTotalCost);
-  document.getElementById('mtc-dash-total-margin').textContent = formatRupiah(grandTotalPO - grandTotalCost);
+  if (CAN_NILAI) {
+    document.getElementById('mtc-dash-total-po').textContent = formatRupiah(grandTotalPO);
+    document.getElementById('mtc-dash-total-margin').textContent = formatRupiah(grandTotalPO - grandTotalCost);
+  }
 }
 
 function toggleMTCDashDetail(woId) {
@@ -4333,7 +4344,9 @@ function roleAccessBadges(r) {
     const tone = editN ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100 text-slate-600 border-slate-200';
     return `<span title="${esc(title)}" class="px-1.5 py-0.5 rounded text-[9px] font-bold border ${tone}">${esc(mod.label.toUpperCase())} ${viewN}/${keys.length}${editN ? '' : ' (LIHAT)'}</span>`;
   }).join('');
-  return badges || '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100">BELUM ADA AKSES</span>';
+  const capBadges = Object.entries(appCapabilities).filter(([k]) => access[k]).map(([, c]) =>
+    `<span title="${esc(c.label)}" class="px-1.5 py-0.5 rounded text-[9px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-100"><i class="fa-solid fa-eye"></i> NILAI PO</span>`).join('');
+  return (badges + capBadges) || '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100">BELUM ADA AKSES</span>';
 }
 
 /**
@@ -4359,8 +4372,26 @@ function renderRolePermissionMatrix(access = {}) {
             <label class="flex items-center gap-1 cursor-pointer w-[72px]"><input type="checkbox" class="perm-cb w-4 h-4 accent-rose-600" data-menu="${esc(menuKey)}" data-level="edit" ${access[menuKey] === 'edit' ? 'checked' : ''} onchange="onRolePermChange(this)"> Ubah</label>
           </div>
         </div>`).join('')}
-    </div>`).join('');
+    </div>`).join('') + renderRoleCapabilities(access);
   syncRolePermissionMatrix();
+}
+
+/**
+ * Izin khusus data sensitif (Nilai PO, Profit/Loss, Margin). Sengaja TIDAK ikut tombol
+ * "Semua Lihat / Semua Ubah" supaya harus dicentang sadar oleh Admin.
+ */
+function renderRoleCapabilities(access = {}) {
+  const caps = Object.entries(appCapabilities);
+  if (!caps.length) return '';
+  return `
+    <div class="role-cap-group border-t-2 border-amber-200">
+      <div class="px-4 py-2 bg-amber-50 font-bold text-amber-800 text-[11px] uppercase tracking-wide"><i class="fa-solid fa-lock mr-1"></i> Akses Data Sensitif</div>
+      ${caps.map(([key, c]) => `
+        <label class="flex items-start gap-2 px-4 py-2 pl-7 hover:bg-amber-50/50 cursor-pointer">
+          <input type="checkbox" class="cap-cb w-4 h-4 mt-0.5 accent-emerald-600" data-cap="${esc(key)}" ${access[key] ? 'checked' : ''} onchange="syncRolePermissionMatrix()">
+          <span><span class="font-semibold text-slate-800">${esc(c.label)}</span><br><span class="text-[10px] text-slate-500">${esc(c.desc)}</span></span>
+        </label>`).join('')}
+    </div>`;
 }
 
 /** Ubah otomatis mencentang Lihat; mencabut Lihat otomatis mencabut Ubah. */
@@ -4392,8 +4423,8 @@ function setAllRolePermissions(level) {
 /** Sinkronkan centang grup, kunci matriks kalau Admin Penuh, dan tampilkan ringkasan. */
 function syncRolePermissionMatrix() {
   const isAdmin = document.getElementById('role-is-admin').checked;
-  document.querySelectorAll('.perm-cb, .perm-group-cb').forEach(cb => { cb.disabled = isAdmin; });
-  if (isAdmin) document.querySelectorAll('.perm-cb').forEach(cb => { cb.checked = true; });
+  document.querySelectorAll('.perm-cb, .perm-group-cb, .cap-cb').forEach(cb => { cb.disabled = isAdmin; });
+  if (isAdmin) document.querySelectorAll('.perm-cb, .cap-cb').forEach(cb => { cb.checked = true; });
   document.getElementById('role-perm-admin-note').classList.toggle('hidden', !isAdmin);
 
   document.querySelectorAll('.role-perm-group').forEach(g => {
@@ -4407,11 +4438,13 @@ function syncRolePermissionMatrix() {
   });
 
   const access = readRolePermissionMatrix();
-  const viewN = Object.keys(access).length;
-  const editN = Object.values(access).filter(v => v === 'edit').length;
+  const menuKeys = Object.keys(access).filter(k => !(k in appCapabilities));
+  const viewN = menuKeys.length;
+  const editN = menuKeys.filter(k => access[k] === 'edit').length;
+  const nilaiNote = access.cap_nilai_po ? ' Boleh melihat Nilai PO / Profit / Margin.' : ' Nilai PO / Profit / Margin disembunyikan.';
   document.getElementById('role-perm-summary').textContent = isAdmin
     ? 'Role ini bisa membuka dan mengubah semua menu.'
-    : `${viewN} menu bisa dibuka, ${editN} di antaranya boleh diubah.${viewN ? '' : ' User dengan role ini hanya akan melihat Dashboard & Akun Saya.'}`;
+    : `${viewN} menu bisa dibuka, ${editN} di antaranya boleh diubah.${viewN ? '' : ' User dengan role ini hanya akan melihat Dashboard & Akun Saya.'}${nilaiNote}`;
 }
 
 /** Baca matriks jadi {"dashboard":"edit","stok":"view"}. */
@@ -4419,6 +4452,7 @@ function readRolePermissionMatrix() {
   const access = {};
   document.querySelectorAll('.perm-cb[data-level="view"]:checked').forEach(cb => { access[cb.dataset.menu] = 'view'; });
   document.querySelectorAll('.perm-cb[data-level="edit"]:checked').forEach(cb => { access[cb.dataset.menu] = 'edit'; });
+  document.querySelectorAll('.cap-cb:checked').forEach(cb => { access[cb.dataset.cap] = 'view'; });
   return access;
 }
 
@@ -5735,7 +5769,7 @@ async function openAccountModal() {
           <div class="font-bold text-slate-700 text-[11px] uppercase mb-1">${esc(g.module)}</div>
           <div class="flex flex-wrap gap-1.5">${g.menus.map(m => `
             <span class="px-2 py-0.5 rounded-full border text-[10px] font-semibold ${m.level === 'edit' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-slate-100 text-slate-600 border-slate-200'}">
-              ${esc(m.menu)} &middot; ${m.level === 'edit' ? 'Lihat &amp; Ubah' : 'Lihat saja'}
+              ${esc(m.menu)}${g.module === 'Akses Data Sensitif' ? '' : ` &middot; ${m.level === 'edit' ? 'Lihat &amp; Ubah' : 'Lihat saja'}`}
             </span>`).join('')}</div>
         </div>`).join('');
     }
@@ -5878,9 +5912,16 @@ async function exportMTCExcel(woId = null) {
     ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: range.e.r - (rows[rows.length - 1][0] === 'TOTAL' ? 1 : 0), c: range.e.c } }) };
     return ws;
   };
-  const divCols = divisi.map((_, i) => 5 + i);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, sheet(rekap, [4, ...divCols, 5 + divisi.length, 6 + divisi.length], [7 + divisi.length], { 1: 36, 2: 28 }), 'Rekap per WO');
+  if (CAN_NILAI) {
+    const divCols = divisi.map((_, i) => 5 + i);
+    XLSX.utils.book_append_sheet(wb, sheet(rekap, [4, ...divCols, 5 + divisi.length, 6 + divisi.length], [7 + divisi.length], { 1: 36, 2: 28 }), 'Rekap per WO');
+  } else {
+    // Tanpa izin Nilai PO: buang kolom Nilai PO, Margin & Margin % dari file.
+    const rekapNoNilai = rekap.map(r => [...r.slice(0, 4), ...r.slice(5, r.length - 2)]);
+    const divCols = divisi.map((_, i) => 4 + i);
+    XLSX.utils.book_append_sheet(wb, sheet(rekapNoNilai, [...divCols, 4 + divisi.length], [], { 1: 36, 2: 28 }), 'Rekap per WO');
+  }
   XLSX.utils.book_append_sheet(wb, sheet(rincian, [14, 15], [], { 1: 32, 2: 26, 3: 20, 4: 18, 5: 22, 9: 28, 10: 30 }), 'Rincian Pekerjaan');
   XLSX.utils.book_append_sheet(wb, sheet(perItem, [4, 5, 6], [], { 1: 36, 2: 24 }), 'Rekap per Item');
 

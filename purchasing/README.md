@@ -134,6 +134,25 @@ Aturannya:
 - Perubahan role/status user langsung berlaku di request berikutnya. User yang dinonaktifkan langsung ter-logout.
 - Role baru yang belum dicentang apapun hanya bisa melihat Dashboard & Akun Saya (aman secara default).
 
+### Akses Data Sensitif (Nilai PO, Profit/Loss, Margin)
+
+Di **Administrator → Role Management → Edit Role** ada bagian **Akses Data Sensitif** dengan
+centang **"Lihat Nilai PO, Profit/Loss & Margin"**. Role TANPA centang ini:
+
+- Tabel **WO & Budget**: kolom *Total Nilai Jual (WO)* dan *Profit & Loss (P/L)* tidak tampil.
+- Form **Edit WO**: bagian harga jual / DPP / PPN / Total Nilai Jual diganti keterangan "disembunyikan".
+  User tetap bisa menyimpan WO (budget, item, status) — nilai jual yang sudah tersimpan tidak berubah.
+- **Print WO**: tabel Perhitungan Nilai Jual & baris PROFIT / LOSS tidak dicetak.
+- **Dashboard MTC**: kolom *Total PO*, kartu *Total Nilai PO Customer* & *Estimasi Margin* tidak tampil;
+  Export Excel MTC tanpa kolom Nilai PO / Margin / Margin %.
+
+Nilai tersebut **tidak dikirim server** ke browser (bukan sekadar disembunyikan di layar), jadi
+tidak bisa diintip lewat Inspect Element. Admin selalu bisa melihat. Saat update, jalankan ulang
+`database/migration_security_roles.sql` — Manager Purchasing otomatis diberi izin ini; role lain
+(Staff, Leader, dll.) defaultnya **tidak** bisa melihat sampai Admin mencentangnya.
+Catatan: menu Finance (AR, Cash Flow, Finance Dashboard) tetap menampilkan nilai invoice/penjualan
+bagi role yang punya akses menu Finance.
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:

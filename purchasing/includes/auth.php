@@ -261,6 +261,12 @@ function can_edit(?array $user, array $menus): bool
     return false;
 }
 
+/** Boleh melihat nilai sensitif (Nilai PO, harga jual, Profit/Loss, Margin). */
+function can_see_nilai_po(?array $user): bool
+{
+    return user_level($user, 'cap_nilai_po') >= PERM_VIEW;
+}
+
 /** Punya akses ke modul level-1 (minimal 1 menu di dalamnya boleh dilihat). */
 function user_can(?array $user, string $module): bool
 {

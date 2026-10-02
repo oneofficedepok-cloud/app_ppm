@@ -9,6 +9,9 @@ $method = http_method();
 $pdo = db();
 $action = $_GET['action'] ?? '';
 
+/** Kolom nilai jual / PO / profit yang hanya boleh dilihat role berizin "Lihat Nilai PO". */
+const WO_SENSITIVE_FIELDS = ['nilai_po', 'harga_satuan', 'diskon', 'ppn', 'pph23', 'pph_lain', 'pph_lain_pct', 'wo_total', 'profit_loss', 'ar_terbayar'];
+
 function fetch_wo_budget_items(PDO $pdo, int $woId): array
 {
     $stmt = $pdo->prepare('SELECT * FROM work_order_budget_items WHERE wo_id = :wo ORDER BY id ASC');
@@ -123,6 +126,15 @@ switch ($method) {
         }
         unset($w);
 
+        // Role tanpa izin "Lihat Nilai PO": nilai sensitif TIDAK dikirim ke browser sama sekali.
+        if (!can_see_nilai_po(current_user())) {
+            foreach ($rows as &$w) {
+                foreach (WO_SENSITIVE_FIELDS as $f) $w[$f] = null;
+                $w['nilai_hidden'] = true;
+            }
+            unset($w);
+        }
+
         json_success($rows);
         break;
 
@@ -138,6 +150,11 @@ switch ($method) {
         $qty = to_float(arr_val($b, 'qty', 1));
         $harga = to_float(arr_val($b, 'harga_satuan', 0));
         $diskon = to_float(arr_val($b, 'diskon', 0));
+        if (!can_see_nilai_po(current_user())) {
+            // Tidak berhak melihat nilai jual -> tidak boleh mengisinya juga (diisi role berizin).
+            $harga = 0.0;
+            $diskon = 0.0;
+        }
         $isPpn = (bool) arr_val($b, 'is_ppn', true);
         $isPph23 = (bool) arr_val($b, 'is_pph23', true);
         $pphLainPct = to_float(arr_val($b, 'pph_lain_pct', 0));
@@ -203,7 +220,8 @@ switch ($method) {
 
         sync_wo_actual_from_mtc($pdo, $newId);
         log_activity('create', 'work_orders', $newId, $woNumber);
-        json_success(['id' => $newId, 'wo_number' => $woNumber, 'dpp' => $dpp, 'wo_total' => $woTotal], 'Work Order berhasil ditambahkan.');
+        $seeNilai = can_see_nilai_po(current_user());
+        json_success(['id' => $newId, 'wo_number' => $woNumber, 'dpp' => $seeNilai ? $dpp : null, 'wo_total' => $seeNilai ? $woTotal : null], 'Work Order berhasil ditambahkan.');
         break;
 
     case 'PUT':
@@ -219,9 +237,24 @@ switch ($method) {
         $qty = to_float(arr_val($b, 'qty', 1));
         $harga = to_float(arr_val($b, 'harga_satuan', 0));
         $diskon = to_float(arr_val($b, 'diskon', 0));
+        if (!can_see_nilai_po(current_user())) {
+            // Tidak berhak melihat nilai jual -> tidak boleh mengisinya juga (diisi role berizin).
+            $harga = 0.0;
+            $diskon = 0.0;
+        }
         $isPpn = (bool) arr_val($b, 'is_ppn', true);
         $isPph23 = (bool) arr_val($b, 'is_pph23', true);
         $pphLainPct = to_float(arr_val($b, 'pph_lain_pct', 0));
+        if (!can_see_nilai_po(current_user())) {
+            // Form-nya tidak menampilkan nilai jual -> pakai nilai yang sudah tersimpan,
+            // jangan sampai tertimpa 0 saat role tanpa izin menyimpan WO.
+            $old = $pdo->prepare('SELECT qty, harga_satuan, diskon, is_ppn, is_pph23, pph_lain_pct FROM work_orders WHERE id = :id');
+            $old->execute([':id' => $id]);
+            if ($o = $old->fetch()) {
+                $qty = (float) $o['qty']; $harga = (float) $o['harga_satuan']; $diskon = (float) $o['diskon'];
+                $isPpn = (bool) $o['is_ppn']; $isPph23 = (bool) $o['is_pph23']; $pphLainPct = (float) $o['pph_lain_pct'];
+            }
+        }
         [$dpp, $ppn, $pph23, $pphLain, $woTotal] = calc_wo_finance($qty, $harga, $diskon, $isPpn, $isPph23, $pphLainPct);
 
         $budgetItemsInput = $b['budget_items'] ?? null;
@@ -279,7 +312,8 @@ switch ($method) {
 
         sync_wo_actual_from_mtc($pdo, $id);
         log_activity('update', 'work_orders', $id, $woNumber);
-        json_success(['id' => $id, 'dpp' => $dpp, 'wo_total' => $woTotal], 'Work Order berhasil diperbarui.');
+        $seeNilai = can_see_nilai_po(current_user());
+        json_success(['id' => $id, 'dpp' => $seeNilai ? $dpp : null, 'wo_total' => $seeNilai ? $woTotal : null], 'Work Order berhasil diperbarui.');
         break;
 
     case 'DELETE':

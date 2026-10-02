@@ -50,6 +50,17 @@ const APP_MODULES = [
     ]],
 ];
 
+/**
+ * Izin KHUSUS (bukan menu) untuk data sensitif. Disimpan di kolom roles.modules
+ * dengan format yang sama ("cap_nilai_po:view"). Role Admin otomatis punya semua.
+ */
+const APP_CAPABILITIES = [
+    'cap_nilai_po' => [
+        'label' => 'Lihat Nilai PO, Profit/Loss & Margin',
+        'desc'  => 'Nilai PO / harga jual WO, DPP, PPN, Total Nilai Jual, Profit & Loss (WO & Budget), Total Nilai PO & Estimasi Margin (Dashboard MTC). Tanpa izin ini nilai tsb disembunyikan dan tidak dikirim ke browser.',
+    ],
+];
+
 const PERM_NONE = 0;
 const PERM_VIEW = 1;
 const PERM_EDIT = 2;
@@ -72,7 +83,13 @@ function all_menus(): array
 /** Izin penuh (semua menu level Ubah) - untuk role Admin. */
 function full_permissions(): array
 {
-    return array_fill_keys(array_keys(all_menus()), PERM_EDIT);
+    return array_fill_keys(array_merge(array_keys(all_menus()), array_keys(APP_CAPABILITIES)), PERM_EDIT);
+}
+
+/** Key menu ATAU izin khusus yang valid untuk disimpan di roles.modules. */
+function is_permission_key(string $key): bool
+{
+    return isset(all_menus()[$key]) || isset(APP_CAPABILITIES[$key]);
 }
 
 /**
@@ -103,7 +120,7 @@ function parse_permissions($raw): array
             continue;
         }
         [$menu, $level] = explode(':', $token, 2);
-        if (!isset($menus[$menu])) continue;
+        if (!is_permission_key($menu)) continue;
         $lvl = $level === 'edit' ? PERM_EDIT : ($level === 'view' ? PERM_VIEW : PERM_NONE);
         if ($lvl > ($perms[$menu] ?? PERM_NONE)) {
             $perms[$menu] = $lvl;
@@ -122,7 +139,7 @@ function permissions_to_string($input): string
     $menus = all_menus();
     $tokens = [];
     foreach ($input as $menu => $level) {
-        if (!isset($menus[$menu])) continue;
+        if (!is_permission_key((string) $menu)) continue;
         if ($level === 'edit' || $level === 'view') {
             $tokens[] = "{$menu}:{$level}";
         }

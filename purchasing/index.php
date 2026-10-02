@@ -5,6 +5,7 @@ $user = require_login_redirect();
 $can = fn(string $module): bool => user_can($user, $module);           // modul level-1 tampil?
 $canView = fn(string $menu): bool => user_level($user, $menu) >= PERM_VIEW; // sub-menu tampil?
 $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // boleh tambah/ubah/hapus?
+$canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Margin?
 ?>
 <!DOCTYPE html>
 <html lang="id" class="h-full bg-slate-100">
@@ -529,7 +530,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div>
           <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-diagram-project text-indigo-600"></i> Menu Tracking WO & Budget Manajemen</h3>
-          <p class="text-xs text-slate-400">Pemantauan progress Work Order, Nilai PO, Total Seal CNC, Transportasi, Total Produksi, dan Profit & Loss (P/L)</p>
+          <p class="text-xs text-slate-400"><?= $canNilai ? 'Pemantauan progress Work Order, Nilai PO, Total Seal CNC, Transportasi, Total Produksi, dan Profit & Loss (P/L)' : 'Pemantauan progress Work Order, Budget, Total Seal CNC, Transportasi, dan Total Produksi' ?></p>
         </div>
         <div class="flex items-center gap-2">
           <button onclick="openWOModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-plus-circle"></i> + Tambah WO Baru</button>
@@ -575,7 +576,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
               <th class="py-3.5 px-3">Nama Project</th>
               <th class="py-3.5 px-3">Customer</th>
               <th class="py-3.5 px-3 text-center">Est. Kirim</th>
-              <th class="py-3.5 px-3 text-right bg-emerald-50 text-emerald-900">Total Nilai Jual (WO)</th>
+              <?php if ($canNilai): ?><th class="py-3.5 px-3 text-right bg-emerald-50 text-emerald-900">Total Nilai Jual (WO)</th><?php endif; ?>
               <th class="py-3.5 px-3 text-right">Budget Produksi</th>
               <th class="py-3.5 px-3 text-right">Aktual Produksi</th>
               <th class="py-3.5 px-3 text-right">Budget Pembelian</th>
@@ -584,7 +585,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
               <th class="py-3.5 px-3 text-right bg-blue-50 text-blue-900">Total Transportasi (Auto)</th>
               <th class="py-3.5 px-3 text-right">Total Lain-lain</th>
               <th class="py-3.5 px-3 text-right bg-slate-200 text-slate-900">Total Produksi</th>
-              <th class="py-3.5 px-3 text-right bg-slate-900 text-amber-300">Profit & Loss (P/L)</th>
+              <?php if ($canNilai): ?><th class="py-3.5 px-3 text-right bg-slate-900 text-amber-300">Profit & Loss (P/L)</th><?php endif; ?>
               <th class="py-3.5 px-3 text-center">Status Budget</th>
               <th class="py-3.5 px-3 text-center">Status Tracking</th>
               <th class="py-3.5 px-3 text-center">Status Track (PR)</th>
@@ -953,23 +954,27 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 <?= $canNilai ? 'md:grid-cols-4' : 'md:grid-cols-2' ?> gap-4">
         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div><div class="text-slate-500 text-xs font-semibold uppercase">Total WO Aktif</div><div class="text-2xl font-bold text-slate-800 mt-1" id="mtc-dash-total-wo">0</div></div>
           <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center text-xl"><i class="fa-solid fa-folder-open"></i></div>
         </div>
+        <?php if ($canNilai): ?>
         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div><div class="text-slate-500 text-xs font-semibold uppercase">Total Nilai PO Customer</div><div class="text-xl font-bold text-blue-600 mt-1" id="mtc-dash-total-po">Rp 0</div></div>
           <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center text-xl"><i class="fa-solid fa-money-bill-wave"></i></div>
         </div>
+        <?php endif; ?>
         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div><div class="text-slate-500 text-xs font-semibold uppercase">Total Biaya Produksi</div><div class="text-xl font-bold text-amber-600 mt-1" id="mtc-dash-total-cost">Rp 0</div></div>
           <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center text-xl"><i class="fa-solid fa-calculator"></i></div>
         </div>
+        <?php if ($canNilai): ?>
         <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div><div class="text-slate-500 text-xs font-semibold uppercase">Estimasi Margin</div><div class="text-xl font-bold text-emerald-600 mt-1" id="mtc-dash-total-margin">Rp 0</div></div>
           <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-lg flex items-center justify-center text-xl"><i class="fa-solid fa-chart-pie"></i></div>
         </div>
+        <?php endif; ?>
       </div>
 
       <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
@@ -1583,7 +1588,13 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
           </div>
         </div>
 
-        <div class="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 space-y-3">
+        <?php if (!$canNilai): ?>
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs text-slate-500 flex items-start gap-2">
+          <i class="fa-solid fa-lock text-slate-400 mt-0.5"></i>
+          <span><b class="text-slate-700">Nilai PO / Harga Jual disembunyikan.</b><br>Role Anda tidak punya izin melihat Nilai PO, Profit/Loss &amp; Margin. Nilai yang sudah tersimpan tidak berubah saat Anda menyimpan WO ini.</span>
+        </div>
+        <?php endif; ?>
+        <div class="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 space-y-3 <?= $canNilai ? '' : 'hidden' ?>">
           <h4 class="font-bold text-emerald-800 uppercase text-[10px] tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-sack-dollar text-emerald-600"></i> Perhitungan Komponen Finansial PO Project</h4>
           <div class="grid grid-cols-4 gap-2">
             <div><label class="block text-[11px] font-semibold text-slate-600 mb-1">Qty</label><input type="number" id="wo-form-qty" value="1" step="any" oninput="calcWOFinance()" class="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"></div>

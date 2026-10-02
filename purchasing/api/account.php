@@ -23,6 +23,11 @@ if ($method === 'GET') {
         }
         if ($items) $groups[] = ['module' => $module['label'], 'menus' => $items];
     }
+    $caps = [];
+    foreach (APP_CAPABILITIES as $capKey => $cap) {
+        if (user_level($user, $capKey) >= PERM_VIEW) $caps[] = ['menu' => $cap['label'], 'level' => 'view'];
+    }
+    if ($caps) $groups[] = ['module' => 'Akses Data Sensitif', 'menus' => $caps];
     json_success([
         'username'   => $user['username'],
         'full_name'  => $user['full_name'],
