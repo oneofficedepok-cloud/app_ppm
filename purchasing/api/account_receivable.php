@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/wo_functions.php';
 
 // Baca: menu AR + Finance Dashboard & Cash Flow (rekap). Ubah: menu AR.
 require_perm(['ar', 'findash', 'cashflow'], ['ar']);
@@ -31,22 +32,82 @@ function resolve_due_date(?string $dueDate, ?string $baseDate, int $topDays): ?s
     return date('Y-m-d', strtotime("+{$topDays} days", $ts));
 }
 
+/**
+ * No. WO diketik manual di form AR (boleh lebih dari satu, pisahkan koma / spasi / baris baru).
+ * Dicocokkan ke work_orders.wo_number (tanpa beda huruf besar/kecil). No. WO yang tidak
+ * ditemukan ditolak supaya tidak ada salah ketik. Return [id WO..., "WO-1, WO-2"].
+ */
+function resolve_ar_wos(PDO $pdo, array $b): array
+{
+    $raw = trim((string) arr_val($b, 'wo_numbers', ''));
+    if ($raw === '') {
+        // Kompatibel dengan pemanggil lama yang masih mengirim wo_id tunggal.
+        $legacy = to_int_or_null(arr_val($b, 'wo_id'));
+        if (!$legacy) return [[], ''];
+        $raw = (string) $pdo->query('SELECT wo_number FROM work_orders WHERE id = ' . (int) $legacy)->fetchColumn();
+        if ($raw === '') return [[], ''];
+    }
+    $tokens = array_values(array_unique(array_filter(array_map('trim', preg_split('/[\s,;]+/', $raw)))));
+    if (count($tokens) > 100) json_error('Maksimal 100 No. WO per invoice.', 422);
+
+    $ph = implode(',', array_fill(0, count($tokens), '?'));
+    $stmt = $pdo->prepare("SELECT id, wo_number FROM work_orders WHERE wo_number IN ($ph)");
+    $stmt->execute($tokens);
+    $found = [];
+    foreach ($stmt->fetchAll() as $r) $found[mb_strtoupper($r['wo_number'])] = $r;
+
+    $ids = []; $names = []; $missing = [];
+    foreach ($tokens as $t) {
+        $r = $found[mb_strtoupper($t)] ?? null;
+        if (!$r) { $missing[] = $t; continue; }
+        if (in_array((int) $r['id'], $ids, true)) continue;
+        $ids[] = (int) $r['id'];
+        $names[] = $r['wo_number'];
+    }
+    if ($missing) json_error('No. WO tidak ditemukan: ' . implode(', ', $missing) . '. Periksa kembali penulisannya.', 422);
+    if (count($ids) > 1 && !ar_wo_link_ready($pdo)) {
+        json_error('Untuk 1 invoice dengan beberapa WO, jalankan dulu database/migration_ar_multi_wo.sql.', 422);
+    }
+    return [$ids, implode(', ', $names)];
+}
+
+/** Simpan daftar WO sebuah invoice AR (hapus yang lama, isi yang baru). */
+function save_ar_wo_links(PDO $pdo, int $arId, array $woIds): void
+{
+    if (!ar_wo_link_ready($pdo)) return;
+    $pdo->prepare('DELETE FROM account_receivable_wo WHERE ar_id = :ar')->execute([':ar' => $arId]);
+    $ins = $pdo->prepare('INSERT INTO account_receivable_wo (ar_id, wo_id) VALUES (:ar, :wo)');
+    foreach ($woIds as $woId) $ins->execute([':ar' => $arId, ':wo' => $woId]);
+}
+
 switch ($method) {
 
     case 'GET':
         if (isset($_GET['action']) && $_GET['action'] === 'auto_fill') {
-            // Dipakai form AR: begitu pilih WO, auto-isi Penjualan/PPN/PPh23 dari data WO.
-            $woId = to_int_or_null($_GET['wo_id'] ?? null);
-            if (!$woId) json_error('wo_id wajib diisi.', 422);
-            $stmt = $pdo->prepare('SELECT nilai_po AS penjualan, project AS deskripsi, is_ppn, pph23 FROM work_orders WHERE id = :id');
-            $stmt->execute([':id' => $woId]);
-            $wo = $stmt->fetch();
-            if (!$wo) json_error('WO tidak ditemukan.', 404);
-            json_success($wo);
+            // Dipakai form AR: setelah No. WO diisi, auto-isi Penjualan (jumlah DPP semua WO),
+            // Deskripsi, PPN & PPh23 dari data WO.
+            [$woIds, $woNames] = resolve_ar_wos($pdo, ['wo_numbers' => $_GET['wo_numbers'] ?? '', 'wo_id' => $_GET['wo_id'] ?? null]);
+            if (!$woIds) json_error('No. WO wajib diisi.', 422);
+            $ph = implode(',', array_fill(0, count($woIds), '?'));
+            $stmt = $pdo->prepare("SELECT wo_number, nilai_po, project, po_no, is_ppn, pph23 FROM work_orders WHERE id IN ($ph) ORDER BY wo_number");
+            $stmt->execute($woIds);
+            $wos = $stmt->fetchAll();
+            json_success([
+                'penjualan'  => array_sum(array_map(fn($w) => (float) $w['nilai_po'], $wos)),
+                'pph23'      => array_sum(array_map(fn($w) => (float) $w['pph23'], $wos)),
+                'is_ppn'     => (int) ($wos[0]['is_ppn'] ?? 1),
+                'deskripsi'  => implode(' / ', array_unique(array_filter(array_column($wos, 'project')))),
+                'po_numbers' => array_values(array_unique(array_filter(array_column($wos, 'po_no')))),
+                'wo_numbers' => $woNames,
+            ]);
         }
 
+        $woList = ar_wo_link_ready($pdo)
+            ? "(SELECT GROUP_CONCAT(w2.wo_number ORDER BY w2.wo_number SEPARATOR ', ')
+                FROM account_receivable_wo l JOIN work_orders w2 ON w2.id = l.wo_id WHERE l.ar_id = ar.id)"
+            : 'wo.wo_number';
         $sql = "
-            SELECT ar.*, c.nama AS customer_nama, wo.wo_number
+            SELECT ar.*, c.nama AS customer_nama, wo.wo_number, $woList AS wo_numbers
             FROM account_receivable ar
             LEFT JOIN customers c ON c.id = ar.customer_id
             LEFT JOIN work_orders wo ON wo.id = ar.wo_id
@@ -82,6 +143,7 @@ switch ($method) {
         $biayaLain = to_float(arr_val($b, 'biaya_lain', 0));
         $terbayar = to_float(arr_val($b, 'terbayar', 0));
         [$ppn, $ppn030, $sisa] = calc_ar($penjualan, $isPpn, $isPpn030, $pph23, $biayaLain, $terbayar);
+        [$woIds] = resolve_ar_wos($pdo, $b);
 
         $stmt = $pdo->prepare(
             'INSERT INTO account_receivable
@@ -95,7 +157,7 @@ switch ($method) {
             $dueDate = resolve_due_date(arr_val($b, 'due_date') ?: null, arr_val($b, 'tgl_kirim') ?: null, $topDays);
             $stmt->execute([
                 ':inv' => $invoice, ':tgl' => $tglInv, ':tglkirim' => arr_val($b, 'tgl_kirim') ?: null,
-                ':cust' => to_int_or_null(arr_val($b, 'customer_id')), ':wo' => to_int_or_null(arr_val($b, 'wo_id')),
+                ':cust' => to_int_or_null(arr_val($b, 'customer_id')), ':wo' => $woIds[0] ?? null,
                 ':po' => arr_val($b, 'po_no', ''), ':desk' => arr_val($b, 'deskripsi', ''), ':penjualan' => $penjualan,
                 ':isppn' => $isPpn ? 1 : 0, ':ppn' => $ppn, ':isppn030' => $isPpn030 ? 1 : 0, ':ppn030' => $ppn030,
                 ':pph23' => $pph23, ':biayalain' => $biayaLain, ':top' => $topDays,
@@ -108,6 +170,7 @@ switch ($method) {
         }
 
         $newId = (int) $pdo->lastInsertId();
+        save_ar_wo_links($pdo, $newId, $woIds);
         log_activity('create', 'account_receivable', $newId, $invoice);
         json_success(['id' => $newId, 'sisa_piutang' => $sisa], 'Record AR berhasil ditambahkan.');
         break;
@@ -127,6 +190,7 @@ switch ($method) {
         $biayaLain = to_float(arr_val($b, 'biaya_lain', 0));
         $terbayar = to_float(arr_val($b, 'terbayar', 0));
         [$ppn, $ppn030, $sisa] = calc_ar($penjualan, $isPpn, $isPpn030, $pph23, $biayaLain, $terbayar);
+        [$woIds] = resolve_ar_wos($pdo, $b);
 
         $stmt = $pdo->prepare(
             'UPDATE account_receivable SET
@@ -141,7 +205,7 @@ switch ($method) {
             $dueDate = resolve_due_date(arr_val($b, 'due_date') ?: null, arr_val($b, 'tgl_kirim') ?: null, $topDays);
             $stmt->execute([
                 ':inv' => $invoice, ':tgl' => arr_val($b, 'tgl_invoice'), ':tglkirim' => arr_val($b, 'tgl_kirim') ?: null,
-                ':cust' => to_int_or_null(arr_val($b, 'customer_id')), ':wo' => to_int_or_null(arr_val($b, 'wo_id')),
+                ':cust' => to_int_or_null(arr_val($b, 'customer_id')), ':wo' => $woIds[0] ?? null,
                 ':po' => arr_val($b, 'po_no', ''), ':desk' => arr_val($b, 'deskripsi', ''), ':penjualan' => $penjualan,
                 ':isppn' => $isPpn ? 1 : 0, ':ppn' => $ppn, ':isppn030' => $isPpn030 ? 1 : 0, ':ppn030' => $ppn030,
                 ':pph23' => $pph23, ':biayalain' => $biayaLain, ':top' => $topDays,
@@ -153,6 +217,7 @@ switch ($method) {
             throw $e;
         }
 
+        save_ar_wo_links($pdo, $id, $woIds);
         log_activity('update', 'account_receivable', $id, $invoice);
         json_success(['id' => $id, 'sisa_piutang' => $sisa], 'Record AR berhasil diperbarui.');
         break;

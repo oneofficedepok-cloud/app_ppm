@@ -196,6 +196,16 @@ CREATE TABLE `account_receivable` (
   INDEX idx_ar_due (`due_date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 1 invoice AR bisa untuk beberapa WO (1 PO customer = beberapa WO)
+CREATE TABLE `account_receivable_wo` (
+  `ar_id` INT UNSIGNED NOT NULL,
+  `wo_id` INT UNSIGNED NOT NULL,
+  PRIMARY KEY (`ar_id`, `wo_id`),
+  INDEX idx_arwo_wo (`wo_id`),
+  CONSTRAINT fk_arwo_ar FOREIGN KEY (`ar_id`) REFERENCES `account_receivable`(`id`) ON DELETE CASCADE,
+  CONSTRAINT fk_arwo_wo FOREIGN KEY (`wo_id`) REFERENCES `work_orders`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =========================================================
 -- 6c. ACCOUNT PAYABLE (AP) - Hutang ke Supplier
 -- =========================================================
@@ -413,6 +423,7 @@ INSERT INTO `work_orders`
 INSERT INTO `account_receivable`
 (`invoice_no`,`tgl_invoice`,`tgl_kirim`,`customer_id`,`wo_id`,`po_no`,`deskripsi`,`penjualan`,`is_ppn`,`ppn`,`is_ppn030`,`ppn030`,`pph23`,`biaya_lain`,`top_days`,`due_date`,`faktur_pajak`,`terbayar`,`tgl_bayar`) VALUES
 ('INV/2026/001','2026-10-15','2026-10-16',1,1,'PO-AMNT-889-X12','PR Jack Cyl Front CS',150000000,1,16500000,0,0,3000000,0,30,'2026-11-15','010.000-26.00000001',0,NULL);
+INSERT INTO `account_receivable_wo` (`ar_id`, `wo_id`) VALUES (1, 1);
 
 INSERT INTO `account_payable`
 (`invoice_no`,`tgl_invoice`,`tgl_terima`,`supplier_id`,`po_no`,`deskripsi`,`pembelian`,`is_ppn`,`ppn`,`is_pph23`,`pph23`,`biaya_lain`,`top_days`,`due_date`,`faktur_pajak`,`terbayar`,`tgl_bayar`) VALUES

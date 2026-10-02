@@ -423,7 +423,7 @@ function printAR(id) {
       <div><span class="lbl">Tanggal Invoice</span> ${formatDateID(a.tgl_invoice)}</div>
       <div><span class="lbl">Jatuh Tempo</span> ${formatDateID(a.due_date)}</div>
       <div><span class="lbl">Customer</span> ${esc(a.customer_nama || '-')}</div>
-      <div><span class="lbl">No. WO</span> ${esc(a.wo_number || '-')}</div>
+      <div><span class="lbl">No. WO</span> ${esc(a.wo_numbers || a.wo_number || '-')}</div>
       <div><span class="lbl">No. PO</span> ${esc(a.po_no || '-')}</div>
       <div><span class="lbl">Faktur Pajak</span> ${esc(a.faktur_pajak || '-')}</div>
     </div>
@@ -5068,6 +5068,7 @@ function renderARTable() {
       a.invoice_no.toLowerCase().includes(search) ||
       (a.customer_nama || '').toLowerCase().includes(search) ||
       (a.po_no || '').toLowerCase().includes(search) ||
+      (a.wo_numbers || a.wo_number || '').toLowerCase().includes(search) ||
       (a.deskripsi || '').toLowerCase().includes(search);
     const matchCust = custVal === 'ALL' || a.customer_nama === custVal;
     const matchStatus = statusVal === 'ALL' || a.status === statusVal;
@@ -5102,7 +5103,7 @@ function renderARTable() {
       <td class="py-2.5 px-3 font-bold text-slate-800">${esc(a.invoice_no)}</td>
       <td class="py-2.5 px-3">${formatDateID(a.tgl_invoice)}</td>
       <td class="py-2.5 px-3 font-medium">${esc(a.customer_nama || '-')}</td>
-      <td class="py-2.5 px-3 font-semibold">${esc(a.po_no || '-')}<div class="text-[10px] text-blue-600">${esc(a.wo_number || '')}</div></td>
+      <td class="py-2.5 px-3 font-semibold">${esc(a.po_no || '-')}<div class="text-[10px] text-blue-600">${esc(a.wo_numbers || a.wo_number || '')}</div></td>
       <td class="py-2.5 px-3 text-slate-600">${esc(a.deskripsi || '-')}</td>
       <td class="py-2.5 px-3 text-right font-medium">${formatRupiah(a.penjualan)}</td>
       <td class="py-2.5 px-3 text-right text-blue-600">${formatRupiah(a.ppn)}</td>
@@ -5116,24 +5117,85 @@ function renderARTable() {
   `).join('');
 }
 
-function populateARWODropdown(selectedWoId = '') {
+/** WO milik customer yang dipilih di form AR. */
+function arCustomerWOs() {
   const custId = document.getElementById('ar-customer-select').value;
-  const select = document.getElementById('ar-wo-select');
-  const matchingWOs = custId ? workOrders.filter(w => String(w.customer_id) === String(custId)) : [];
-  select.innerHTML = '<option value="">-- Pilih PO dari WO --</option>' +
-    matchingWOs.map(w => opt(w.id, `${w.po_no || w.wo_number} (${w.wo_number})`)).join('');
-  if (selectedWoId) select.value = selectedWoId;
+  return custId ? workOrders.filter(w => String(w.customer_id) === String(custId)) : [];
 }
 
-async function autoFillARFromWO() {
-  const woId = document.getElementById('ar-wo-select').value;
-  if (!woId) return;
+/** Daftar No PO unik milik customer (1 PO bisa berisi beberapa WO). */
+function populateARPOList() {
+  const counts = {};
+  arCustomerWOs().forEach(w => { if (w.po_no && w.po_no.trim() && w.po_no.trim() !== '-') counts[w.po_no.trim()] = (counts[w.po_no.trim()] || 0) + 1; });
+  document.getElementById('ar-po-list').innerHTML = Object.keys(counts).sort()
+    .map(po => `<option value="${esc(po)}">${counts[po]} WO</option>`).join('');
+  renderARWOSuggest();
+}
+
+function arTypedWONumbers() {
+  return document.getElementById('ar-wo-numbers').value.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean);
+}
+
+/** Tampilkan WO yang ada di PO terpilih sebagai tombol cepat (klik = tambahkan ke kolom No WO). */
+function renderARWOSuggest() {
+  const box = document.getElementById('ar-wo-suggest');
+  const po = document.getElementById('ar-po').value.trim().toUpperCase();
+  if (!po) { box.innerHTML = 'Pilih No PO untuk melihat daftar WO-nya, atau langsung ketik No WO.'; return; }
+  const typed = arTypedWONumbers().map(s => s.toUpperCase());
+  const wos = arCustomerWOs().filter(w => (w.po_no || '').trim().toUpperCase() === po);
+  if (!wos.length) { box.innerHTML = 'Tidak ada WO dengan No PO ini di data WO customer tsb. No WO tetap bisa diketik manual.'; return; }
+  box.innerHTML = `<span class="font-semibold">WO di PO ini (klik untuk menambahkan):</span> ` + wos.map(w => {
+    const on = typed.includes(String(w.wo_number).toUpperCase());
+    return `<button type="button" data-wo="${esc(w.wo_number)}" onclick="toggleARWO(this.dataset.wo)" title="${esc(w.project || '')}"
+      class="inline-block mr-1 mt-1 px-2 py-0.5 rounded-full border font-bold ${on ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-orange-50'}">${on ? '<i class="fa-solid fa-check mr-0.5"></i>' : '+ '}${esc(w.wo_number)}</button>`;
+  }).join('') + (wos.length > 1 ? ` <button type="button" onclick="addAllARWO()" class="ml-1 text-orange-700 font-bold hover:underline">Pilih semua</button>` : '');
+}
+
+function setARWONumbers(list) {
+  document.getElementById('ar-wo-numbers').value = list.join(', ');
+  renderARWOSuggest();
+  autoFillARFromWO();
+}
+
+function toggleARWO(woNumber) {
+  const list = arTypedWONumbers();
+  const i = list.findIndex(s => s.toUpperCase() === woNumber.toUpperCase());
+  if (i >= 0) list.splice(i, 1); else list.push(woNumber);
+  setARWONumbers(list);
+}
+
+function addAllARWO() {
+  const po = document.getElementById('ar-po').value.trim().toUpperCase();
+  const list = arTypedWONumbers();
+  arCustomerWOs().filter(w => (w.po_no || '').trim().toUpperCase() === po).forEach(w => {
+    if (!list.some(s => s.toUpperCase() === String(w.wo_number).toUpperCase())) list.push(w.wo_number);
+  });
+  setARWONumbers(list);
+}
+
+/**
+ * Isi Penjualan (jumlah DPP semua WO), Deskripsi, PPN & PPh23 dari WO yang diketik.
+ * Saat EDIT record lama, hanya jalan kalau tombol "Isi dari WO" diklik (force),
+ * supaya angka invoice yang sudah diinput tidak tertimpa.
+ */
+async function autoFillARFromWO(force = false) {
+  renderARWOSuggest();
+  const woNumbers = arTypedWONumbers();
+  if (!woNumbers.length) { if (force) showToast('Isi No WO dulu.', 'error'); return; }
+  if (!force && document.getElementById('ar-form-id').value) return;
   try {
-    const data = await api(`api/account_receivable.php?action=auto_fill&wo_id=${woId}`);
+    const data = await api(`api/account_receivable.php?action=auto_fill&wo_numbers=${encodeURIComponent(woNumbers.join(','))}`);
+    document.getElementById('ar-wo-numbers').value = data.wo_numbers;
     document.getElementById('ar-penjualan').value = data.penjualan;
     document.getElementById('ar-deskripsi').value = data.deskripsi;
     document.getElementById('ar-is-ppn').value = Number(data.is_ppn) ? '1' : '0';
     document.getElementById('ar-pph23').value = data.pph23;
+    const poEl = document.getElementById('ar-po');
+    if (!poEl.value.trim() && data.po_numbers.length === 1) poEl.value = data.po_numbers[0];
+    else if (poEl.value.trim() && data.po_numbers.length && !data.po_numbers.some(p => p.toUpperCase() === poEl.value.trim().toUpperCase())) {
+      showToast(`Perhatian: No PO di data WO tsb adalah ${data.po_numbers.join(', ')}.`, 'error');
+    }
+    renderARWOSuggest();
     calcARSisa();
   } catch (err) {
     showApiError(err);
@@ -5173,7 +5235,7 @@ function openARModal(mode, id = null) {
     title.textContent = 'Tambah Record AR';
     document.getElementById('ar-tgl-invoice').value = new Date().toISOString().slice(0, 10);
     document.getElementById('ar-tgl-kirim').value = new Date().toISOString().slice(0, 10);
-    populateARWODropdown();
+    populateARPOList();
     calcARDueDate();
     calcARSisa();
   } else {
@@ -5185,7 +5247,9 @@ function openARModal(mode, id = null) {
     document.getElementById('ar-tgl-invoice').value = a.tgl_invoice;
     document.getElementById('ar-tgl-kirim').value = a.tgl_kirim || a.tgl_invoice;
     document.getElementById('ar-customer-select').value = a.customer_id || '';
-    populateARWODropdown(a.wo_id || '');
+    document.getElementById('ar-po').value = a.po_no || '';
+    document.getElementById('ar-wo-numbers').value = a.wo_numbers || a.wo_number || '';
+    populateARPOList();
     document.getElementById('ar-deskripsi').value = a.deskripsi || '';
     document.getElementById('ar-penjualan').value = a.penjualan;
     document.getElementById('ar-is-ppn').value = Number(a.is_ppn) ? '1' : '0';
@@ -5210,17 +5274,14 @@ function closeARModal() {
 async function handleARSubmit(e) {
   e.preventDefault();
   const id = document.getElementById('ar-form-id').value;
-  const woId = document.getElementById('ar-wo-select').value;
-  const w = workOrders.find(x => String(x.id) === String(woId));
-
   const payload = {
     id: id || undefined,
     invoice_no: document.getElementById('ar-invoice').value.trim().toUpperCase(),
     tgl_invoice: document.getElementById('ar-tgl-invoice').value,
     tgl_kirim: document.getElementById('ar-tgl-kirim').value,
     customer_id: document.getElementById('ar-customer-select').value || null,
-    wo_id: woId || null,
-    po_no: w ? (w.po_no || w.wo_number) : '',
+    po_no: document.getElementById('ar-po').value.trim(),
+    wo_numbers: document.getElementById('ar-wo-numbers').value.trim(),
     deskripsi: document.getElementById('ar-deskripsi').value,
     penjualan: document.getElementById('ar-penjualan').value,
     is_ppn: document.getElementById('ar-is-ppn').value === '1',

@@ -2248,19 +2248,30 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         <input type="hidden" id="ar-form-id">
         <div class="grid grid-cols-2 gap-3">
           <div><label class="block font-semibold text-slate-700 mb-1">No Invoice *</label><input type="text" id="ar-invoice" required placeholder="INV/2026/001" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></div>
-          <div><label class="block font-semibold text-slate-700 mb-1">Customer *</label><select id="ar-customer-select" required onchange="populateARWODropdown()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
+          <div><label class="block font-semibold text-slate-700 mb-1">Customer *</label><select id="ar-customer-select" required onchange="populateARPOList()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="block font-semibold text-slate-700 mb-1">Tgl Invoice *</label><input type="date" id="ar-tgl-invoice" required class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
           <div><label class="block font-semibold text-slate-700 mb-1">Tgl Kirim Invoice *</label><input type="date" id="ar-tgl-kirim" required onchange="calcARDueDate()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
         </div>
         <div class="grid grid-cols-2 gap-3">
-          <div><label class="block font-semibold text-slate-700 mb-1">No PO (dari WO Customer)</label><select id="ar-wo-select" onchange="autoFillARFromWO()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
+          <div><label class="block font-semibold text-slate-700 mb-1">No PO Customer</label>
+            <input type="text" id="ar-po" list="ar-po-list" oninput="renderARWOSuggest()" autocomplete="off" placeholder="Pilih / ketik No PO" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
+            <datalist id="ar-po-list"></datalist>
+          </div>
           <div><label class="block font-semibold text-slate-700 mb-1">TOP (Term of Payment)</label>
             <select id="ar-top" onchange="calcARDueDate()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
               <option value="30">30 DAYS</option><option value="14">14 DAYS</option><option value="7">7 DAYS</option><option value="0">0 DAYS</option><option value="45">45 DAYS</option><option value="60">60 DAYS</option><option value="90">90 DAYS</option>
             </select>
           </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">No WO <span class="font-normal text-slate-400">(ketik manual, boleh lebih dari satu &mdash; pisahkan dengan koma)</span></label>
+          <div class="flex gap-2">
+            <input type="text" id="ar-wo-numbers" onchange="autoFillARFromWO()" autocomplete="off" placeholder="contoh: 246843, 246844" class="flex-1 p-2 bg-white border border-slate-300 rounded-lg font-semibold">
+            <button type="button" onclick="autoFillARFromWO(true)" title="Isi Penjualan, Deskripsi, PPN & PPh23 dari WO yang diketik" class="px-3 rounded-lg bg-orange-50 border border-orange-200 text-orange-700 font-bold text-[11px] hover:bg-orange-100 whitespace-nowrap"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Isi dari WO</button>
+          </div>
+          <div id="ar-wo-suggest" class="mt-1.5 text-[10px] text-slate-500"></div>
         </div>
         <div><label class="block font-semibold text-slate-700 mb-1">Deskripsi Pekerjaan</label><input type="text" id="ar-deskripsi" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
         <div class="grid grid-cols-3 gap-3">

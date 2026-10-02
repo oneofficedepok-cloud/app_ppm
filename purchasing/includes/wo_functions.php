@@ -175,3 +175,25 @@ function sync_wo_actual_from_mtc(PDO $pdo, int $woId): void
     }
     $pdo->prepare('UPDATE work_orders SET aktual_prod = :a WHERE id = :id')->execute([':a' => $sum, ':id' => $woId]);
 }
+
+/**
+ * Tabel account_receivable_wo (1 invoice AR -> banyak WO) sudah ada?
+ * Kalau migration_ar_multi_wo.sql belum dijalankan, aplikasi tetap jalan
+ * memakai kolom lama account_receivable.wo_id (1 invoice = 1 WO).
+ */
+function ar_wo_link_ready(PDO $pdo): bool
+{
+    static $ready = null;
+    if ($ready === null) {
+        $ready = (bool) $pdo->query("SHOW TABLES LIKE 'account_receivable_wo'")->fetchColumn();
+    }
+    return $ready;
+}
+
+/** Potongan SQL "AR yang terhubung ke WO wo.id" (dipakai subquery status invoice WO). */
+function ar_for_wo_sql(PDO $pdo, string $woAlias = 'wo'): string
+{
+    return ar_wo_link_ready($pdo)
+        ? "account_receivable ar WHERE ar.id IN (SELECT l.ar_id FROM account_receivable_wo l WHERE l.wo_id = {$woAlias}.id)"
+        : "account_receivable ar WHERE ar.wo_id = {$woAlias}.id";
+}

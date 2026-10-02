@@ -67,6 +67,7 @@ switch ($method) {
         // Semua kalkulasi (DPP aktual, total seal, total transport, total produksi,
         // P/L, status auto) dilakukan di SERVER supaya konsisten & tidak bisa
         // dimanipulasi dari browser - menggantikan logika yang dulu ada di client JS.
+        $arWo = ar_for_wo_sql($pdo);
         $sql = "
             SELECT wo.*, c.nama AS customer_nama,
                    kr.nama AS requester_nama, ka.nama AS atasan_nama, km.nama AS manager_nama,
@@ -75,8 +76,10 @@ switch ($method) {
                    COALESCE((SELECT SUM(ti.total) FROM transport_items ti WHERE ti.wo_id = wo.id), 0) AS total_transport,
                    (SELECT COUNT(*) FROM pr_items pr WHERE pr.wo_id = wo.id) AS pr_count,
                    (SELECT COUNT(*) FROM pr_items pr WHERE pr.wo_id = wo.id AND pr.status IN ('ON PROSES','PO ISSUED')) AS pr_on_proses_count,
-                   (SELECT COALESCE(SUM(ar.terbayar),0) FROM account_receivable ar WHERE ar.wo_id = wo.id) AS ar_terbayar,
-                   (SELECT COUNT(*) FROM account_receivable ar WHERE ar.wo_id = wo.id) AS ar_count
+                   (SELECT COALESCE(SUM(ar.terbayar),0) FROM $arWo) AS ar_terbayar,
+                   (SELECT COUNT(*) FROM $arWo) AS ar_count,
+                   (SELECT COUNT(*) FROM $arWo
+                       AND (ar.penjualan + ar.ppn - ar.terbayar - ar.pph23 - ar.ppn030 - ar.biaya_lain) > 0.5) AS ar_unpaid_count
             FROM work_orders wo
             LEFT JOIN customers c ON c.id = wo.customer_id
             LEFT JOIN master_karyawan kr ON kr.id = wo.requester_karyawan_id
@@ -116,9 +119,11 @@ switch ($method) {
             $w['status_budget'] = ($totalBudgetKeseluruhan >= $totalProduksi) ? 'AMAN' : 'OVER BUDGET';
 
             // Status invoice (sisi Finance): dipakai badge "WO Pipeline" di dashboard.
+            // 1 invoice bisa untuk beberapa WO (1 PO), jadi LUNAS = semua invoice yang
+            // memuat WO ini sudah tidak bersisa piutang.
             if ((int) $w['ar_count'] === 0) {
                 $w['invoice_status'] = 'BELUM INVOICE';
-            } elseif ((float) $w['ar_terbayar'] > 0 && (float) $w['ar_terbayar'] >= (float) $w['wo_total']) {
+            } elseif ((int) $w['ar_unpaid_count'] === 0) {
                 $w['invoice_status'] = 'LUNAS';
             } else {
                 $w['invoice_status'] = 'PENDING';
@@ -328,7 +333,7 @@ switch ($method) {
             $q = $pdo->prepare("
                 SELECT wo.id, wo.wo_number,
                        (SELECT COUNT(*) FROM pr_items p WHERE p.wo_id = wo.id) AS pr_count,
-                       (SELECT COUNT(*) FROM account_receivable a WHERE a.wo_id = wo.id) AS ar_count
+                       (SELECT COUNT(*) FROM " . ar_for_wo_sql($pdo) . ") AS ar_count
                 FROM work_orders wo WHERE wo.id IN ($ph)
             ");
             $q->execute($ids);
@@ -366,7 +371,7 @@ switch ($method) {
             json_error('WO ini masih punya data PR terkait, tidak bisa dihapus.', 409);
         }
 
-        $checkAr = $pdo->prepare('SELECT COUNT(*) c FROM account_receivable WHERE wo_id = :id');
+        $checkAr = $pdo->prepare('SELECT COUNT(*) c FROM work_orders wo WHERE wo.id = :id AND EXISTS (SELECT 1 FROM ' . ar_for_wo_sql($pdo) . ')');
         $checkAr->execute([':id' => $id]);
         if ((int) $checkAr->fetch()['c'] > 0) {
             json_error('WO ini masih punya data AR (invoice) terkait, tidak bisa dihapus.', 409);
