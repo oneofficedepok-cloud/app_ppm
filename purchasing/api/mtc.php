@@ -21,13 +21,7 @@ $pdo = db();
 $method = http_method();
 $resource = $_GET['resource'] ?? 'dashboard';
 
-/** 16 divisi produksi baku (sama seperti prototype MTC) - tidak diedit lewat UI, cuma daftar pilihan. */
-const MTC_DIVISI_LIST = [
-    'Pembelian Material', 'Disassembling', 'Observasi', 'Engineering',
-    'Machining', 'Brass Plating', 'Honing', 'Chrome',
-    'Welding', 'Painting', 'QC', 'Assy',
-    'HPU Test (Assy)', 'CNC Seal', 'Gudang', 'Transportasi',
-];
+// Daftar 16 divisi baku: MTC_DIVISI_LIST di includes/wo_functions.php (dipakai juga import Excel).
 
 function fetch_divisi_items(PDO $pdo, int $recordId): array
 {

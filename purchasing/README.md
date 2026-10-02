@@ -384,6 +384,14 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 
 ## Import Data Excel
 
+### Import Pekerjaan MTC
+Menu **MTC Produksi → Modul Divisi Produksi → "Import Pekerjaan MTC dari Excel"** (role dengan izin Ubah di menu Modul Divisi Produksi), atau dari Administrator → Import Data Excel → "Pekerjaan MTC".
+- Template: 1 baris = 1 pekerjaan. Kolom wajib: No WO, Item Pekerjaan, Divisi, Pekerjaan, Qty. Divisi, Status Workflow, dan Status tersedia sebagai pilihan dropdown di Excel. Petunjuk lengkap ada di sheet **Petunjuk**.
+- Item Pekerjaan harus sudah ada di WO-nya. Baris dengan No WO + Item + Divisi + No Surat Jalan yang sama digabung menjadi 1 catatan divisi.
+- Harga Satuan kosong: dipakai harga Kode Mesin, atau tarif Manpower divisi kalau tidak ada mesin.
+- File yang sama aman di-upload ulang (pekerjaan identik dilewati). Setelah import, Aktual Item Pekerjaan WO langsung terupdate.
+- Untuk kolom uang di semua import, `12.500` dibaca sebagai dua belas ribu lima ratus (format Indonesia).
+
 Menu **Administrator → Import Data Excel** (khusus admin). Urutan import yang disarankan, karena data transaksi merujuk ke master:
 
 1. Karyawan, Customer, Supplier, Buyer, Product

@@ -4,6 +4,14 @@
  * DAN api/import.php (import Excel), supaya rumus & penomoran selalu sama.
  */
 
+/** 16 divisi produksi baku (sama seperti prototype MTC) - tidak diedit lewat UI, cuma daftar pilihan. */
+const MTC_DIVISI_LIST = [
+    'Pembelian Material', 'Disassembling', 'Observasi', 'Engineering',
+    'Machining', 'Brass Plating', 'Honing', 'Chrome',
+    'Welding', 'Painting', 'QC', 'Assy',
+    'HPU Test (Assy)', 'CNC Seal', 'Gudang', 'Transportasi',
+];
+
 /**
  * Hitung DPP/PPN/PPh23/PPh Lain/Total nilai jual WO di SERVER
  * (jangan percaya angka dari browser) - meniru persis formula calcWO()

@@ -3,7 +3,7 @@
  * Import data dari file Excel (.xlsx) sesuai template di download_template.php.
  *
  * POST multipart/form-data:
- *   type = karyawan | customers | suppliers | buyers | products | work_orders | pr_items
+ *   type = karyawan | customers | suppliers | buyers | products | work_orders | pr_items | mtc
  *   file = file .xlsx
  *
  * Response: { success, message, data: { berhasil, dilewati, gagal, errors: [{baris, pesan}] } }
@@ -22,7 +22,13 @@ require_once __DIR__ . '/../includes/xlsx_reader.php';
 require_once __DIR__ . '/../includes/wo_functions.php';
 require_once __DIR__ . '/../includes/pr_functions.php';
 
-require_admin();
+// Import pekerjaan MTC boleh dilakukan role yang punya izin UBAH di menu Modul Divisi
+// Produksi; import data lain (master, WO, PR) tetap khusus admin.
+if (($_POST['type'] ?? '') === 'mtc') {
+    require_edit(['mtcdivisi']);
+} else {
+    require_admin();
+}
 
 if (http_method() !== 'POST') json_error('Method tidak didukung.', 405);
 
@@ -68,6 +74,13 @@ $COLUMNS = [
         'po_number' => ['No PO', false], 'invoice_number' => ['No Invoice', false], 'buyer' => ['Buyer', false],
         'user' => ['User Peminta', false], 'divisi' => ['Divisi', false], 'status' => ['Status', false],
         'keterangan' => ['Deskripsi', false],
+    ],
+    'mtc' => [
+        'wo' => ['No WO', true], 'nama_item' => ['Item Pekerjaan', true], 'divisi' => ['Divisi', true],
+        'status_workflow' => ['Status Workflow', false], 'pic' => ['PIC', false], 'surat_jalan' => ['No Surat Jalan', false],
+        'pekerjaan' => ['Pekerjaan', true], 'deskripsi' => ['Deskripsi', false], 'qty' => ['Qty', true],
+        'satuan' => ['Satuan', false], 'kode_mesin' => ['Kode Mesin', false], 'harga' => ['Harga Satuan', false],
+        'status' => ['Status', false],
     ],
 ];
 
@@ -150,6 +163,20 @@ function cell_num($v, string $label, float $default = 0.0): float
     }
     if (!is_numeric($s)) throw new ImportRowError("Kolom \"$label\" harus berupa angka (isi: \"$v\").");
     return $neg ? -(float) $s : (float) $s;
+}
+
+/**
+ * Angka UANG (harga, diskon, budget). Sama seperti cell_num, tapi titik dengan
+ * kelompok 3 digit SELALU dianggap pemisah ribuan format Indonesia:
+ * "12.500" = 12500 (bukan 12,5). Untuk Qty / persen tetap pakai cell_num.
+ */
+function cell_money($v, string $label, float $default = 0.0): float
+{
+    if (is_string($v)) {
+        $s = trim(preg_replace('/^rp\.?\s*/i', '', trim($v)));
+        if (preg_match('/^-?\d{1,3}(\.\d{3})+$/', $s)) return (float) str_replace('.', '', $s);
+    }
+    return cell_num($v, $label, $default);
 }
 
 /** Tanggal: serial Excel, YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY. Return 'Y-m-d' atau null. */
@@ -271,6 +298,30 @@ if ($type === 'pr_items') {
     }
 }
 
+if ($type === 'mtc') {
+    $ref['wo'] = [];
+    foreach ($pdo->query('SELECT id, wo_number FROM work_orders')->fetchAll() as $w) {
+        $ref['wo'][norm_key($w['wo_number'])] = (int) $w['id'];
+    }
+    $ref['items'] = []; // wo_id => [NAMA ITEM => nama asli]
+    foreach ($pdo->query('SELECT wo_id, nama_item FROM work_order_budget_items')->fetchAll() as $it) {
+        $ref['items'][(int) $it['wo_id']][norm_key($it['nama_item'])] = $it['nama_item'];
+    }
+    $ref['divisi'] = [];
+    foreach (MTC_DIVISI_LIST as $d) $ref['divisi'][norm_key($d)] = $d;
+    $ref['mesin'] = [];
+    $ref['mp'] = [];
+    try {
+        foreach ($pdo->query("SELECT kode, harga FROM mtc_master_mesin")->fetchAll() as $m) $ref['mesin'][norm_key($m['kode'])] = $m;
+        foreach ($pdo->query("SELECT divisi, harga FROM mtc_master_mp WHERE status = 'AKTIF' ORDER BY id")->fetchAll() as $m) {
+            $ref['mp'][norm_key($m['divisi'])] = $ref['mp'][norm_key($m['divisi'])] ?? (float) $m['harga'];
+        }
+    } catch (PDOException $e) {
+        // master MTC belum ada: harga wajib diisi manual di file
+    }
+}
+$touchedWo = []; // WO yang record MTC-nya berubah -> Aktual Item Pekerjaan disinkronkan di akhir
+
 // ---------------------------------------------------------
 // Handler per tipe. Return 'ok' | 'skip'. Lempar ImportRowError kalau baris salah.
 // ---------------------------------------------------------
@@ -352,8 +403,8 @@ $handlers['work_orders'] = function (array $r) use ($pdo, &$ref): string {
     }
 
     $qty = cell_num($r['qty'], 'Qty', 1);
-    $harga = cell_num($r['harga_satuan'], 'Harga Satuan');
-    $diskon = cell_num($r['diskon'], 'Diskon');
+    $harga = cell_money($r['harga_satuan'], 'Harga Satuan');
+    $diskon = cell_money($r['diskon'], 'Diskon');
     $isPpn = cell_bool($r['is_ppn'], 'PPN', true);
     $isPph23 = cell_bool($r['is_pph23'], 'PPh23', true);
     $pphLainPct = cell_num($r['pph_lain_pct'], 'PPh Lain %');
@@ -369,9 +420,9 @@ $handlers['work_orders'] = function (array $r) use ($pdo, &$ref): string {
     )->execute([
         ':wo' => $woNumber, ':cat' => $category, ':proj' => $project, ':cust' => $cust['id'],
         ':est' => cell_date($r['est_kirim'], 'Estimasi Kirim'), ':nilai' => $dpp,
-        ':bprod' => cell_num($r['budget_prod'], 'Budget Produksi'), ':aprod' => cell_num($r['aktual_prod'], 'Aktual Produksi'),
-        ':bpem' => cell_num($r['budget_pem'], 'Budget Pembelian'), ':blain' => cell_num($r['budget_lain'], 'Budget Lain-lain'),
-        ':lain' => cell_num($r['total_lain'], 'Aktual Lain-lain'),
+        ':bprod' => cell_money($r['budget_prod'], 'Budget Produksi'), ':aprod' => cell_money($r['aktual_prod'], 'Aktual Produksi'),
+        ':bpem' => cell_money($r['budget_pem'], 'Budget Pembelian'), ':blain' => cell_money($r['budget_lain'], 'Budget Lain-lain'),
+        ':lain' => cell_money($r['total_lain'], 'Aktual Lain-lain'),
         ':status' => cell_enum($r['status'], 'Status', ['ON PROGRESS', 'HOLD', 'CANCEL', 'DELIVERY', 'FINISHED'], 'ON PROGRESS'),
         ':pono' => cell_str($r['po_no']), ':qty' => $qty, ':satuan' => cell_str($r['satuan']) ?: 'Unit',
         ':harga' => $harga, ':diskon' => $diskon, ':isppn' => $isPpn ? 1 : 0, ':ppn' => $ppn,
@@ -458,7 +509,7 @@ $handlers['pr_items'] = function (array $r) use ($pdo, &$ref, &$lastAutoPr): str
         if ($chk->fetch()) return 'skip';
     }
 
-    $harga = cell_num($r['harga'], 'Harga Satuan');
+    $harga = cell_money($r['harga'], 'Harga Satuan');
     $isPpn = cell_bool($r['is_ppn'], 'Kena PPN', false);
     $ppnRate = cell_num($r['ppn_rate'], 'Tarif PPN %', 11);
     [$dpp, $ppnAmount, $total] = calc_ppn($qty, $harga, $isPpn, $ppnRate);
@@ -491,6 +542,87 @@ $handlers['pr_items'] = function (array $r) use ($pdo, &$ref, &$lastAutoPr): str
         throw $e;
     }
     log_activity('import', 'pr_items', (int) $pdo->lastInsertId(), "$prNumber #$itemNo");
+    return 'ok';
+};
+
+// Import pekerjaan MTC: 1 baris = 1 baris pekerjaan. Baris dengan No WO + Item Pekerjaan +
+// Divisi + No Surat Jalan yang sama masuk ke 1 record divisi (record lama dipakai ulang kalau
+// sudah ada). Pekerjaan yang sama persis (pekerjaan + qty + harga) di record itu dilewati,
+// jadi file yang sama aman di-upload ulang.
+$handlers['mtc'] = function (array $r) use ($pdo, &$ref, &$touchedWo): string {
+    $woNo = cell_str($r['wo']);
+    if ($woNo === '') throw new ImportRowError('No WO wajib diisi.');
+    $woId = $ref['wo'][norm_key($woNo)] ?? null;
+    if (!$woId) throw new ImportRowError("No WO \"$woNo\" tidak ditemukan di menu WO & Budget.");
+
+    $itemInput = cell_str($r['nama_item']);
+    if ($itemInput === '') throw new ImportRowError('Item Pekerjaan wajib diisi.');
+    $namaItem = $ref['items'][$woId][norm_key($itemInput)] ?? null;
+    if ($namaItem === null) {
+        $ada = array_values($ref['items'][$woId] ?? []);
+        throw new ImportRowError("Item Pekerjaan \"$itemInput\" belum ada di WO $woNo. "
+            . ($ada ? 'Item yang ada: ' . implode(', ', $ada) . '.' : 'WO ini belum punya Item Pekerjaan.')
+            . ' Tambahkan lewat Edit WO > Budgeting Produksi.');
+    }
+
+    $divInput = cell_str($r['divisi']);
+    $divisi = $ref['divisi'][norm_key($divInput)] ?? null;
+    if ($divisi === null) throw new ImportRowError("Divisi \"$divInput\" tidak valid. Pilihan: " . implode(', ', MTC_DIVISI_LIST) . '.');
+
+    $pekerjaan = cell_str($r['pekerjaan']);
+    if ($pekerjaan === '') throw new ImportRowError('Pekerjaan wajib diisi.');
+    if (cell_str($r['qty']) === '') throw new ImportRowError('Qty wajib diisi.');
+    $qty = cell_num($r['qty'], 'Qty');
+    if ($qty < 0) throw new ImportRowError('Qty tidak boleh negatif.');
+
+    $kodeMesin = cell_str($r['kode_mesin']);
+    $mesin = $kodeMesin !== '' ? ($ref['mesin'][norm_key($kodeMesin)] ?? null) : null;
+    if ($kodeMesin !== '' && !$mesin) throw new ImportRowError("Kode Mesin \"$kodeMesin\" tidak ada di MTC > Master Data Mesin.");
+    if (cell_str($r['harga']) !== '') {
+        $harga = cell_money($r['harga'], 'Harga Satuan');
+    } elseif ($mesin) {
+        $harga = (float) $mesin['harga'];
+    } else {
+        $harga = (float) ($ref['mp'][norm_key($divisi)] ?? 0);
+    }
+    if ($harga < 0) throw new ImportRowError('Harga Satuan tidak boleh negatif.');
+
+    $workflow = cell_enum($r['status_workflow'], 'Status Workflow', ['NORMAL', 'REWORK', 'CLAIM', 'REJECT'], 'NORMAL');
+    $status = cell_enum($r['status'], 'Status', ['ON PROCESS', 'FINISH'], 'ON PROCESS');
+    $sj = cell_str($r['surat_jalan']);
+
+    // Cari / buat record divisi.
+    $find = $pdo->prepare(
+        "SELECT id FROM mtc_divisi_records
+         WHERE wo_id = :wo AND nama_item = :item AND divisi = :div AND COALESCE(surat_jalan, '') = :sj
+         ORDER BY id LIMIT 1"
+    );
+    $find->execute([':wo' => $woId, ':item' => $namaItem, ':div' => $divisi, ':sj' => $sj]);
+    $recordId = (int) $find->fetchColumn();
+    if (!$recordId) {
+        $pdo->prepare(
+            'INSERT INTO mtc_divisi_records (wo_id, nama_item, divisi, status_workflow, pic, surat_jalan)
+             VALUES (:wo, :item, :div, :wf, :pic, :sj)'
+        )->execute([':wo' => $woId, ':item' => $namaItem, ':div' => $divisi, ':wf' => $workflow, ':pic' => cell_str($r['pic']), ':sj' => $sj]);
+        $recordId = (int) $pdo->lastInsertId();
+    } else {
+        $dup = $pdo->prepare(
+            'SELECT COUNT(*) FROM mtc_divisi_items WHERE record_id = :rid AND pekerjaan = :pek AND ABS(qty - :qty) < 0.0005 AND ABS(harga - :harga) < 0.005'
+        );
+        $dup->execute([':rid' => $recordId, ':pek' => $pekerjaan, ':qty' => $qty, ':harga' => $harga]);
+        if ((int) $dup->fetchColumn() > 0) return 'skip';
+    }
+
+    $pdo->prepare(
+        'INSERT INTO mtc_divisi_items (record_id, pekerjaan, deskripsi, qty, satuan, kode_mesin, harga, total, status)
+         VALUES (:rid, :pek, :desk, :qty, :satuan, :mesin, :harga, :total, :status)'
+    )->execute([
+        ':rid' => $recordId, ':pek' => $pekerjaan, ':desk' => cell_str($r['deskripsi']), ':qty' => $qty,
+        ':satuan' => cell_str($r['satuan']) ?: 'Jam', ':mesin' => $mesin ? $mesin['kode'] : null,
+        ':harga' => $harga, ':total' => round($qty * $harga, 2), ':status' => $status,
+    ]);
+    $touchedWo[$woId] = true;
+    log_activity('import', 'mtc_divisi_items', (int) $pdo->lastInsertId(), "$woNo / $namaItem / $divisi / $pekerjaan");
     return 'ok';
 };
 
@@ -529,6 +661,11 @@ foreach ($rows as $rowNum => $cells) {
         error_log('[import] baris ' . $rowNum . ': ' . $e->getMessage());
         $errors[] = ['baris' => $rowNum, 'pesan' => 'Kesalahan database: ' . ($e instanceof PDOException ? 'data tidak valid / duplikat.' : $e->getMessage())];
     }
+}
+
+// Aktual Item Pekerjaan & Aktual Produksi WO mengikuti total MTC terbaru.
+foreach (array_keys($touchedWo) as $woId) {
+    sync_wo_actual_from_mtc($pdo, (int) $woId);
 }
 
 if ($berhasil + $dilewati + $gagal === 0) {

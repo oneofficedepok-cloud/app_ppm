@@ -5833,3 +5833,46 @@ async function exportMTCExcel(woId = null) {
   XLSX.writeFile(wb, `MTC_Produksi_${label}_${today}.xlsx`);
   showToast(`Export Excel MTC berhasil (${wos.length} WO, ${rincian.length - 2} baris pekerjaan).`);
 }
+
+
+// ===================== IMPORT EXCEL: PEKERJAAN MTC =====================
+async function handleMTCImportUpload() {
+  const input = document.getElementById('mtc-import-file');
+  const btn = document.getElementById('mtc-import-btn');
+  const box = document.getElementById('mtc-import-result');
+  if (!input.files || !input.files.length) { showToast('Pilih file .xlsx dulu.', 'error'); return; }
+
+  const form = new FormData();
+  form.append('type', 'mtc');
+  form.append('file', input.files[0]);
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengimport...';
+  box.classList.add('hidden');
+  try {
+    const res = await fetch('api/import.php', { method: 'POST', body: form, credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF_TOKEN } });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { throw new Error(`Respons server tidak valid (HTTP ${res.status}).`); }
+    if (!res.ok || !data.success) throw new Error(data.message || 'Import gagal.');
+
+    const d = data.data;
+    box.className = 'text-xs rounded-lg p-3 border space-y-2 ' + (d.gagal > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200');
+    box.innerHTML = `<div class="font-bold ${d.gagal > 0 ? 'text-amber-800' : 'text-emerald-800'}">
+        ${d.berhasil} pekerjaan berhasil diimport &middot; ${d.dilewati} dilewati (sudah ada / contoh) &middot; ${d.gagal} gagal</div>` +
+      (d.errors && d.errors.length ? '<div class="max-h-48 overflow-y-auto bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">' +
+        d.errors.map(e => `<div class="px-3 py-1.5"><span class="font-bold text-rose-600">Baris ${e.baris}:</span> ${esc(e.pesan)}</div>`).join('') + '</div>' : '');
+    box.classList.remove('hidden');
+
+    if (d.berhasil > 0) {
+      showToast(`${d.berhasil} pekerjaan MTC berhasil diimport.`);
+      input.value = '';
+      await refresh('workOrders'); // Aktual Item Pekerjaan ikut berubah
+      if (mtcCurrentWOId) handleMTCDivisiWOChange();
+    }
+  } catch (err) {
+    showApiError(err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload &amp; Import';
+  }
+}

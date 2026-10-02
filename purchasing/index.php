@@ -1007,6 +1007,27 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
           <button onclick="exportMTCExcel(mtcCurrentWOId)" id="mtc-export-wo-btn" disabled title="Export rincian biaya divisi WO ini ke Excel" class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center justify-center gap-2 whitespace-nowrap"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
         </div>
       </div>
+      <?php if ($canEdit('mtcdivisi')): ?>
+      <details class="group bg-white rounded-xl border border-slate-200">
+        <summary class="cursor-pointer select-none px-4 py-3 flex items-center justify-between text-xs font-bold text-slate-700">
+          <span><i class="fa-solid fa-file-import text-emerald-600 mr-1.5"></i> Import Pekerjaan MTC dari Excel <span class="font-normal text-slate-400">— input banyak rincian sekaligus, untuk banyak WO</span></span>
+          <i class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition"></i>
+        </summary>
+        <div class="px-4 pb-4 space-y-3 border-t border-slate-100 pt-3">
+          <ol class="text-[11px] text-slate-500 list-decimal ml-4 space-y-0.5">
+            <li>Download template, isi 1 baris per pekerjaan (No WO, Item Pekerjaan, Divisi, Pekerjaan, Qty, Harga...). Petunjuk lengkap ada di sheet <b>Petunjuk</b>.</li>
+            <li>Item Pekerjaan harus sudah ada di WO-nya (Edit WO → Budgeting Produksi). Harga kosong = harga mesin / tarif manpower divisi.</li>
+            <li>Upload file .xlsx. File yang sama aman di-upload ulang (pekerjaan yang sudah ada dilewati).</li>
+          </ol>
+          <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <a href="api/download_template.php?type=mtc" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center justify-center gap-2 whitespace-nowrap"><i class="fa-solid fa-download"></i> Download Template</a>
+            <input type="file" id="mtc-import-file" accept=".xlsx" class="flex-1 text-xs bg-white border border-slate-300 rounded-lg p-1.5">
+            <button type="button" onclick="handleMTCImportUpload()" id="mtc-import-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center justify-center gap-2 whitespace-nowrap"><i class="fa-solid fa-upload"></i> Upload &amp; Import</button>
+          </div>
+          <div id="mtc-import-result" class="hidden text-xs rounded-lg p-3 border space-y-2"></div>
+        </div>
+      </details>
+      <?php endif; ?>
       <div id="mtcdivisi-empty-hint" class="text-center py-10 text-slate-400 text-sm">Pilih Work Order dulu untuk melihat/mencatat biaya per divisi.</div>
       <div id="mtcdivisi-records-list" class="space-y-3"></div>
     </div>
@@ -1075,6 +1096,7 @@ $canEdit = fn(string $menu): bool => user_level($user, $menu) >= PERM_EDIT; // b
               <option value="products">Master Product</option>
               <option value="work_orders">Work Order (WO)</option>
               <option value="pr_items">Purchasing Request (PR)</option>
+              <option value="mtc">Pekerjaan MTC (Modul Divisi Produksi)</option>
             </select>
           </div>
           <div class="flex items-end">
