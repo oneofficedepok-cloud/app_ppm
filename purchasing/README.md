@@ -189,6 +189,20 @@ Tabel **WO & Budget** menampilkan **Nilai DPP** (Qty × Harga Satuan), **Discoun
 Seal CNC, transportasi, lain-lain). PPN tidak ikut dihitung. Dashboard MTC (Total Nilai PO & Estimasi
 Margin) juga memakai DPP setelah diskon, tanpa PPN.
 
+### Import Excel AR, AP & Surat Jalan
+
+Tombol **Import Excel** di menu **Finance → AR**, **AP** dan **Surat Jalan** (juga tersedia di
+Administrator → Import Data Excel): 1) Download Template, 2) isi di Excel, 3) Upload & Import.
+
+- Template: `Template_Import_AR_Piutang.xlsx`, `Template_Import_AP_Hutang.xlsx`, `Template_Import_Surat_Jalan.xlsx`
+  (sheet "Petunjuk" berisi aturan tiap kolom; kolom hijau tua wajib).
+- AR: No WO boleh beberapa (pisahkan koma) dan langsung terhubung ke WO (Status Invoice di tabel WO).
+  PPN, PPN 030, sisa piutang & jatuh tempo dihitung otomatis dengan rumus yang sama seperti form.
+- AP: PPN & PPh23 (2%) dihitung otomatis. Surat Jalan: No WO wajib, status DELIVERY/DONE/HOLD/WARRANTY/CANCEL.
+- Aman: hanya role dengan izin **Ubah** di menu terkait (atau Admin) yang bisa import; No Invoice / No SJ yang
+  sudah ada dilewati (tidak dobel / ditimpa); Customer, Supplier & No WO harus sudah terdaftar; baris yang salah
+  dilaporkan per baris tanpa membatalkan baris lain; file maks 10 MB, hanya .xlsx; dilindungi token CSRF.
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:

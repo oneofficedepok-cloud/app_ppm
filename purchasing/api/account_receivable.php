@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/wo_functions.php';
+require_once __DIR__ . '/../includes/finance_calc.php';
 
 // Baca: menu AR + Finance Dashboard & Cash Flow (rekap). Ubah: menu AR.
 require_perm(['ar', 'findash', 'cashflow'], ['ar']);
@@ -8,29 +9,7 @@ require_perm(['ar', 'findash', 'cashflow'], ['ar']);
 $method = http_method();
 $pdo = db();
 
-/**
- * Hitung PPN/PPN030/Sisa Piutang di SERVER - meniru formula calcAR() asli:
- * ppn = penjualan*11% kalau YA; ppn030 = penjualan*11% kalau YA (pajak terpisah);
- * totalPiutang = penjualan + ppn; sisa = totalPiutang - terbayar - pph23 - ppn030 - biayaLain.
- */
-function calc_ar(float $penjualan, bool $isPpn, bool $isPpn030, float $pph23, float $biayaLain, float $terbayar): array
-{
-    $ppn = $isPpn ? round($penjualan * 0.11, 2) : 0.0;
-    $ppn030 = $isPpn030 ? round($penjualan * 0.11, 2) : 0.0;
-    $totalPiutang = $penjualan + $ppn;
-    $sisa = $totalPiutang - $terbayar - $pph23 - $ppn030 - $biayaLain;
-    return [$ppn, $ppn030, $sisa];
-}
 
-/** Fallback: kalau due_date tidak dikirim client, hitung dari tgl_kirim + TOP hari. */
-function resolve_due_date(?string $dueDate, ?string $baseDate, int $topDays): ?string
-{
-    if ($dueDate) return $dueDate;
-    if (!$baseDate) return null;
-    $ts = strtotime($baseDate);
-    if ($ts === false) return null;
-    return date('Y-m-d', strtotime("+{$topDays} days", $ts));
-}
 
 /**
  * WO yang termasuk invoice AR ini = WO yang dicentang user di form (wo_ids).

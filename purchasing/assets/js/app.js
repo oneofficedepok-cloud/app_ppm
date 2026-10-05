@@ -4655,7 +4655,75 @@ const IMPORT_TEMPLATE_MAP = {
   work_orders: 'api/download_template.php?type=work_orders',
   pr_items: 'api/download_template.php?type=pr_items',
   mtc: 'api/download_template.php?type=mtc',
+  ar: 'api/download_template.php?type=ar',
+  ap: 'api/download_template.php?type=ap',
+  sj: 'api/download_template.php?type=sj',
 };
+
+// --- Import Excel dari menu AR / AP / Surat Jalan (tombol "Import Excel" di tiap tab) ---
+const FIN_IMPORT = {
+  ar: { title: 'Import Excel - AR (Piutang)', reload: ['arData', 'workOrders', 'cashflowCombined'], render: () => renderARTable() },
+  ap: { title: 'Import Excel - AP (Hutang)', reload: ['apData', 'cashflowCombined'], render: () => renderAPTable() },
+  sj: { title: 'Import Excel - Surat Jalan', reload: ['sjData', 'workOrders'], render: () => renderSJTable() },
+};
+let finImportType = null;
+
+function openFinImportModal(type) {
+  finImportType = type;
+  document.getElementById('fin-import-title').textContent = FIN_IMPORT[type].title;
+  document.getElementById('fin-import-template').href = IMPORT_TEMPLATE_MAP[type];
+  document.getElementById('fin-import-file').value = '';
+  document.getElementById('fin-import-result').classList.add('hidden');
+  document.getElementById('fin-import-modal').classList.remove('hidden');
+}
+
+function closeFinImportModal() {
+  document.getElementById('fin-import-modal').classList.add('hidden');
+}
+
+async function handleFinImportUpload() {
+  const type = finImportType;
+  const input = document.getElementById('fin-import-file');
+  const btn = document.getElementById('fin-import-btn');
+  const box = document.getElementById('fin-import-result');
+  if (!input.files || !input.files.length) { showToast('Pilih file .xlsx dulu.', 'error'); return; }
+  if (!/\.xlsx$/i.test(input.files[0].name)) { showToast('File harus .xlsx (Excel Workbook).', 'error'); return; }
+
+  const form = new FormData();
+  form.append('type', type);
+  form.append('file', input.files[0]);
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengimport...';
+  box.classList.add('hidden');
+  try {
+    const res = await fetch('api/import.php', { method: 'POST', body: form, credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF_TOKEN } });
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { throw new Error(`Respons server tidak valid (HTTP ${res.status}).`); }
+    if (!res.ok || !data.success) throw new Error(data.message || 'Import gagal.');
+
+    const d = data.data;
+    box.className = 'text-xs rounded-lg p-3 border space-y-2 ' + (d.gagal > 0 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200');
+    box.innerHTML = `<div class="font-bold ${d.gagal > 0 ? 'text-amber-800' : 'text-emerald-800'}">
+        ${d.berhasil} baris berhasil &middot; ${d.dilewati} dilewati (sudah ada / contoh) &middot; ${d.gagal} gagal</div>` +
+      (d.errors && d.errors.length ? '<div class="max-h-48 overflow-y-auto bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">' +
+        d.errors.map(e => `<div class="px-3 py-1.5"><span class="font-bold text-rose-600">Baris ${e.baris}:</span> ${esc(e.pesan)}</div>`).join('') + '</div>' : '');
+    box.classList.remove('hidden');
+    if (d.berhasil > 0) {
+      showToast(`${d.berhasil} baris berhasil diimport.`);
+      input.value = '';
+      await refresh(...FIN_IMPORT[type].reload);
+      FIN_IMPORT[type].render();
+    }
+  } catch (err) {
+    box.className = 'text-xs rounded-lg p-3 border bg-rose-50 border-rose-200 text-rose-700 font-semibold';
+    box.textContent = err.message || 'Terjadi kesalahan saat import.';
+    box.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-upload"></i> Upload &amp; Import';
+  }
+}
 
 function updateImportTemplateLink() {
   const type = document.getElementById('import-type-select').value;

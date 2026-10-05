@@ -1114,6 +1114,9 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
               <option value="work_orders">Work Order (WO)</option>
               <option value="pr_items">Purchasing Request (PR)</option>
               <option value="mtc">Pekerjaan MTC (Modul Divisi Produksi)</option>
+              <option value="ar">AR - Piutang Customer</option>
+              <option value="ap">AP - Hutang Supplier</option>
+              <option value="sj">Surat Jalan (SJ)</option>
             </select>
           </div>
           <div class="flex items-end">
@@ -1299,6 +1302,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <h2 class="text-lg font-bold text-slate-800">Account Receivable (AR) — Piutang Customer</h2>
           <p class="text-xs text-slate-500">Invoice ke customer, status pembayaran, dan sisa piutang</p>
         </div>
+<button onclick="openFinImportModal('ar')" class="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-2 transition shadow-sm" title="Download template & upload file Excel"><i class="fa-solid fa-file-import text-amber-600"></i><span>Import Excel</span></button>
         <button onclick="openARModal('add')" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition shadow-sm">
           <i class="fa-solid fa-plus"></i><span>Tambah Record AR</span>
         </button>
@@ -1353,6 +1357,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <h2 class="text-lg font-bold text-slate-800">Account Payable (AP) — Hutang ke Supplier</h2>
           <p class="text-xs text-slate-500">Invoice dari supplier, status pembayaran, dan sisa hutang</p>
         </div>
+<button onclick="openFinImportModal('ap')" class="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-2 transition shadow-sm" title="Download template & upload file Excel"><i class="fa-solid fa-file-import text-rose-600"></i><span>Import Excel</span></button>
         <button onclick="openAPModal('add')" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition shadow-sm">
           <i class="fa-solid fa-plus"></i><span>Tambah Record AP</span>
         </button>
@@ -1452,6 +1457,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         </div>
         <div class="flex items-center gap-2">
           <button onclick="exportSJExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-2 transition shadow-sm"><i class="fa-solid fa-file-excel"></i><span>Export Excel</span></button>
+  <button onclick="openFinImportModal('sj')" class="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-2 transition shadow-sm" title="Download template & upload file Excel"><i class="fa-solid fa-file-import text-sky-600"></i><span>Import Excel</span></button>
           <button onclick="openSJModal('add')" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition shadow-sm"><i class="fa-solid fa-plus"></i><span>Buat Surat Jalan</span></button>
         </div>
       </div>
@@ -2479,6 +2485,36 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <button type="submit" class="px-5 py-2 bg-sky-600 text-white rounded-xl font-bold hover:bg-sky-700 shadow-md">Simpan Surat Jalan</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: IMPORT EXCEL AR / AP / SURAT JALAN -->
+  <div id="fin-import-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-lg overflow-hidden">
+      <div class="px-6 py-4 bg-slate-800 text-white flex items-center justify-between">
+        <h3 id="fin-import-title" class="font-bold text-base">Import Excel</h3>
+        <button onclick="closeFinImportModal()" class="text-white/80 hover:text-white p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div class="p-6 space-y-4 text-xs">
+        <div class="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <span class="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold shrink-0">1</span>
+          <div class="flex-1">
+            <div class="font-semibold text-slate-700">Download template, isi datanya di Excel</div>
+            <p class="text-[11px] text-slate-500 mb-2">Petunjuk lengkap ada di sheet "Petunjuk". Baris contoh otomatis dilewati.</p>
+            <a id="fin-import-template" href="#" class="inline-flex items-center gap-2 bg-slate-700 hover:bg-slate-800 text-white font-bold px-3 py-1.5 rounded-lg"><i class="fa-solid fa-download"></i> Download Template</a>
+          </div>
+        </div>
+        <div class="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <span class="w-6 h-6 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold shrink-0">2</span>
+          <div class="flex-1 space-y-2">
+            <div class="font-semibold text-slate-700">Upload file .xlsx yang sudah diisi</div>
+            <input type="file" id="fin-import-file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="block w-full text-[11px] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-slate-200 file:font-semibold">
+            <button type="button" id="fin-import-btn" onclick="handleFinImportUpload()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-lg inline-flex items-center gap-2"><i class="fa-solid fa-upload"></i> Upload &amp; Import</button>
+          </div>
+        </div>
+        <div id="fin-import-result" class="hidden"></div>
+        <p class="text-[10px] text-slate-400"><i class="fa-solid fa-shield-halved mr-1"></i>Data dicek di server: nomor yang sudah ada dilewati (tidak dobel / tidak ditimpa), Customer/Supplier/No WO harus sudah terdaftar, baris yang salah dilaporkan tanpa membatalkan baris lain. Maks 10 MB, hanya .xlsx.</p>
+      </div>
     </div>
   </div>
 

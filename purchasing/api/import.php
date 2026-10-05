@@ -3,7 +3,7 @@
  * Import data dari file Excel (.xlsx) sesuai template di download_template.php.
  *
  * POST multipart/form-data:
- *   type = karyawan | customers | suppliers | buyers | products | work_orders | pr_items | mtc
+ *   type = karyawan | customers | suppliers | buyers | products | work_orders | pr_items | mtc | ar | ap | sj
  *   file = file .xlsx
  *
  * Response: { success, message, data: { berhasil, dilewati, gagal, errors: [{baris, pesan}] } }
@@ -21,11 +21,13 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/xlsx_reader.php';
 require_once __DIR__ . '/../includes/wo_functions.php';
 require_once __DIR__ . '/../includes/pr_functions.php';
+require_once __DIR__ . '/../includes/finance_calc.php';
 
-// Import pekerjaan MTC boleh dilakukan role yang punya izin UBAH di menu Modul Divisi
-// Produksi; import data lain (master, WO, PR) tetap khusus admin.
-if (($_POST['type'] ?? '') === 'mtc') {
-    require_edit(['mtcdivisi']);
+// Import pekerjaan MTC / AR / AP / Surat Jalan boleh dilakukan role yang punya izin UBAH
+// di menu terkait; import data lain (master, WO, PR) tetap khusus admin.
+$IMPORT_MENU = ['mtc' => 'mtcdivisi', 'ar' => 'ar', 'ap' => 'ap', 'sj' => 'sj'];
+if (isset($IMPORT_MENU[$_POST['type'] ?? ''])) {
+    require_edit([$IMPORT_MENU[$_POST['type']]]);
 } else {
     require_admin();
 }
@@ -81,6 +83,26 @@ $COLUMNS = [
         'pekerjaan' => ['Pekerjaan', true], 'deskripsi' => ['Deskripsi', false], 'qty' => ['Qty', true],
         'satuan' => ['Satuan', false], 'kode_mesin' => ['Kode Mesin', false], 'harga' => ['Harga Satuan', false],
         'status' => ['Status', false],
+    ],
+    'ar' => [
+        'invoice_no' => ['No Invoice', true], 'tgl_invoice' => ['Tanggal Invoice', true], 'tgl_kirim' => ['Tanggal Kirim Invoice', false],
+        'customer' => ['Nama Customer', true], 'po_no' => ['No PO', false], 'wo' => ['No WO', false],
+        'deskripsi' => ['Deskripsi', false], 'penjualan' => ['Penjualan DPP', true], 'is_ppn' => ['PPN 11%', false],
+        'is_ppn030' => ['PPN 030', false], 'pph23' => ['PPh23 Rp', false], 'biaya_lain' => ['Biaya Lain', false],
+        'top_days' => ['TOP Hari', false], 'due_date' => ['Jatuh Tempo', false], 'faktur_pajak' => ['No Faktur Pajak', false],
+        'terbayar' => ['Terbayar', false], 'tgl_bayar' => ['Tanggal Bayar', false],
+    ],
+    'ap' => [
+        'invoice_no' => ['No Invoice', true], 'tgl_invoice' => ['Tanggal Invoice', true], 'tgl_terima' => ['Tanggal Terima Invoice', false],
+        'supplier' => ['Nama Supplier', true], 'po_no' => ['No PO', false], 'deskripsi' => ['Deskripsi', false],
+        'pembelian' => ['Pembelian DPP', true], 'is_ppn' => ['PPN 11%', false], 'is_pph23' => ['PPh23 2%', false],
+        'biaya_lain' => ['Biaya Lain', false], 'top_days' => ['TOP Hari', false], 'due_date' => ['Jatuh Tempo', false],
+        'faktur_pajak' => ['No Faktur Pajak', false], 'terbayar' => ['Terbayar', false], 'tgl_bayar' => ['Tanggal Bayar', false],
+    ],
+    'sj' => [
+        'no_sj' => ['No Surat Jalan', true], 'tgl_kirim' => ['Tanggal Kirim', true], 'customer' => ['Nama Customer', false],
+        'wo' => ['No WO', true], 'status' => ['Status', false], 'nomor_invoice' => ['Nomor Invoice', false],
+        'keterangan' => ['Keterangan', false],
     ],
 ];
 
@@ -320,6 +342,36 @@ if ($type === 'mtc') {
         // master MTC belum ada: harga wajib diisi manual di file
     }
 }
+if (in_array($type, ['ar', 'sj'], true)) {
+    $ref['customers'] = name_map($pdo, 'SELECT id, nama FROM customers');
+    $ref['wo'] = [];
+    foreach ($pdo->query('SELECT id, wo_number, customer_id FROM work_orders')->fetchAll() as $w) {
+        $ref['wo'][norm_key($w['wo_number'])] = $w;
+    }
+}
+if ($type === 'ap') {
+    $ref['suppliers'] = name_map($pdo, 'SELECT id, nama FROM suppliers');
+}
+if ($type === 'sj' && !db_table_exists($pdo, 'surat_jalan_wo')) {
+    json_error('Tabel Surat Jalan belum ada. Import database/migration_surat_jalan.sql lewat phpMyAdmin dulu.', 422);
+}
+
+/**
+ * Kolom "No WO" (boleh beberapa, pisahkan koma / titik koma / baris baru) -> daftar baris WO.
+ * No WO yang tidak ada = error supaya tidak ada salah ketik.
+ */
+function import_wo_list($raw, array $woRef): array
+{
+    $tokens = array_values(array_unique(array_filter(array_map('trim', preg_split('/[,;\n]+/', cell_str($raw))))));
+    $found = []; $missing = [];
+    foreach ($tokens as $t) {
+        $w = $woRef[norm_key($t)] ?? null;
+        if ($w) $found[(int) $w['id']] = $w; else $missing[] = $t;
+    }
+    if ($missing) throw new ImportRowError('No WO tidak ditemukan: ' . implode(', ', $missing) . '.');
+    return array_values($found);
+}
+
 $touchedWo = []; // WO yang record MTC-nya berubah -> Aktual Item Pekerjaan disinkronkan di akhir
 
 // ---------------------------------------------------------
@@ -625,6 +677,147 @@ $handlers['mtc'] = function (array $r) use ($pdo, &$ref, &$touchedWo): string {
     ]);
     $touchedWo[$woId] = true;
     log_activity('import', 'mtc_divisi_items', (int) $pdo->lastInsertId(), "$woNo / $namaItem / $divisi / $pekerjaan");
+    return 'ok';
+};
+
+// ---------------------------------------------------------
+// AR (Piutang) - 1 baris = 1 invoice. No Invoice yang sudah ada DILEWATI.
+// ---------------------------------------------------------
+$handlers['ar'] = function (array $r) use ($pdo, &$ref): string {
+    $inv = strtoupper(cell_str($r['invoice_no']));
+    if ($inv === '') throw new ImportRowError('No Invoice wajib diisi.');
+    $chk = $pdo->prepare('SELECT COUNT(*) FROM account_receivable WHERE invoice_no = :inv');
+    $chk->execute([':inv' => $inv]);
+    if ((int) $chk->fetchColumn() > 0) return 'skip';
+
+    $tglInv = cell_date($r['tgl_invoice'], 'Tanggal Invoice');
+    if (!$tglInv) throw new ImportRowError('Tanggal Invoice wajib diisi.');
+    $custName = cell_str($r['customer']);
+    $cust = $ref['customers'][norm_key($custName)] ?? null;
+    if (!$cust) throw new ImportRowError("Customer \"$custName\" tidak ada di Master Customer.");
+    $wos = import_wo_list($r['wo'], $ref['wo']);
+    if (count($wos) > 1 && !ar_wo_link_ready($pdo)) {
+        throw new ImportRowError('Untuk 1 invoice dengan beberapa WO, jalankan dulu database/migration_ar_multi_wo.sql.');
+    }
+    if (cell_str($r['penjualan']) === '') throw new ImportRowError('Penjualan (DPP) wajib diisi.');
+    $penjualan = cell_money($r['penjualan'], 'Penjualan DPP');
+    $pph23 = cell_money($r['pph23'], 'PPh23 Rp');
+    $biayaLain = cell_money($r['biaya_lain'], 'Biaya Lain');
+    $terbayar = cell_money($r['terbayar'], 'Terbayar');
+    foreach (['Penjualan' => $penjualan, 'PPh23' => $pph23, 'Biaya Lain' => $biayaLain, 'Terbayar' => $terbayar] as $lbl => $v) {
+        if ($v < 0) throw new ImportRowError("$lbl tidak boleh negatif.");
+    }
+    $isPpn = cell_bool($r['is_ppn'], 'PPN 11%', true);
+    $isPpn030 = cell_bool($r['is_ppn030'], 'PPN 030', false);
+    $top = (int) cell_num($r['top_days'], 'TOP Hari', 30);
+    $tglKirim = cell_date($r['tgl_kirim'], 'Tanggal Kirim Invoice') ?: $tglInv;
+    $due = resolve_due_date(cell_date($r['due_date'], 'Jatuh Tempo'), $tglKirim, $top);
+    [$ppn, $ppn030] = calc_ar($penjualan, $isPpn, $isPpn030, $pph23, $biayaLain, $terbayar);
+
+    $pdo->prepare(
+        'INSERT INTO account_receivable
+         (invoice_no, tgl_invoice, tgl_kirim, customer_id, wo_id, po_no, deskripsi, penjualan,
+          is_ppn, ppn, is_ppn030, ppn030, pph23, biaya_lain, top_days, due_date, faktur_pajak, terbayar, tgl_bayar)
+         VALUES (:inv, :tgl, :tglkirim, :cust, :wo, :po, :desk, :penjualan,
+          :isppn, :ppn, :isppn030, :ppn030, :pph23, :biayalain, :top, :due, :faktur, :terbayar, :tglbayar)'
+    )->execute([
+        ':inv' => $inv, ':tgl' => $tglInv, ':tglkirim' => $tglKirim, ':cust' => $cust['id'],
+        ':wo' => $wos[0]['id'] ?? null, ':po' => cell_str($r['po_no']), ':desk' => cell_str($r['deskripsi']),
+        ':penjualan' => $penjualan, ':isppn' => $isPpn ? 1 : 0, ':ppn' => $ppn, ':isppn030' => $isPpn030 ? 1 : 0,
+        ':ppn030' => $ppn030, ':pph23' => $pph23, ':biayalain' => $biayaLain, ':top' => $top, ':due' => $due,
+        ':faktur' => cell_str($r['faktur_pajak']), ':terbayar' => $terbayar,
+        ':tglbayar' => cell_date($r['tgl_bayar'], 'Tanggal Bayar'),
+    ]);
+    $arId = (int) $pdo->lastInsertId();
+    if (ar_wo_link_ready($pdo)) {
+        $ins = $pdo->prepare('INSERT INTO account_receivable_wo (ar_id, wo_id) VALUES (:ar, :wo)');
+        foreach ($wos as $w) $ins->execute([':ar' => $arId, ':wo' => $w['id']]);
+    }
+    log_activity('import', 'account_receivable', $arId, $inv);
+    return 'ok';
+};
+
+// ---------------------------------------------------------
+// AP (Hutang) - 1 baris = 1 invoice supplier. No Invoice yang sudah ada DILEWATI.
+// ---------------------------------------------------------
+$handlers['ap'] = function (array $r) use ($pdo, &$ref): string {
+    $inv = strtoupper(cell_str($r['invoice_no']));
+    if ($inv === '') throw new ImportRowError('No Invoice wajib diisi.');
+    $chk = $pdo->prepare('SELECT COUNT(*) FROM account_payable WHERE invoice_no = :inv');
+    $chk->execute([':inv' => $inv]);
+    if ((int) $chk->fetchColumn() > 0) return 'skip';
+
+    $tglInv = cell_date($r['tgl_invoice'], 'Tanggal Invoice');
+    if (!$tglInv) throw new ImportRowError('Tanggal Invoice wajib diisi.');
+    $suppName = cell_str($r['supplier']);
+    $supp = $ref['suppliers'][norm_key($suppName)] ?? null;
+    if (!$supp) throw new ImportRowError("Supplier \"$suppName\" tidak ada di Master Supplier.");
+    if (cell_str($r['pembelian']) === '') throw new ImportRowError('Pembelian (DPP) wajib diisi.');
+    $pembelian = cell_money($r['pembelian'], 'Pembelian DPP');
+    $biayaLain = cell_money($r['biaya_lain'], 'Biaya Lain');
+    $terbayar = cell_money($r['terbayar'], 'Terbayar');
+    foreach (['Pembelian' => $pembelian, 'Biaya Lain' => $biayaLain, 'Terbayar' => $terbayar] as $lbl => $v) {
+        if ($v < 0) throw new ImportRowError("$lbl tidak boleh negatif.");
+    }
+    $isPpn = cell_bool($r['is_ppn'], 'PPN 11%', true);
+    $isPph23 = cell_bool($r['is_pph23'], 'PPh23 2%', true);
+    $top = (int) cell_num($r['top_days'], 'TOP Hari', 30);
+    $tglTerima = cell_date($r['tgl_terima'], 'Tanggal Terima Invoice') ?: $tglInv;
+    $due = resolve_due_date(cell_date($r['due_date'], 'Jatuh Tempo'), $tglTerima, $top);
+    [$ppn, $pph23] = calc_ap($pembelian, $isPpn, $isPph23, $biayaLain, $terbayar);
+
+    $pdo->prepare(
+        'INSERT INTO account_payable
+         (invoice_no, tgl_invoice, tgl_terima, supplier_id, po_no, deskripsi, pembelian,
+          is_ppn, ppn, is_pph23, pph23, biaya_lain, top_days, due_date, faktur_pajak, terbayar, tgl_bayar)
+         VALUES (:inv, :tgl, :tglterima, :supp, :po, :desk, :pembelian,
+          :isppn, :ppn, :ispph23, :pph23, :biayalain, :top, :due, :faktur, :terbayar, :tglbayar)'
+    )->execute([
+        ':inv' => $inv, ':tgl' => $tglInv, ':tglterima' => $tglTerima, ':supp' => $supp['id'],
+        ':po' => cell_str($r['po_no']), ':desk' => cell_str($r['deskripsi']), ':pembelian' => $pembelian,
+        ':isppn' => $isPpn ? 1 : 0, ':ppn' => $ppn, ':ispph23' => $isPph23 ? 1 : 0, ':pph23' => $pph23,
+        ':biayalain' => $biayaLain, ':top' => $top, ':due' => $due, ':faktur' => cell_str($r['faktur_pajak']),
+        ':terbayar' => $terbayar, ':tglbayar' => cell_date($r['tgl_bayar'], 'Tanggal Bayar'),
+    ]);
+    log_activity('import', 'account_payable', (int) $pdo->lastInsertId(), $inv);
+    return 'ok';
+};
+
+// ---------------------------------------------------------
+// Surat Jalan - 1 baris = 1 SJ (No WO boleh beberapa). No SJ yang sudah ada DILEWATI.
+// ---------------------------------------------------------
+$handlers['sj'] = function (array $r) use ($pdo, &$ref): string {
+    $noSJ = strtoupper(cell_str($r['no_sj']));
+    if ($noSJ === '') throw new ImportRowError('No Surat Jalan wajib diisi.');
+    $chk = $pdo->prepare('SELECT COUNT(*) FROM surat_jalan WHERE no_sj = :no');
+    $chk->execute([':no' => $noSJ]);
+    if ((int) $chk->fetchColumn() > 0) return 'skip';
+
+    $tgl = cell_date($r['tgl_kirim'], 'Tanggal Kirim');
+    if (!$tgl) throw new ImportRowError('Tanggal Kirim wajib diisi.');
+    $wos = import_wo_list($r['wo'], $ref['wo']);
+    if (!$wos) throw new ImportRowError('No WO wajib diisi (minimal 1).');
+    $custName = cell_str($r['customer']);
+    if ($custName !== '') {
+        $cust = $ref['customers'][norm_key($custName)] ?? null;
+        if (!$cust) throw new ImportRowError("Customer \"$custName\" tidak ada di Master Customer.");
+        $custId = (int) $cust['id'];
+    } else {
+        $custId = $wos[0]['customer_id'] ? (int) $wos[0]['customer_id'] : null; // ikut customer WO pertama
+    }
+    $status = cell_enum($r['status'], 'Status', array_keys(SJ_STATUSES), 'DELIVERY');
+
+    $pdo->prepare(
+        'INSERT INTO surat_jalan (no_sj, tgl_kirim, customer_id, nomor_invoice, status, keterangan, created_by)
+         VALUES (:no, :tgl, :cust, :inv, :status, :ket, :by)'
+    )->execute([
+        ':no' => $noSJ, ':tgl' => $tgl, ':cust' => $custId, ':inv' => cell_str($r['nomor_invoice']),
+        ':status' => $status, ':ket' => cell_str($r['keterangan']), ':by' => current_user()['id'] ?? null,
+    ]);
+    $sjId = (int) $pdo->lastInsertId();
+    $ins = $pdo->prepare('INSERT INTO surat_jalan_wo (sj_id, wo_id) VALUES (:sj, :wo)');
+    foreach ($wos as $w) $ins->execute([':sj' => $sjId, ':wo' => $w['id']]);
+    log_activity('import', 'surat_jalan', $sjId, $noSJ);
     return 'ok';
 };
 

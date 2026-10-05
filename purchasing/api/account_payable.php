@@ -1,31 +1,12 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/finance_calc.php';
 
 // Baca: menu AP + Finance Dashboard & Cash Flow (rekap). Ubah: menu AP.
 require_perm(['ap', 'findash', 'cashflow'], ['ap']);
 
 $method = http_method();
 $pdo = db();
-
-/** Hitung PPN/PPh23/Sisa Hutang di SERVER - meniru formula calcAP() asli. */
-function calc_ap(float $pembelian, bool $isPpn, bool $isPph23, float $biayaLain, float $terbayar): array
-{
-    $ppn = $isPpn ? round($pembelian * 0.11, 2) : 0.0;
-    $pph23 = $isPph23 ? round($pembelian * 0.02, 2) : 0.0;
-    $totalHutang = $pembelian + $ppn;
-    $sisa = $totalHutang - $terbayar - $pph23 - $biayaLain;
-    return [$ppn, $pph23, $sisa];
-}
-
-/** Fallback: kalau due_date tidak dikirim client, hitung dari tgl_terima + TOP hari. */
-function resolve_due_date(?string $dueDate, ?string $baseDate, int $topDays): ?string
-{
-    if ($dueDate) return $dueDate;
-    if (!$baseDate) return null;
-    $ts = strtotime($baseDate);
-    if ($ts === false) return null;
-    return date('Y-m-d', strtotime("+{$topDays} days", $ts));
-}
 
 switch ($method) {
 
