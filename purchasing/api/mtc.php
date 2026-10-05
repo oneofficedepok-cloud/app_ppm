@@ -396,8 +396,9 @@ if ($resource === 'dashboard' && $method === 'GET') {
 
         $result[] = [
             'wo_id' => $w['id'], 'wo_number' => $w['wo_number'], 'project' => $w['project'], 'status' => $w['status'],
-            'customer_nama' => $w['customer_nama'], 'nilai_po' => $w['wo_total'] ?: $w['nilai_po'],
-            'total_biaya' => $totalBiayaWO, 'margin' => (float) ($w['wo_total'] ?: $w['nilai_po']) - $totalBiayaWO,
+            // Nilai PO = DPP setelah diskon (tanpa PPN), sama dengan dasar Profit/Loss di tabel WO.
+            'customer_nama' => $w['customer_nama'], 'nilai_po' => (float) $w['nilai_po'],
+            'total_biaya' => $totalBiayaWO, 'margin' => (float) $w['nilai_po'] - $totalBiayaWO,
             'items' => $itemsWithDivisi,
             'auto_records' => $auto,
             'surat_jalan' => $sjByWo[(int) $w['id']] ?? [],

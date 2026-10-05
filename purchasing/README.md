@@ -180,6 +180,15 @@ Menu **Finance → Surat Jalan**: buat SJ untuk satu atau beberapa WO sekaligus 
 
 Saat update, import `database/migration_surat_jalan.sql` (aman dijalankan ulang).
 
+### Tabel WO: Nilai DPP, Discount, PPN & rumus Profit/Loss
+
+Tabel **WO & Budget** menampilkan **Nilai DPP** (Qty × Harga Satuan), **Discount**, **PPN** dan
+**Total Nilai Jual (WO)** (khusus role dengan izin Lihat Nilai PO).
+
+**Profit & Loss = (Nilai DPP − Discount) − Total Produksi** (semua aktual: produksi/MTC, pembelian PR,
+Seal CNC, transportasi, lain-lain). PPN tidak ikut dihitung. Dashboard MTC (Total Nilai PO & Estimasi
+Margin) juga memakai DPP setelah diskon, tanpa PPN.
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:

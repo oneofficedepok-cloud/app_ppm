@@ -415,7 +415,7 @@ function printWO(id) {
       <div><span>Aktual Produksi</span><span>${formatRupiah(w.aktual_prod)}</span></div>
       <div><span>Budget Pembelian</span><span>${formatRupiah(w.budget_pem)}</span></div>
       <div><span>Aktual Pembelian (DPP PR)</span><span>${formatRupiah(w.aktual_pem)}</span></div>
-      ${CAN_NILAI ? `<div class="grand"><span>PROFIT / LOSS</span><span>${formatRupiah(w.profit_loss)}</span></div>` : ''}
+      ${CAN_NILAI ? `<div class="grand"><span>PROFIT / LOSS <small style="font-weight:400;">(DPP - Diskon - Total Produksi)</small></span><span>${formatRupiah(w.profit_loss)}</span></div>` : ''}
     </div>
     <div class="sign-grid">
       <div class="box">User Peminta</div>
@@ -1686,7 +1686,10 @@ function renderWOTracking() {
       <td class="py-3 px-3 font-bold text-slate-800">${esc(w.project)}</td>
       <td class="py-3 px-3 font-semibold text-slate-700">${esc(w.customer_nama || '-')}</td>
       <td class="py-3 px-3 text-center font-mono">${formatDateID(w.est_kirim)}</td>
-      ${CAN_NILAI ? `<td class="py-3 px-3 text-right font-mono font-bold text-emerald-700">${formatRupiah(w.wo_total)}</td>` : ''}
+      ${CAN_NILAI ? `<td class="py-3 px-3 text-right font-mono">${formatRupiah(w.dpp_gross)}</td>
+      <td class="py-3 px-3 text-right font-mono ${Number(w.diskon) > 0 ? 'text-rose-600' : 'text-slate-400'}">${Number(w.diskon) > 0 ? '- ' : ''}${formatRupiah(w.diskon)}</td>
+      <td class="py-3 px-3 text-right font-mono text-blue-700">${formatRupiah(w.ppn)}</td>
+      <td class="py-3 px-3 text-right font-mono font-bold text-emerald-700">${formatRupiah(w.wo_total)}</td>` : ''}
       <td class="py-3 px-3 text-right font-mono">${formatRupiah(w.budget_prod)}</td>
       <td class="py-3 px-3 text-right font-mono">${formatRupiah(w.aktual_prod)}</td>
       <td class="py-3 px-3 text-right font-mono">${formatRupiah(w.budget_pem)}</td>

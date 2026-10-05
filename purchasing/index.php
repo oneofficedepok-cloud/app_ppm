@@ -581,7 +581,12 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
               <th class="py-3.5 px-3">Nama Project</th>
               <th class="py-3.5 px-3">Customer</th>
               <th class="py-3.5 px-3 text-center">Est. Kirim</th>
-              <?php if ($canNilai): ?><th class="py-3.5 px-3 text-right bg-emerald-50 text-emerald-900">Total Nilai Jual (WO)</th><?php endif; ?>
+              <?php if ($canNilai): ?>
+              <th class="py-3.5 px-3 text-right bg-emerald-50 text-emerald-900" title="Qty x Harga Satuan (sebelum diskon)">Nilai DPP</th>
+              <th class="py-3.5 px-3 text-right bg-emerald-50 text-emerald-900">Discount</th>
+              <th class="py-3.5 px-3 text-right bg-emerald-50 text-emerald-900">PPN</th>
+              <th class="py-3.5 px-3 text-right bg-emerald-50 text-emerald-900">Total Nilai Jual (WO)</th>
+              <?php endif; ?>
               <th class="py-3.5 px-3 text-right">Budget Produksi</th>
               <th class="py-3.5 px-3 text-right">Aktual Produksi</th>
               <th class="py-3.5 px-3 text-right">Budget Pembelian</th>
@@ -590,7 +595,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
               <th class="py-3.5 px-3 text-right bg-blue-50 text-blue-900">Total Transportasi (Auto)</th>
               <th class="py-3.5 px-3 text-right">Total Lain-lain</th>
               <th class="py-3.5 px-3 text-right bg-slate-200 text-slate-900">Total Produksi</th>
-              <?php if ($canNilai): ?><th class="py-3.5 px-3 text-right bg-slate-900 text-amber-300">Profit & Loss (P/L)</th><?php endif; ?>
+              <?php if ($canNilai): ?><th class="py-3.5 px-3 text-right bg-slate-900 text-amber-300" title="(Nilai DPP - Discount) - Total Produksi. PPN tidak dihitung.">Profit & Loss (P/L)</th><?php endif; ?>
               <th class="py-3.5 px-3 text-center">Status Budget</th>
               <th class="py-3.5 px-3 text-center">Status Tracking</th>
               <th class="py-3.5 px-3 text-center">Status Track (PR)</th>

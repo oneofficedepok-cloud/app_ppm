@@ -10,7 +10,7 @@ $pdo = db();
 $action = $_GET['action'] ?? '';
 
 /** Kolom nilai jual / PO / profit yang hanya boleh dilihat role berizin "Lihat Nilai PO". */
-const WO_SENSITIVE_FIELDS = ['nilai_po', 'harga_satuan', 'diskon', 'ppn', 'pph23', 'pph_lain', 'pph_lain_pct', 'wo_total', 'profit_loss', 'ar_terbayar'];
+const WO_SENSITIVE_FIELDS = ['nilai_po', 'dpp_gross', 'harga_satuan', 'diskon', 'ppn', 'pph23', 'pph_lain', 'pph_lain_pct', 'wo_total', 'profit_loss', 'ar_terbayar'];
 
 function fetch_wo_budget_items(PDO $pdo, int $woId): array
 {
@@ -106,15 +106,14 @@ switch ($method) {
             $totalProduksi = (float) $w['aktual_prod'] + (float) $w['aktual_pem'] + (float) $w['total_seal'] + (float) $w['total_transport'] + (float) $w['total_lain'];
             $w['total_produksi'] = $totalProduksi;
 
-            // Profit/Loss RIIL: pakai wo_total (nilai jual setelah pajak) kalau sudah diisi
-            // lewat sisi Finance; kalau belum, fallback ke nilai_po (DPP) lalu budget lama.
-            if ((float) $w['wo_total'] > 0) {
-                $w['profit_loss'] = (float) $w['wo_total'] - $totalProduksi;
-            } elseif ((float) $w['nilai_po'] > 0) {
-                $w['profit_loss'] = (float) $w['nilai_po'] - $totalProduksi;
-            } else {
-                $w['profit_loss'] = ((float) $w['budget_prod'] + (float) $w['budget_pem']) - $totalProduksi;
-            }
+            // Nilai jual (sisi PO customer) untuk tabel WO:
+            //   dpp_gross = Qty x Harga Satuan (sebelum diskon); data lama/import tanpa harga
+            //   satuan memakai nilai_po + diskon (nilai_po = DPP setelah diskon).
+            $gross = (float) $w['qty'] * (float) $w['harga_satuan'];
+            $w['dpp_gross'] = $gross > 0 ? $gross : (float) $w['nilai_po'] + (float) $w['diskon'];
+            // Profit/Loss = (DPP - Diskon) - semua aktual produksi. PPN TIDAK ikut dihitung
+            // (PPN titipan pajak, bukan pendapatan).
+            $w['profit_loss'] = ($w['dpp_gross'] - (float) $w['diskon']) - $totalProduksi;
 
             $hasOnProses = (int) $w['pr_on_proses_count'] > 0;
             $w['computed_status'] = ((int) $w['pr_count'] > 0 && !$hasOnProses) ? 'RECEIVED' : 'ON PROSES';
