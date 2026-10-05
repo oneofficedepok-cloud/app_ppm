@@ -4654,11 +4654,14 @@ const IMPORT_TEMPLATE_MAP = {
   products: 'api/download_template.php?type=products',
   work_orders: 'api/download_template.php?type=work_orders',
   pr_items: 'api/download_template.php?type=pr_items',
+  mtc: 'api/download_template.php?type=mtc',
 };
 
 function updateImportTemplateLink() {
   const type = document.getElementById('import-type-select').value;
-  document.getElementById('import-download-template').href = IMPORT_TEMPLATE_MAP[type];
+  // Tipe baru yang lupa didaftarkan tetap memakai pola link yang sama (tidak jadi "undefined").
+  document.getElementById('import-download-template').href =
+    IMPORT_TEMPLATE_MAP[type] || `api/download_template.php?type=${encodeURIComponent(type)}`;
 }
 
 async function handleImportUpload() {
