@@ -197,3 +197,65 @@ function ar_for_wo_sql(PDO $pdo, string $woAlias = 'wo'): string
         ? "account_receivable ar WHERE ar.id IN (SELECT l.ar_id FROM account_receivable_wo l WHERE l.wo_id = {$woAlias}.id)"
         : "account_receivable ar WHERE ar.wo_id = {$woAlias}.id";
 }
+
+/** Cek tabel ada (hasil di-cache per request) - supaya app tetap jalan kalau migration belum dijalankan. */
+function db_table_exists(PDO $pdo, string $table): bool
+{
+    static $cache = [];
+    if (!array_key_exists($table, $cache)) {
+        // SHOW TABLES tidak menerima placeholder (prepared statement asli), jadi pakai quote().
+        $cache[$table] = (bool) $pdo->query('SHOW TABLES LIKE ' . $pdo->quote($table))->fetchColumn();
+    }
+    return $cache[$table];
+}
+
+/** Status Surat Jalan yang dikenal + label tampilan. */
+const SJ_STATUSES = ['DELIVERY' => 'Delivery', 'DONE' => 'Done', 'HOLD' => 'Hold', 'WARRANTY' => 'Warranty', 'CANCEL' => 'Cancel'];
+
+/**
+ * Surat Jalan per WO: [wo_id => [['id','no_sj','tgl_kirim','status'], ...]] urut terbaru dulu.
+ * Dipakai kolom "Status Surat Jalan" di tabel WO & kolom "Surat Jalan" di Dashboard MTC.
+ */
+function sj_by_wo(PDO $pdo): array
+{
+    if (!db_table_exists($pdo, 'surat_jalan_wo')) return [];
+    $rows = $pdo->query(
+        'SELECT l.wo_id, s.id, s.no_sj, s.tgl_kirim, s.status
+         FROM surat_jalan_wo l JOIN surat_jalan s ON s.id = l.sj_id
+         ORDER BY s.tgl_kirim DESC, s.id DESC'
+    )->fetchAll();
+    $out = [];
+    foreach ($rows as $r) {
+        $out[(int) $r['wo_id']][] = ['id' => (int) $r['id'], 'no_sj' => $r['no_sj'], 'tgl_kirim' => $r['tgl_kirim'], 'status' => $r['status']];
+    }
+    return $out;
+}
+
+/** No. Invoice AR per WO: [wo_id => ['INV-1', 'INV-2']]. */
+function ar_invoices_by_wo(PDO $pdo): array
+{
+    $sql = ar_wo_link_ready($pdo)
+        ? 'SELECT l.wo_id, a.invoice_no FROM account_receivable_wo l JOIN account_receivable a ON a.id = l.ar_id ORDER BY a.tgl_invoice, a.id'
+        : 'SELECT wo_id, invoice_no FROM account_receivable WHERE wo_id IS NOT NULL ORDER BY tgl_invoice, id';
+    $out = [];
+    foreach ($pdo->query($sql)->fetchAll() as $r) $out[(int) $r['wo_id']][] = $r['invoice_no'];
+    return $out;
+}
+
+/**
+ * Validasi daftar id WO dari form (checkbox) -> id WO yang benar-benar ada, urut sesuai No WO.
+ * Return [[id...], ['WO-1', ...]].
+ */
+function valid_wo_ids(PDO $pdo, $raw): array
+{
+    if (!is_array($raw)) return [[], []];
+    $ids = array_values(array_unique(array_filter(array_map('intval', $raw), fn($v) => $v > 0)));
+    if (!$ids) return [[], []];
+    if (count($ids) > 300) json_error('Maksimal 300 WO sekaligus.', 422);
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT id, wo_number FROM work_orders WHERE id IN ($ph) ORDER BY wo_number");
+    $stmt->execute($ids);
+    $rows = $stmt->fetchAll();
+    if (count($rows) !== count($ids)) json_error('Sebagian WO yang dipilih sudah tidak ada. Muat ulang halaman lalu coba lagi.', 422);
+    return [array_map(fn($r) => (int) $r['id'], $rows), array_column($rows, 'wo_number')];
+}

@@ -153,19 +153,32 @@ tidak bisa diintip lewat Inspect Element. Admin selalu bisa melihat. Saat update
 Catatan: menu Finance (AR, Cash Flow, Finance Dashboard) tetap menampilkan nilai invoice/penjualan
 bagi role yang punya akses menu Finance.
 
-### AR (Invoice): Pilih No PO, No WO ditulis di Deskripsi
+### AR (Invoice): Centang WO yang masuk invoice
 
-1 PO customer bisa berisi beberapa WO, jadi di form **Tambah/Edit Record AR**:
+1 PO customer bisa berisi beberapa WO, jadi di form **Tambah/Edit Record AR** ada kotak
+**"WO yang masuk Invoice ini"**: semua WO milik customer tampil, tinggal **centang** WO-nya.
 
-- **No PO Customer**: pilih dari daftar PO milik customer (atau ketik sendiri). Tidak ada lagi pilihan WO.
-- **No WO ditulis manual di Deskripsi Pekerjaan**, mis. `WO 246843, 246844 - Repair Cylinder`.
-  Di bawah Deskripsi tampil daftar WO yang ada di PO tsb sebagai panduan.
-- Record baru: Penjualan (DPP) otomatis = jumlah Nilai PO semua WO di PO tsb (bisa diubah manual;
-  tombol **Isi nilai dari PO** untuk mengisi ulang saat edit).
-- Status invoice di WO (BELUM INVOICE / PENDING / LUNAS): kalau Deskripsi menyebut No WO dari PO itu,
-  hanya WO tsb yang ditandai sudah di-invoice; kalau tidak menyebut, semua WO di PO itu.
+- Pilih **No PO** untuk menandai (warna oranye) WO di PO tsb, lalu klik **"Centang semua WO di PO ini"**.
+- Ada pencarian, "Centang semua yang tampil" & "Kosongkan". WO yang sudah punya invoice diberi tanda No Invoice-nya.
+- Record baru: Penjualan (DPP), PPN, PPh23 & Deskripsi terisi otomatis dari WO yang dicentang
+  (tombol **Isi nilai dari WO** untuk mengisi ulang saat edit).
+- Tabel WO & Budget kolom **Status Invoice** menampilkan status + No Invoice-nya.
 
 Saat update, import `database/migration_ar_multi_wo.sql` (aman dijalankan ulang; data AR lama ikut dipindahkan).
+
+### Surat Jalan (SJ) - menu Finance
+
+Menu **Finance → Surat Jalan**: buat SJ untuk satu atau beberapa WO sekaligus (centang WO-nya).
+
+- No SJ otomatis `SJ-2026/001` (tombol **Auto**, bisa diubah). Status: Delivery, Done, Hold, Warranty, Cancel.
+- No PO, Project & Total Nilai WO terisi otomatis dari WO yang dicentang; Nomor Invoice otomatis dari AR
+  kalau WO sudah di-invoice (bisa diubah).
+- Cetak SJ (tombol printer), Export Excel, filter status / customer / tanggal.
+- Status SJ terbaru tampil di tabel **WO & Budget** (kolom *Status Surat Jalan*) dan kolom
+  **Surat Jalan** di Dashboard MTC.
+- Hak akses: centang menu **Surat Jalan (SJ)** di Role Management (role lama dengan akses modul Finance otomatis dapat).
+
+Saat update, import `database/migration_surat_jalan.sql` (aman dijalankan ulang).
 
 ### Akun Saya
 

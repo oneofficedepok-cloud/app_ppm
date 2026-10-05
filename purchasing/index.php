@@ -267,6 +267,11 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <i class="fa-solid fa-file-invoice-dollar text-amber-600"></i> AR (PIUTANG)
         </button>
         <?php endif; ?>
+        <?php if ($canView('sj')): ?>
+        <button id="tab-btn-sj" onclick="switchTab('sj')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
+          <i class="fa-solid fa-truck-ramp-box text-sky-600"></i> SURAT JALAN
+        </button>
+        <?php endif; ?>
         <?php if ($canView('ap')): ?>
         <button id="tab-btn-ap" onclick="switchTab('ap')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-receipt text-rose-600"></i> AP (HUTANG)
@@ -589,6 +594,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
               <th class="py-3.5 px-3 text-center">Status Budget</th>
               <th class="py-3.5 px-3 text-center">Status Tracking</th>
               <th class="py-3.5 px-3 text-center">Status Track (PR)</th>
+              <th class="py-3.5 px-3 text-center">Status Surat Jalan</th>
               <th class="py-3.5 px-3 text-center">Status Invoice</th>
             </tr>
           </thead>
@@ -1431,6 +1437,43 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
       </div>
     </div>
 
+    <!-- ==================== SURAT JALAN (SJ) ==================== -->
+    <div id="tab-content-sj" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800">Surat Jalan (SJ)</h2>
+          <p class="text-xs text-slate-500">Pengiriman barang ke customer &mdash; 1 Surat Jalan bisa untuk beberapa WO. Status SJ tampil otomatis di tabel WO &amp; Dashboard MTC.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="exportSJExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-2 transition shadow-sm"><i class="fa-solid fa-file-excel"></i><span>Export Excel</span></button>
+          <button onclick="openSJModal('add')" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition shadow-sm"><i class="fa-solid fa-plus"></i><span>Buat Surat Jalan</span></button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3" id="sj-summary"></div>
+
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm"><div id="tf-bar-sj"></div></div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="w-full text-xs text-left border-collapse">
+            <thead class="bg-sky-50 text-sky-900 font-bold uppercase tracking-wider text-[10px] border-b border-sky-200 whitespace-nowrap">
+              <tr>
+                <th class="py-3 px-3 text-center sticky left-0 z-20 bg-sky-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">Aksi</th>
+                <th class="py-3 px-3">Tgl Kirim</th><th class="py-3 px-3">No. SJ</th>
+                <th class="py-3 px-3 min-w-[260px]">No. WO &amp; Nama Project</th>
+                <th class="py-3 px-3">Customer</th><th class="py-3 px-3">No. PO</th>
+                <?php if ($canNilai): ?><th class="py-3 px-3 text-right">Nilai WO</th><?php endif; ?>
+                <th class="py-3 px-3">Nomor Invoice</th><th class="py-3 px-3 text-center">Status SJ</th>
+                <th class="py-3 px-3 min-w-[200px]">Keterangan</th>
+              </tr>
+            </thead>
+            <tbody id="sj-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- MODAL: ADD / EDIT PR -->
@@ -2256,7 +2299,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div><label class="block font-semibold text-slate-700 mb-1">No PO Customer</label>
-            <input type="text" id="ar-po" list="ar-po-list" onchange="autoFillARFromPO()" autocomplete="off" placeholder="Pilih / ketik No PO" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
+            <input type="text" id="ar-po" list="ar-po-list" onchange="renderWOPicker('ar')" autocomplete="off" placeholder="Pilih / ketik No PO" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
             <datalist id="ar-po-list"></datalist>
           </div>
           <div><label class="block font-semibold text-slate-700 mb-1">TOP (Term of Payment)</label>
@@ -2265,11 +2308,8 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
             </select>
           </div>
         </div>
-        <div>
-          <label class="block font-semibold text-slate-700 mb-1">Deskripsi Pekerjaan <span class="font-normal text-slate-400">(tulis No WO di sini, mis. "WO 246843, 246844 - Repair Cylinder")</span></label>
-          <input type="text" id="ar-deskripsi" class="w-full p-2 bg-white border border-slate-300 rounded-lg">
-          <div id="ar-wo-suggest" class="mt-1.5 text-[10px] text-slate-500"></div>
-        </div>
+        <div id="ar-wo-picker-box"></div>
+        <div><label class="block font-semibold text-slate-700 mb-1">Deskripsi Pekerjaan</label><input type="text" id="ar-deskripsi" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
         <div class="grid grid-cols-3 gap-3">
           <div><label class="block font-semibold text-slate-700 mb-1">Penjualan (DPP) *</label><input type="number" id="ar-penjualan" required value="0" oninput="calcARSisa()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></div>
           <div><label class="block font-semibold text-slate-700 mb-1">PPN (11%)</label>
@@ -2382,6 +2422,55 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         <div class="pt-2 flex items-center justify-end space-x-2 border-t border-slate-100">
           <button type="button" onclick="closeTalanganModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold">Batal</button>
           <button type="submit" class="px-5 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 shadow-md">Simpan Talangan</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: SURAT JALAN -->
+  <div id="sj-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="px-6 py-4 bg-sky-600 text-white flex items-center justify-between">
+        <div>
+          <h3 id="sj-modal-title" class="font-bold text-base">Buat Surat Jalan</h3>
+          <p class="text-[11px] text-sky-100">Centang satu atau beberapa WO yang dikirim bersama.</p>
+        </div>
+        <button onclick="closeSJModal()" class="text-white/80 hover:text-white p-1 rounded-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <form id="sj-form" onsubmit="handleSJSubmit(event)" class="p-6 space-y-3 text-xs overflow-y-auto custom-scrollbar">
+        <input type="hidden" id="sj-form-id">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div><label class="block font-semibold text-slate-700 mb-1">Tanggal Kirim *</label><input type="date" id="sj-tgl" required class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+          <div class="sm:col-span-2"><label class="block font-semibold text-slate-700 mb-1">No. Surat Jalan *</label>
+            <div class="flex gap-2">
+              <input type="text" id="sj-no" required class="flex-1 p-2 bg-white border border-slate-300 rounded-lg font-bold text-sky-700">
+              <button type="button" onclick="fillNextSJNo()" title="Nomor otomatis berikutnya" class="px-3 rounded-lg bg-sky-50 border border-sky-200 text-sky-700 font-bold text-[11px] hover:bg-sky-100"><i class="fa-solid fa-rotate mr-1"></i>Auto</button>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label class="block font-semibold text-slate-700 mb-1">Customer *</label><select id="sj-customer-select" required onchange="renderWOPicker('sj')" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
+          <div><label class="block font-semibold text-slate-700 mb-1">Status SJ *</label>
+            <select id="sj-status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold">
+              <option value="DELIVERY">Delivery (Dalam Pengiriman)</option><option value="DONE">Done (Sudah Diterima)</option>
+              <option value="HOLD">Hold</option><option value="WARRANTY">Warranty (Garansi)</option><option value="CANCEL">Cancel</option>
+            </select>
+          </div>
+        </div>
+        <div id="sj-wo-picker-box"></div>
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5" id="sj-auto-box">
+          <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Otomatis dari WO yang dicentang</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+            <div><span class="text-slate-500">No. PO:</span> <b id="sj-auto-po">-</b></div>
+            <?php if ($canNilai): ?><div><span class="text-slate-500">Total Nilai WO:</span> <b id="sj-auto-nilai" class="text-indigo-700">Rp 0</b></div><?php endif; ?>
+            <div class="sm:col-span-2"><span class="text-slate-500">Project:</span> <span id="sj-auto-project">-</span></div>
+          </div>
+        </div>
+        <div><label class="block font-semibold text-slate-700 mb-1">Nomor Invoice <span class="font-normal text-slate-400">(otomatis dari AR kalau WO sudah di-invoice, bisa diubah)</span></label><input type="text" id="sj-invoice" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+        <div><label class="block font-semibold text-slate-700 mb-1">Keterangan</label><textarea id="sj-keterangan" rows="2" placeholder="mis. Diterima oleh Pak Budi (Gudang Site), via ekspedisi..." class="w-full p-2 bg-white border border-slate-300 rounded-lg"></textarea></div>
+        <div class="pt-2 flex items-center justify-end space-x-2 border-t border-slate-100">
+          <button type="button" onclick="closeSJModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold">Batal</button>
+          <button type="submit" class="px-5 py-2 bg-sky-600 text-white rounded-xl font-bold hover:bg-sky-700 shadow-md">Simpan Surat Jalan</button>
         </div>
       </form>
     </div>

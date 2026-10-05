@@ -126,6 +126,7 @@ if ($pdo) {
         'migration_sync_live.sql' => ['master_karyawan', 'work_order_budget_items', 'mtc_master_mesin', 'mtc_master_mp', 'mtc_divisi_records', 'mtc_divisi_items'],
         'migration_security_roles.sql' => ['login_attempts'],
         'migration_ar_multi_wo.sql' => ['account_receivable_wo'],
+        'migration_surat_jalan.sql' => ['surat_jalan', 'surat_jalan_wo'],
     ];
     foreach ($need as $sqlFile => $list) {
         $missing = array_values(array_diff($list, $tables));

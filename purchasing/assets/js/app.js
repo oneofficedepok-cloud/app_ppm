@@ -35,6 +35,7 @@ let mtcCurrentRecords = []; // Record divisi milik WO yang sedang dipilih
 let arData = [];
 let apData = [];
 let danaTalangan = [];
+let sjData = []; // Surat Jalan (dimuat saat tab Surat Jalan dibuka)
 let cashflowCombined = []; // hasil GET api/cashflow.php (gabungan AR+AP+manual, sudah ada saldo berjalan)
 let chartCashflowTrendInstance = null;
 let chartArAgingInstance = null;
@@ -65,6 +66,18 @@ function canView(...menus) {
  */
 const CAN_NILAI = IS_ADMIN || !!USER_ACCESS.cap_nilai_po;
 let appCapabilities = {}; // katalog izin khusus (dari api/roles.php), untuk form Role Management
+// Status Surat Jalan (modul Finance) - dipakai tabel SJ, tabel WO & Dashboard MTC.
+const SJ_STATUS_CFG = {
+  DELIVERY: { l: 'Delivery', c: 'bg-amber-100 text-amber-800 border-amber-200' },
+  DONE: { l: 'Done', c: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+  HOLD: { l: 'Hold', c: 'bg-slate-200 text-slate-700 border-slate-300' },
+  WARRANTY: { l: 'Warranty', c: 'bg-purple-100 text-purple-800 border-purple-200' },
+  CANCEL: { l: 'Cancel', c: 'bg-rose-100 text-rose-800 border-rose-200' },
+};
+function sjStatusBadge(status, extra = '') {
+  const cfg = SJ_STATUS_CFG[status] || { l: status || '-', c: 'bg-slate-100 text-slate-600 border-slate-200' };
+  return `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${cfg.c}">${esc(cfg.l)}${extra}</span>`;
+}
 /** Boleh tambah/ubah/hapus di minimal salah satu menu. */
 function canEdit(...menus) {
   return IS_ADMIN || menus.some(m => USER_ACCESS[m] === 'edit');
@@ -85,6 +98,7 @@ const READ_RULES = {
   ap: () => canView('ap', 'findash', 'cashflow'),
   cashflow: () => canView('cashflow', 'findash', 'talangan'),
   talangan: () => canView('talangan', 'findash', 'cashflow'),
+  sj: () => canView('sj'),
   inventoryItems: () => canView('stok', 'receiving', 'produksi', 'riwayat', 'tracking'),
   inventoryMovements: () => canView('riwayat', 'stok', 'receiving', 'produksi'),
   productionOrders: () => canView('produksi', 'riwayat', 'stok', 'tracking'),
@@ -509,6 +523,7 @@ const TAB_LOADERS = {
   ar: () => renderARTable(),
   ap: () => renderAPTable(),
   talangan: () => renderTalanganTable(),
+  sj: () => loadSJTab(),
   mtcdash: () => renderMTCDashboard(),
   mtcdivisi: () => renderMTCDivisiTab(),
   mtcmaster: () => renderMTCMasterLists(),
@@ -522,7 +537,7 @@ const TAB_SECTION = {
   tracking: 'produksi', seal: 'produksi',
   customers: 'masterdata', suppliers: 'masterdata', master: 'masterdata',
   stok: 'gudang', produksi: 'gudang', riwayat: 'gudang', incoming: 'gudang', receiving: 'gudang',
-  findash: 'finance', cashflow: 'finance', ar: 'finance', ap: 'finance', talangan: 'finance',
+  findash: 'finance', cashflow: 'finance', ar: 'finance', sj: 'finance', ap: 'finance', talangan: 'finance',
   mtcdash: 'mtc', mtcdivisi: 'mtc', mtcmaster: 'mtc',
   admin: 'admin',
 };
@@ -531,7 +546,7 @@ const SECTION_TABS = {
   produksi: ['tracking', 'seal'],
   masterdata: ['customers', 'suppliers', 'master'],
   gudang: ['stok', 'incoming', 'receiving', 'produksi', 'riwayat'],
-  finance: ['findash', 'cashflow', 'ar', 'ap', 'talangan'],
+  finance: ['findash', 'cashflow', 'ar', 'sj', 'ap', 'talangan'],
   mtc: ['mtcdash', 'mtcdivisi', 'mtcmaster'],
 };
 // Ingat tab terakhir yang dibuka per-section, supaya balik ke section yang sama tidak selalu reset ke tab pertama.
@@ -674,6 +689,7 @@ async function refresh(...keys) {
     arData: async () => (arData = await apiIf(READ_RULES.ar(), 'api/account_receivable.php')),
     apData: async () => (apData = await apiIf(READ_RULES.ap(), 'api/account_payable.php')),
     danaTalangan: async () => (danaTalangan = await apiIf(READ_RULES.talangan(), 'api/dana_talangan.php')),
+    sjData: async () => (sjData = await apiIf(READ_RULES.sj(), 'api/surat_jalan.php')),
     cashflowCombined: async () => (cashflowCombined = await apiIf(READ_RULES.cashflow(), 'api/cashflow.php')),
     inventoryItems: async () => (inventoryItems = await apiIf(READ_RULES.inventoryItems(), 'api/inventory_items.php')),
     productionOrders: async () => (productionOrders = await apiIf(READ_RULES.productionOrders(), 'api/production_orders.php')),
@@ -808,12 +824,13 @@ function updateDropdownOptions() {
   document.querySelectorAll('#seal-items-container .seali-block').forEach(populateSealItemBlockDropdown);
 
   // --- Finance: AR form customer select ---
-  const arCustSel = document.getElementById('ar-customer-select');
-  if (arCustSel) {
-    const cur = arCustSel.value;
-    arCustSel.innerHTML = '<option value="">-- Pilih Customer --</option>' + customers.map(c => opt(c.id, c.nama)).join('');
-    if (cur) arCustSel.value = cur;
-  }
+  ['ar-customer-select', 'sj-customer-select'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">-- Pilih Customer --</option>' + customers.map(c => opt(c.id, c.nama)).join('');
+    if (cur) sel.value = cur;
+  });
   // --- Finance: AP form supplier select ---
   const apSuppSel = document.getElementById('ap-supplier-select');
   if (apSuppSel) {
@@ -1691,7 +1708,13 @@ function renderWOTracking() {
         <span class="px-2.5 py-1 rounded-full text-[10px] uppercase font-bold ${w.computed_status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800 animate-pulse'}">${esc(w.computed_status)}</span>
       </td>
       <td class="py-3 px-3 text-center">
+        ${(w.surat_jalan || []).length
+          ? `${sjStatusBadge(w.surat_jalan[0].status)}<div class="text-[10px] text-slate-500 mt-0.5" title="${esc(w.surat_jalan.map(x => x.no_sj).join(', '))}">${esc(w.surat_jalan[0].no_sj)}${w.surat_jalan.length > 1 ? ` (+${w.surat_jalan.length - 1})` : ''}</div>`
+          : '<span class="px-2.5 py-1 rounded-full text-[10px] uppercase font-bold bg-slate-100 text-slate-500">BELUM SJ</span>'}
+      </td>
+      <td class="py-3 px-3 text-center">
         <span class="px-2.5 py-1 rounded-full text-[10px] uppercase font-bold ${invBadge[w.invoice_status] || 'bg-slate-100 text-slate-600'}">${esc(w.invoice_status)}</span>
+        ${(w.ar_invoices || []).length ? `<div class="text-[10px] text-slate-500 mt-0.5">${esc(w.ar_invoices.join(', '))}</div>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -1979,6 +2002,7 @@ const TABLE_SORTS = {
     SORT_BY.text('supplier_nama', 'Supplier A-Z'), SORT_BY.text('pr_number', 'No. PR')],
   wo: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.dateDesc('est_kirim', 'Est. Kirim Terbaru'), SORT_BY.dateAsc('est_kirim', 'Est. Kirim Terdekat'),
     SORT_BY.text(r => r.computed_status || r.status, 'Status (dikelompokkan)'), SORT_BY.text('customer_nama', 'Customer A-Z'),
+    SORT_BY.text(r => r.sj_status || 'BELUM SJ', 'Status Surat Jalan (dikelompokkan)'), SORT_BY.text('invoice_status', 'Status Invoice (dikelompokkan)'),
     ...(CAN_NILAI ? [SORT_BY.numDesc('wo_total', 'Nilai WO Terbesar'), SORT_BY.numDesc('profit_loss', 'Profit Terbesar'), SORT_BY.numAsc('profit_loss', 'Profit Terkecil / Rugi')] : [])],
   seal: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('product', 'Product A-Z'),
     SORT_BY.numDesc('total', 'Total Terbesar'), SORT_BY.numAsc('total', 'Total Terkecil')],
@@ -2006,6 +2030,9 @@ const TABLE_SORTS = {
   ap: [SORT_BY.dateDesc('tgl_invoice', 'Tgl Invoice Terbaru'), SORT_BY.dateAsc('tgl_invoice', 'Tgl Invoice Terlama'),
     SORT_BY.dateAsc('due_date', 'Jatuh Tempo Terdekat'), SORT_BY.numDesc('sisa_hutang', 'Sisa Hutang Terbesar'),
     SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('supplier_nama', 'Supplier A-Z')],
+  sj: [SORT_BY.dateDesc('tgl_kirim', 'Tgl Kirim Terbaru'), SORT_BY.dateAsc('tgl_kirim', 'Tgl Kirim Terlama'), SORT_BY.text('no_sj', 'No. SJ'),
+    SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('customer_nama', 'Customer A-Z'),
+    ...(CAN_NILAI ? [SORT_BY.numDesc('nilai_total', 'Nilai WO Terbesar')] : [])],
   talangan: [SORT_BY.dateDesc('tanggal'), SORT_BY.dateAsc('tanggal'), SORT_BY.numDesc('sisa', 'Sisa Terbesar'),
     SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('pic', 'PIC A-Z')],
   mtcdash: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('status', 'Status (dikelompokkan)'),
@@ -2020,7 +2047,7 @@ const SORT_TARGETS = {
   receiving: ['receiving-table-tbody', () => renderReceivingTable()], produksi: ['produksi-table-tbody', () => renderProduksiTable()],
   riwayat: ['riwayat-table-tbody', () => renderRiwayatTable()], cashflow: ['cashflow-tbody', () => renderCashflowTable()],
   ar: ['ar-tbody', () => renderARTable()], ap: ['ap-tbody', () => renderAPTable()],
-  talangan: ['talangan-tbody', () => renderTalanganTable()], mtcdash: ['mtc-dash-matrix-tbody', () => renderMTCDashboard()],
+  talangan: ['talangan-tbody', () => renderTalanganTable()], sj: ['sj-tbody', () => renderSJTable()], mtcdash: ['mtc-dash-matrix-tbody', () => renderMTCDashboard()],
 };
 
 /** Urutkan baris sesuai pilihan dropdown "Urutkan" tabel tsb (tidak mengubah array asli). */
@@ -2291,6 +2318,17 @@ const TABLE_FILTERS = {
       { key: 'material', label: 'Material', all: 'Semua Material', get: r => r.sku ? `${r.sku} - ${r.item_nama}` : '' },
     ],
     date: 'tanggal',
+  },
+  sj: {
+    color: 'sky', data: () => sjData, render: () => renderSJTable(),
+    placeholder: 'Cari No SJ, No WO, customer, project, PO, invoice...',
+    search: ['no_sj', 'wo_numbers', 'customer_nama', 'projects', 'po_numbers', 'nomor_invoice', 'auto_invoices', 'keterangan'],
+    selects: [
+      { key: 'status', label: 'Status SJ', all: 'Semua Status', get: r => r.status,
+        options: Object.entries(SJ_STATUS_CFG).map(([v, c]) => ({ v, l: c.l })) },
+      { key: 'customer', label: 'Customer', all: 'Semua Customer', get: r => r.customer_nama },
+    ],
+    date: 'tgl_kirim',
   },
   talangan: {
     color: 'purple', data: () => danaTalangan, render: () => renderTalanganTable(),
@@ -3502,7 +3540,9 @@ async function renderMTCDashboard() {
         rowHtml += `<td class="py-2.5 px-3 border-r border-slate-100 text-right ${val > 0 ? 'font-semibold text-slate-700' : 'text-slate-300'}">${val > 0 ? formatRupiah(val) : '-'}</td>`;
       });
       rowHtml += `
-          <td class="py-2.5 px-3 border-r border-slate-100 text-center font-medium text-slate-600">${esc(lastSJ)}</td>
+          <td class="py-2.5 px-3 border-r border-slate-100 text-center font-medium text-slate-600">${(w.surat_jalan || []).length
+            ? `<div class="font-semibold text-slate-700">${esc(w.surat_jalan[0].no_sj)}${w.surat_jalan.length > 1 ? ` <span class="text-[10px] text-slate-400">(+${w.surat_jalan.length - 1})</span>` : ''}</div>${sjStatusBadge(w.surat_jalan[0].status)}`
+            : esc(lastSJ)}</td>
           <td class="py-2.5 px-3 border-r border-slate-100 text-right font-bold text-amber-600 bg-amber-50/50">${formatRupiah(w.total_biaya)}</td>
           <td class="py-2.5 px-3 text-center" onclick="event.stopPropagation()">
             <button onclick="jumpToEditWO(${w.wo_id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] px-2.5 py-1 rounded shadow"><i class="fa-solid fa-pen"></i> Edit WO</button>
@@ -5129,33 +5169,128 @@ function populateARPOList() {
   arCustomerWOs().forEach(w => { if (w.po_no && w.po_no.trim() && w.po_no.trim() !== '-') counts[w.po_no.trim()] = (counts[w.po_no.trim()] || 0) + 1; });
   document.getElementById('ar-po-list').innerHTML = Object.keys(counts).sort()
     .map(po => `<option value="${esc(po)}">${counts[po]} WO</option>`).join('');
-  autoFillARFromPO();
+  renderWOPicker('ar');
+}
+
+// ===================== PILIH WO (CENTANG) - dipakai form AR & Surat Jalan =====================
+// 1 invoice / 1 Surat Jalan bisa memuat beberapa WO. WO yang dicentang disimpan di WO_PICK[name].
+const WO_PICK = { ar: new Set(), sj: new Set() };
+const WO_PICK_CFG = {
+  ar: {
+    title: 'WO yang masuk Invoice ini', customerEl: 'ar-customer-select', poEl: 'ar-po',
+    onChange: () => autoFillARFromWOs(),
+    badge: w => (w.ar_invoices || []).length
+      ? `<span class="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-700 text-[9px] font-bold">Invoice: ${esc(w.ar_invoices.join(', '))}</span>` : '',
+  },
+  sj: {
+    title: 'WO yang dikirim dengan Surat Jalan ini', customerEl: 'sj-customer-select', poEl: null,
+    onChange: () => syncSJAutoFields(),
+    badge: w => (w.surat_jalan || []).length ? sjStatusBadge(w.surat_jalan[0].status, ` &middot; ${esc(w.surat_jalan[0].no_sj)}`) : '',
+  },
+};
+
+/** Bangun kotak "Pilih WO" (dipanggil saat modal dibuka). */
+function initWOPicker(name) {
+  const box = document.getElementById(`${name}-wo-picker-box`);
+  box.innerHTML = `
+    <div class="border border-slate-200 rounded-xl overflow-hidden">
+      <div class="px-3 py-2 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <div class="font-semibold text-slate-700">${esc(WO_PICK_CFG[name].title)} <span id="${name}-wo-count" class="ml-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold">0 dipilih</span></div>
+        <div class="flex items-center gap-2 text-[10px] font-bold">
+          <button type="button" id="${name}-wo-po-all" onclick="pickWOsInPO('${name}')" class="hidden text-orange-700 hover:underline">Centang semua WO di PO ini</button>
+          <button type="button" onclick="pickVisibleWOs('${name}', true)" class="text-indigo-600 hover:underline">Centang semua yang tampil</button>
+          <button type="button" onclick="pickVisibleWOs('${name}', false)" class="text-rose-600 hover:underline">Kosongkan</button>
+        </div>
+      </div>
+      <div class="px-3 py-2 border-b border-slate-100">
+        <input type="text" id="${name}-wo-search" oninput="renderWOPicker('${name}')" placeholder="Cari No WO / project / No PO..." class="w-full p-1.5 bg-white border border-slate-300 rounded-lg">
+      </div>
+      <div id="${name}-wo-list" class="max-h-56 overflow-y-auto custom-scrollbar divide-y divide-slate-100"></div>
+      <div id="${name}-wo-summary" class="px-3 py-1.5 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-500"></div>
+    </div>`;
+  renderWOPicker(name);
+}
+
+/** WO yang tampil di daftar: milik customer terpilih (+ yang sudah dicentang), sesuai pencarian. */
+function woPickerVisible(name) {
+  const cfg = WO_PICK_CFG[name];
+  const custId = document.getElementById(cfg.customerEl)?.value || '';
+  const q = (document.getElementById(`${name}-wo-search`)?.value || '').toLowerCase().trim();
+  const po = cfg.poEl ? (document.getElementById(cfg.poEl)?.value || '').trim().toUpperCase() : '';
+  const sel = WO_PICK[name];
+  const inPO = w => po && (w.po_no || '').trim().toUpperCase() === po;
+  return workOrders
+    .filter(w => sel.has(w.id) || (custId && String(w.customer_id) === String(custId)))
+    .filter(w => !q || `${w.wo_number} ${w.project || ''} ${w.po_no || ''}`.toLowerCase().includes(q))
+    .sort((a, b) => (sel.has(b.id) - sel.has(a.id)) || (inPO(b) - inPO(a))
+      || String(b.wo_number).localeCompare(String(a.wo_number), 'id', { numeric: true }))
+    .map(w => ({ w, inPO: inPO(w) }));
+}
+
+function renderWOPicker(name) {
+  const list = document.getElementById(`${name}-wo-list`);
+  if (!list) return;
+  const cfg = WO_PICK_CFG[name];
+  const sel = WO_PICK[name];
+  const custId = document.getElementById(cfg.customerEl)?.value || '';
+  const rows = woPickerVisible(name);
+  const po = cfg.poEl ? (document.getElementById(cfg.poEl)?.value || '').trim() : '';
+  document.getElementById(`${name}-wo-po-all`)?.classList.toggle('hidden', !rows.some(r => r.inPO));
+
+  if (!rows.length) {
+    list.innerHTML = `<div class="px-3 py-4 text-center text-slate-400">${custId ? 'Tidak ada WO yang cocok.' : 'Pilih Customer dulu untuk menampilkan daftar WO-nya.'}</div>`;
+  } else {
+    list.innerHTML = rows.map(({ w, inPO }) => `
+      <label class="flex items-start gap-2 px-3 py-1.5 cursor-pointer hover:bg-indigo-50/50 ${sel.has(w.id) ? 'bg-indigo-50/70' : (inPO ? 'bg-orange-50/50' : '')}">
+        <input type="checkbox" class="mt-0.5 w-4 h-4 accent-indigo-600" ${sel.has(w.id) ? 'checked' : ''} onchange="toggleWOPick('${name}', ${w.id}, this.checked)">
+        <span class="flex-1 min-w-0">
+          <span class="flex flex-wrap items-center gap-1.5">
+            <b class="text-slate-800">${esc(w.wo_number)}</b>
+            ${w.po_no && w.po_no !== '-' ? `<span class="px-1.5 py-0.5 rounded ${inPO ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-600'} text-[9px] font-bold">PO ${esc(w.po_no)}</span>` : ''}
+            ${cfg.badge(w)}
+          </span>
+          <span class="block text-[10px] text-slate-500 truncate">${esc(w.project || '-')}${String(w.customer_id) !== String(custId) ? ` &middot; ${esc(w.customer_nama || '')}` : ''}</span>
+        </span>
+      </label>`).join('');
+  }
+  const picked = workOrders.filter(w => sel.has(w.id)).map(w => w.wo_number);
+  document.getElementById(`${name}-wo-count`).textContent = `${picked.length} dipilih`;
+  document.getElementById(`${name}-wo-summary`).innerHTML = picked.length
+    ? `<b>Dipilih:</b> ${esc(picked.join(', '))}` + (name === 'ar' ? ` <button type="button" onclick="autoFillARFromWOs(true)" class="ml-2 text-orange-700 font-bold hover:underline">Isi nilai dari WO</button>` : '')
+    : (po ? 'WO dengan No PO terpilih diberi warna oranye.' : 'Belum ada WO yang dicentang.');
+}
+
+function toggleWOPick(name, id, checked) {
+  if (checked) WO_PICK[name].add(id); else WO_PICK[name].delete(id);
+  renderWOPicker(name);
+  WO_PICK_CFG[name].onChange();
+}
+function pickVisibleWOs(name, checked) {
+  woPickerVisible(name).forEach(({ w }) => { if (checked) WO_PICK[name].add(w.id); else WO_PICK[name].delete(w.id); });
+  renderWOPicker(name);
+  WO_PICK_CFG[name].onChange();
+}
+function pickWOsInPO(name) {
+  woPickerVisible(name).forEach(({ w, inPO }) => { if (inPO) WO_PICK[name].add(w.id); });
+  renderWOPicker(name);
+  WO_PICK_CFG[name].onChange();
 }
 
 /**
- * Setelah No PO dipilih: tampilkan daftar WO di PO tsb (info, tulis manual di Deskripsi) dan,
- * untuk record BARU, isi Penjualan (jumlah DPP semua WO), PPN & PPh23. Saat EDIT angka invoice
- * tidak ditimpa kecuali tombol "Isi nilai dari PO" diklik (force).
+ * Isi Penjualan (jumlah DPP WO yang dicentang), PPN & PPh23 - untuk record BARU otomatis,
+ * saat EDIT hanya lewat tombol "Isi nilai dari WO" (force) supaya angka invoice tidak tertimpa.
  */
-async function autoFillARFromPO(force = false) {
-  const box = document.getElementById('ar-wo-suggest');
-  const po = document.getElementById('ar-po').value.trim();
-  const custId = document.getElementById('ar-customer-select').value;
-  if (!po) { box.innerHTML = ''; return; }
+async function autoFillARFromWOs(force = false) {
+  const ids = [...WO_PICK.ar];
+  if (!ids.length) return;
+  if (!force && document.getElementById('ar-form-id').value) return;
   try {
-    const data = await api(`api/account_receivable.php?action=auto_fill&po_no=${encodeURIComponent(po)}&customer_id=${encodeURIComponent(custId)}`);
-    if (!data.wos.length) {
-      box.innerHTML = 'No PO ini belum ada di data WO customer tsb (tetap boleh disimpan).';
-      return;
-    }
-    box.innerHTML = `<span class="font-semibold">WO di PO ini:</span> ` + data.wos.map(w =>
-      `<span title="${esc(w.project || '')}" class="inline-block mr-1 mt-1 px-2 py-0.5 rounded-full border bg-white text-slate-600 border-slate-300 font-bold">${esc(w.wo_number)}</span>`).join('') +
-      ` <button type="button" onclick="autoFillARFromPO(true)" class="ml-1 text-orange-700 font-bold hover:underline">Isi nilai dari PO</button>` +
-      `<div class="mt-1 text-slate-400">Kalau invoice hanya untuk sebagian WO, tulis No WO-nya di Deskripsi &mdash; hanya WO itu yang ditandai sudah di-invoice. Kalau tidak ditulis, semua WO di PO ini.</div>`;
-    if (!force && document.getElementById('ar-form-id').value) return;
+    const data = await api(`api/account_receivable.php?action=auto_fill&wo_ids=${ids.join(',')}`);
     document.getElementById('ar-penjualan').value = data.penjualan;
     document.getElementById('ar-is-ppn').value = Number(data.is_ppn) ? '1' : '0';
     document.getElementById('ar-pph23').value = data.pph23;
+    const desk = document.getElementById('ar-deskripsi');
+    if (!desk.value.trim() || force) desk.value = data.deskripsi;
     calcARSisa();
   } catch (err) {
     showApiError(err);
@@ -5193,6 +5328,8 @@ function openARModal(mode, id = null) {
   const title = document.getElementById('ar-modal-title');
   if (mode === 'add') {
     title.textContent = 'Tambah Record AR';
+    WO_PICK.ar = new Set();
+    initWOPicker('ar');
     document.getElementById('ar-tgl-invoice').value = new Date().toISOString().slice(0, 10);
     document.getElementById('ar-tgl-kirim').value = new Date().toISOString().slice(0, 10);
     populateARPOList();
@@ -5208,6 +5345,8 @@ function openARModal(mode, id = null) {
     document.getElementById('ar-tgl-kirim').value = a.tgl_kirim || a.tgl_invoice;
     document.getElementById('ar-customer-select').value = a.customer_id || '';
     document.getElementById('ar-po').value = a.po_no || '';
+    WO_PICK.ar = new Set(a.wo_ids || []);
+    initWOPicker('ar');
     populateARPOList();
     document.getElementById('ar-deskripsi').value = a.deskripsi || '';
     document.getElementById('ar-penjualan').value = a.penjualan;
@@ -5240,6 +5379,7 @@ async function handleARSubmit(e) {
     tgl_kirim: document.getElementById('ar-tgl-kirim').value,
     customer_id: document.getElementById('ar-customer-select').value || null,
     po_no: document.getElementById('ar-po').value.trim(),
+    wo_ids: [...WO_PICK.ar],
     deskripsi: document.getElementById('ar-deskripsi').value,
     penjualan: document.getElementById('ar-penjualan').value,
     is_ppn: document.getElementById('ar-is-ppn').value === '1',
@@ -5457,6 +5597,201 @@ async function deleteAP(id) {
   } catch (err) {
     showApiError(err);
   }
+}
+
+// ===================== MODUL FINANCE: SURAT JALAN (SJ) =====================
+
+async function loadSJTab() {
+  try {
+    await refresh('sjData');
+  } catch (err) {
+    showApiError(err);
+  }
+  renderSJTable();
+}
+
+function renderSJTable() {
+  const tbody = document.getElementById('sj-tbody');
+  if (!tbody) return;
+  // Kartu ringkasan jumlah SJ per status
+  document.getElementById('sj-summary').innerHTML = Object.entries(SJ_STATUS_CFG).map(([k, c]) => `
+    <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+      <span class="text-[10px] font-bold text-slate-400 uppercase block">${esc(c.l)}</span>
+      <span class="text-lg font-bold text-slate-800">${sjData.filter(x => x.status === k).length}</span>
+    </div>`).join('');
+
+  const rows = tfApply('sj');
+  const cols = CAN_NILAI ? 10 : 9;
+  if (!sjData.length) {
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="text-center py-8 text-slate-400 font-semibold">Belum ada Surat Jalan. Klik "Buat Surat Jalan".</td></tr>`;
+    return;
+  }
+  if (!rows.length) { tbody.innerHTML = tfNoMatchRow(cols); return; }
+
+  tbody.innerHTML = pageRows('sj', rows).map(s => `
+    <tr class="hover:bg-slate-50 transition group align-top">
+      <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] whitespace-nowrap">
+        <button onclick="printSJ(${s.id})" class="text-slate-600 hover:text-slate-800 p-1" title="Cetak Surat Jalan"><i class="fa-solid fa-print"></i></button>
+        <button onclick="openSJModal('edit', ${s.id})" class="text-blue-600 hover:text-blue-800 p-1" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
+        <button onclick="deleteSJ(${s.id})" class="text-rose-600 hover:text-rose-800 p-1" title="Hapus"><i class="fa-solid fa-trash-can"></i></button>
+      </td>
+      <td class="py-2.5 px-3 font-semibold whitespace-nowrap">${formatDateID(s.tgl_kirim)}</td>
+      <td class="py-2.5 px-3 font-bold text-sky-700 whitespace-nowrap">${esc(s.no_sj)}</td>
+      <td class="py-2.5 px-3">
+        ${s.wos.length > 1 ? `<span class="inline-block mb-1 px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[9px] font-bold">${s.wos.length} WO</span>` : ''}
+        ${s.wos.map(w => `<div class="leading-tight mb-1"><b class="text-indigo-900">${esc(w.wo_number)}</b> <span class="text-slate-500">${esc(w.project || '')}</span></div>`).join('') || '-'}
+      </td>
+      <td class="py-2.5 px-3 font-medium">${esc(s.customer_nama || '-')}</td>
+      <td class="py-2.5 px-3 whitespace-nowrap">${esc(s.po_numbers || '-')}</td>
+      ${CAN_NILAI ? `<td class="py-2.5 px-3 text-right font-bold whitespace-nowrap">${formatRupiah(s.nilai_total)}</td>` : ''}
+      <td class="py-2.5 px-3">${s.nomor_invoice ? `<span class="font-semibold text-emerald-700">${esc(s.nomor_invoice)}</span>`
+        : (s.auto_invoices ? `<span class="text-emerald-700">${esc(s.auto_invoices)}</span> <span class="text-[9px] text-slate-400">(dari AR)</span>` : '<span class="text-slate-400">Belum invoice</span>')}</td>
+      <td class="py-2.5 px-3 text-center">${sjStatusBadge(s.status)}</td>
+      <td class="py-2.5 px-3 text-slate-600">${esc(s.keterangan || '-')}</td>
+    </tr>`).join('');
+}
+
+/** Ringkasan otomatis (PO, project, nilai, invoice) dari WO yang dicentang di form SJ. */
+function syncSJAutoFields() {
+  const wos = workOrders.filter(w => WO_PICK.sj.has(w.id));
+  const pos = [...new Set(wos.map(w => (w.po_no || '').trim()).filter(p => p && p !== '-'))];
+  document.getElementById('sj-auto-po').textContent = pos.join(', ') || '-';
+  document.getElementById('sj-auto-project').textContent = wos.map((w, i) => (wos.length > 1 ? `${i + 1}) ` : '') + (w.project || w.wo_number)).join(' | ') || '-';
+  const nilaiEl = document.getElementById('sj-auto-nilai');
+  if (nilaiEl) nilaiEl.textContent = formatRupiah(wos.reduce((t, w) => t + (Number(w.nilai_po) || 0), 0));
+  const inv = document.getElementById('sj-invoice');
+  const autoInv = [...new Set(wos.flatMap(w => w.ar_invoices || []))].join(', ');
+  if (!inv.value.trim() || inv.dataset.auto === '1') { inv.value = autoInv; inv.dataset.auto = '1'; }
+}
+
+async function fillNextSJNo() {
+  try {
+    const d = await api('api/surat_jalan.php?action=next_no');
+    document.getElementById('sj-no').value = d.no_sj;
+  } catch (err) { showApiError(err); }
+}
+
+function openSJModal(mode, id = null) {
+  document.getElementById('sj-form').reset();
+  document.getElementById('sj-form-id').value = '';
+  updateDropdownOptions();
+  const inv = document.getElementById('sj-invoice');
+  inv.dataset.auto = '1';
+  inv.oninput = () => { inv.dataset.auto = '0'; };
+  const title = document.getElementById('sj-modal-title');
+  if (mode === 'add') {
+    title.textContent = 'Buat Surat Jalan';
+    document.getElementById('sj-tgl').value = new Date().toISOString().slice(0, 10);
+    WO_PICK.sj = new Set();
+    fillNextSJNo();
+  } else {
+    const s = sjData.find(x => x.id === id);
+    if (!s) return;
+    title.textContent = `Edit Surat Jalan - ${s.no_sj}`;
+    document.getElementById('sj-form-id').value = s.id;
+    document.getElementById('sj-tgl').value = s.tgl_kirim;
+    document.getElementById('sj-no').value = s.no_sj;
+    document.getElementById('sj-customer-select').value = s.customer_id || (workOrders.find(w => s.wo_ids.includes(w.id)) || {}).customer_id || '';
+    document.getElementById('sj-status').value = s.status;
+    document.getElementById('sj-keterangan').value = s.keterangan || '';
+    inv.value = s.nomor_invoice || '';
+    inv.dataset.auto = s.nomor_invoice ? '0' : '1';
+    WO_PICK.sj = new Set(s.wo_ids);
+  }
+  initWOPicker('sj');
+  syncSJAutoFields();
+  document.getElementById('sj-modal').classList.remove('hidden');
+}
+
+function closeSJModal() {
+  document.getElementById('sj-modal').classList.add('hidden');
+}
+
+async function handleSJSubmit(e) {
+  e.preventDefault();
+  if (!WO_PICK.sj.size) { showToast('Centang minimal 1 WO untuk Surat Jalan ini.', 'error'); return; }
+  const id = document.getElementById('sj-form-id').value;
+  const payload = {
+    id: id || undefined,
+    no_sj: document.getElementById('sj-no').value.trim(),
+    tgl_kirim: document.getElementById('sj-tgl').value,
+    customer_id: document.getElementById('sj-customer-select').value || null,
+    status: document.getElementById('sj-status').value,
+    wo_ids: [...WO_PICK.sj],
+    nomor_invoice: document.getElementById('sj-invoice').value.trim(),
+    keterangan: document.getElementById('sj-keterangan').value.trim(),
+  };
+  try {
+    await api('api/surat_jalan.php', id ? 'PUT' : 'POST', payload);
+    showToast(id ? 'Surat Jalan berhasil diperbarui.' : 'Surat Jalan berhasil dibuat.');
+    closeSJModal();
+    await refresh('sjData', 'workOrders');
+    renderSJTable();
+  } catch (err) {
+    showApiError(err);
+  }
+}
+
+async function deleteSJ(id) {
+  const s = sjData.find(x => x.id === id);
+  if (!(await showConfirm(`Hapus Surat Jalan ${s ? s.no_sj : ''}?`))) return;
+  try {
+    await api(`api/surat_jalan.php?id=${id}`, 'DELETE');
+    showToast('Surat Jalan berhasil dihapus.');
+    await refresh('sjData', 'workOrders');
+    renderSJTable();
+  } catch (err) {
+    showApiError(err);
+  }
+}
+
+function printSJ(id) {
+  const s = sjData.find(x => x.id === id);
+  if (!s) return;
+  const rows = s.wos.map((w, i) => `
+    <tr><td class="center">${i + 1}</td><td><b>${esc(w.wo_number)}</b></td><td>${esc(w.project || '-')}</td><td>${esc(w.po_no || '-')}</td>
+    ${CAN_NILAI ? `<td class="num">${formatRupiah(w.nilai)}</td>` : ''}</tr>`).join('');
+  const body = `
+    <div class="print-header">
+      <div><div class="company">PANCA PUTRA MADANI</div><div style="color:#64748b;">Sistem Purchasing, Work Order &amp; Keuangan</div></div>
+      <div class="doc-no">SURAT JALAN<br><span style="font-size:16px;">${esc(s.no_sj)}</span></div>
+    </div>
+    <div class="meta-grid">
+      <div><span class="lbl">Tanggal Kirim</span> ${formatDateID(s.tgl_kirim)}</div>
+      <div><span class="lbl">Status</span> ${esc((SJ_STATUS_CFG[s.status] || {}).l || s.status)}</div>
+      <div><span class="lbl">Penerima / Customer</span> ${esc(s.customer_nama || '-')}</div>
+      <div><span class="lbl">No. PO</span> ${esc(s.po_numbers || '-')}</div>
+      <div><span class="lbl">No. WO</span> ${esc(s.wo_numbers || '-')}</div>
+      <div><span class="lbl">No. Invoice</span> ${esc(s.nomor_invoice || s.auto_invoices || '-')}</div>
+    </div>
+    <h2>Rincian Pekerjaan / Work Order</h2>
+    <table>
+      <thead><tr><th style="width:30px;">No</th><th>No. WO</th><th>Deskripsi / Nama Project</th><th>No. PO</th>${CAN_NILAI ? '<th class="num">Nilai WO</th>' : ''}</tr></thead>
+      <tbody>${rows}</tbody>
+      ${CAN_NILAI ? `<tfoot><tr><td colspan="4" class="num"><b>Total</b></td><td class="num"><b>${formatRupiah(s.nilai_total)}</b></td></tr></tfoot>` : ''}
+    </table>
+    <h2 style="margin-top:14px;">Catatan</h2>
+    <div style="border:1px solid #cbd5e1;border-radius:6px;padding:8px;min-height:40px;">${esc(s.keterangan || 'Barang diserahkan dalam kondisi lengkap dan sesuai spesifikasi.')}</div>
+    <div class="sign-grid" style="grid-template-columns:repeat(4,1fr);">
+      <div class="box">Pengirim (Logistik)</div><div class="box">Driver / Ekspedisi</div>
+      <div class="box">Penerima (Customer)</div><div class="box">Finance</div>
+    </div>`;
+  openPrintWindow(`Surat Jalan ${s.no_sj}`, body);
+}
+
+function exportSJExcel() {
+  if (typeof XLSX === 'undefined') { showToast('Library Excel belum termuat, coba lagi.', 'error'); return; }
+  const rows = tfApply('sj');
+  if (!rows.length) { showToast('Tidak ada data Surat Jalan untuk diexport.', 'error'); return; }
+  const head = ['No SJ', 'Tgl Kirim', 'No WO', 'Customer', 'Nama Project', 'No PO', ...(CAN_NILAI ? ['Nilai WO'] : []), 'Nomor Invoice', 'Status', 'Keterangan'];
+  const data = rows.map(s => [s.no_sj, s.tgl_kirim, s.wo_numbers, s.customer_nama || '', s.projects, s.po_numbers,
+    ...(CAN_NILAI ? [Number(s.nilai_total) || 0] : []), s.nomor_invoice || s.auto_invoices || '', (SJ_STATUS_CFG[s.status] || {}).l || s.status, s.keterangan || '']);
+  const ws = XLSX.utils.aoa_to_sheet([head, ...data]);
+  ws['!cols'] = head.map((h, i) => ({ wch: [16, 12, 24, 28, 40, 20][i] || 18 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Surat Jalan');
+  XLSX.writeFile(wb, `Surat_Jalan_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  showToast(`Export Surat Jalan berhasil (${rows.length} data).`);
 }
 
 // ===================== MODUL FINANCE: DANA TALANGAN =====================

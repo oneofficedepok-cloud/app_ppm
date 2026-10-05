@@ -88,8 +88,14 @@ switch ($method) {
             ORDER BY wo.created_at DESC
         ";
         $rows = $pdo->query($sql)->fetchAll();
+        $sjByWo = sj_by_wo($pdo);
+        $invByWo = ar_invoices_by_wo($pdo);
 
         foreach ($rows as &$w) {
+            // Surat Jalan (modul Finance) & No Invoice AR yang memuat WO ini.
+            $w['surat_jalan'] = $sjByWo[(int) $w['id']] ?? [];
+            $w['sj_status'] = $w['surat_jalan'][0]['status'] ?? null; // status SJ terbaru
+            $w['ar_invoices'] = $invByWo[(int) $w['id']] ?? [];
             // Aktual tiap Item Pekerjaan = total rincian MTC (Modul Divisi Produksi) dengan
             // nama item yang sama; Aktual Produksi WO = jumlah semua Item Pekerjaan.
             $w['budget_items'] = apply_mtc_actuals(fetch_wo_budget_items($pdo, (int) $w['id']), mtc_totals_per_item($pdo, (int) $w['id']));

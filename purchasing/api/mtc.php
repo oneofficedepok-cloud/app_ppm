@@ -357,6 +357,7 @@ if ($resource === 'dashboard' && $method === 'GET') {
     );
 
     $autoCosts = mtc_auto_costs($pdo);
+    $sjByWo = sj_by_wo($pdo); // Surat Jalan dari modul Finance
 
     $result = [];
     foreach ($wos as $w) {
@@ -399,6 +400,7 @@ if ($resource === 'dashboard' && $method === 'GET') {
             'total_biaya' => $totalBiayaWO, 'margin' => (float) ($w['wo_total'] ?: $w['nilai_po']) - $totalBiayaWO,
             'items' => $itemsWithDivisi,
             'auto_records' => $auto,
+            'surat_jalan' => $sjByWo[(int) $w['id']] ?? [],
         ];
     }
 

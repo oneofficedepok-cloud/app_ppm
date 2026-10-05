@@ -33,38 +33,21 @@ function resolve_due_date(?string $dueDate, ?string $baseDate, int $topDays): ?s
 }
 
 /**
- * WO yang termasuk invoice AR ini, dicari dari No PO customer (1 PO bisa berisi beberapa WO).
- * No WO ditulis user manual di Deskripsi: kalau Deskripsi menyebut No WO tertentu dari PO tsb,
- * hanya WO itu yang dihubungkan (invoice sebagian); kalau tidak menyebut, semua WO di PO itu.
- * Return [id WO..., "WO-1, WO-2", [daftar WO di PO: wo_number, project, nilai_po, ...]].
+ * WO yang termasuk invoice AR ini = WO yang dicentang user di form (wo_ids).
+ * Pemanggil lama yang masih mengirim wo_id tunggal tetap didukung.
  */
 function resolve_ar_wos(PDO $pdo, array $b): array
 {
-    $po = trim((string) arr_val($b, 'po_no', ''));
-    $custId = to_int_or_null(arr_val($b, 'customer_id'));
-    if ($po === '') return [[], '', []];
-
-    $sql = 'SELECT id, wo_number, project, nilai_po, is_ppn, pph23 FROM work_orders WHERE TRIM(po_no) = :po';
-    $params = [':po' => $po];
-    if ($custId) { $sql .= ' AND customer_id = :cust'; $params[':cust'] = $custId; }
-    $stmt = $pdo->prepare($sql . ' ORDER BY wo_number');
-    $stmt->execute($params);
-    $wos = $stmt->fetchAll();
-    if (!$wos) {
-        // Data AR lama: WO tanpa No PO dulu tersimpan dengan No WO di kolom No PO.
-        $stmt = $pdo->prepare('SELECT id, wo_number, project, nilai_po, is_ppn, pph23 FROM work_orders WHERE wo_number = :po');
-        $stmt->execute([':po' => $po]);
-        $wos = $stmt->fetchAll();
+    $raw = arr_val($b, 'wo_ids', null);
+    if (!is_array($raw)) {
+        $legacy = to_int_or_null(arr_val($b, 'wo_id'));
+        $raw = $legacy ? [$legacy] : [];
     }
-    if (!$wos) return [[], '', []];
-
-    $desk = mb_strtoupper((string) arr_val($b, 'deskripsi', ''));
-    $mentioned = array_values(array_filter($wos, function ($w) use ($desk) {
-        $no = preg_quote(mb_strtoupper($w['wo_number']), '/');
-        return $desk !== '' && preg_match('/(?<![A-Z0-9])' . $no . '(?![A-Z0-9])/u', $desk);
-    }));
-    $picked = $mentioned ?: $wos;
-    return [array_map(fn($w) => (int) $w['id'], $picked), implode(', ', array_column($picked, 'wo_number')), $wos];
+    [$ids] = valid_wo_ids($pdo, $raw);
+    if (count($ids) > 1 && !ar_wo_link_ready($pdo)) {
+        json_error('Untuk 1 invoice dengan beberapa WO, jalankan dulu database/migration_ar_multi_wo.sql.', 422);
+    }
+    return [$ids];
 }
 
 /** Simpan daftar WO sebuah invoice AR (hapus yang lama, isi yang baru). */
@@ -80,14 +63,21 @@ switch ($method) {
 
     case 'GET':
         if (isset($_GET['action']) && $_GET['action'] === 'auto_fill') {
-            // Dipakai form AR: begitu No PO dipilih, auto-isi Penjualan (jumlah DPP semua WO
-            // di PO tsb), PPN & PPh23, dan tampilkan daftar WO-nya sebagai info.
-            [, , $wos] = resolve_ar_wos($pdo, ['po_no' => $_GET['po_no'] ?? '', 'customer_id' => $_GET['customer_id'] ?? null]);
+            // Dipakai form AR: WO yang dicentang -> auto-isi Penjualan (jumlah DPP), PPN & PPh23.
+            $ids = array_filter(array_map('intval', explode(',', (string) ($_GET['wo_ids'] ?? ''))));
+            [$woIds] = valid_wo_ids($pdo, array_values($ids));
+            $wos = [];
+            if ($woIds) {
+                $ph = implode(',', array_fill(0, count($woIds), '?'));
+                $stmt = $pdo->prepare("SELECT nilai_po, project, is_ppn, pph23 FROM work_orders WHERE id IN ($ph) ORDER BY wo_number");
+                $stmt->execute($woIds);
+                $wos = $stmt->fetchAll();
+            }
             json_success([
                 'penjualan' => array_sum(array_map(fn($w) => (float) $w['nilai_po'], $wos)),
                 'pph23'     => array_sum(array_map(fn($w) => (float) $w['pph23'], $wos)),
                 'is_ppn'    => (int) ($wos[0]['is_ppn'] ?? 1),
-                'wos'       => array_map(fn($w) => ['wo_number' => $w['wo_number'], 'project' => $w['project']], $wos),
+                'deskripsi' => implode(' / ', array_values(array_unique(array_filter(array_column($wos, 'project'))))),
             ]);
         }
 
@@ -95,8 +85,11 @@ switch ($method) {
             ? "(SELECT GROUP_CONCAT(w2.wo_number ORDER BY w2.wo_number SEPARATOR ', ')
                 FROM account_receivable_wo l JOIN work_orders w2 ON w2.id = l.wo_id WHERE l.ar_id = ar.id)"
             : 'wo.wo_number';
+        $woIdList = ar_wo_link_ready($pdo)
+            ? '(SELECT GROUP_CONCAT(l2.wo_id) FROM account_receivable_wo l2 WHERE l2.ar_id = ar.id)'
+            : 'ar.wo_id';
         $sql = "
-            SELECT ar.*, c.nama AS customer_nama, wo.wo_number, $woList AS wo_numbers
+            SELECT ar.*, c.nama AS customer_nama, wo.wo_number, $woList AS wo_numbers, $woIdList AS wo_id_list
             FROM account_receivable ar
             LEFT JOIN customers c ON c.id = ar.customer_id
             LEFT JOIN work_orders wo ON wo.id = ar.wo_id
@@ -109,6 +102,8 @@ switch ($method) {
                 (float) $a['pph23'], (float) $a['biaya_lain'], (float) $a['terbayar']
             );
             $a['sisa_piutang'] = $sisa;
+            $a['wo_ids'] = $a['wo_id_list'] ? array_map('intval', explode(',', (string) $a['wo_id_list'])) : [];
+            unset($a['wo_id_list']);
             if ($sisa <= 0 && (float) $a['terbayar'] > 0) $a['status'] = 'TERBAYAR LUNAS';
             elseif ((float) $a['terbayar'] > 0) $a['status'] = 'PARTIAL';
             else $a['status'] = 'PENDING';

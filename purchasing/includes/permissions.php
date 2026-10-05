@@ -41,6 +41,7 @@ const APP_MODULES = [
         'cashflow' => 'Cash Flow',
         'ar'       => 'AR (Piutang)',
         'ap'       => 'AP (Hutang)',
+        'sj'       => 'Surat Jalan (SJ)',
         'talangan' => 'Dana Talangan',
     ]],
     'mtc' => ['label' => 'MTC Produksi', 'menus' => [
