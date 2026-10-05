@@ -77,7 +77,11 @@ UPDATE `roles` SET `modules` = 'dashboard:edit'
 --    Default: hanya Admin (otomatis) & Manager Purchasing.
 --    Role lain bisa diberi lewat Administrator -> Role Management
 --    (centang "Lihat Nilai PO, Profit/Loss & Margin").
+--    Hanya diberikan SEKALI (saat belum ada role yang punya izin ini), jadi kalau
+--    Admin sudah mengatur/mencabutnya lewat UI, menjalankan ulang file ini tidak
+--    mengembalikannya.
 -- ---------------------------------------------------------
 UPDATE `roles` SET `modules` = CONCAT(`modules`, ',cap_nilai_po:view')
   WHERE `role_key` = 'manager_purchasing' AND `modules` IS NOT NULL AND `modules` <> ''
-    AND `modules` NOT LIKE '%cap_nilai_po%';
+    AND `modules` NOT LIKE '%cap_nilai_po%'
+    AND (SELECT COUNT(*) FROM (SELECT `id` FROM `roles` WHERE `modules` LIKE '%cap_nilai_po%') AS t) = 0;

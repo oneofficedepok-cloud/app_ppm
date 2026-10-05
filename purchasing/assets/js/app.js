@@ -4354,6 +4354,19 @@ function renderAdminSection() {
       </div>
     </li>`).join('') : '<li class="py-4 text-center text-slate-300">Belum ada data</li>';
 
+  // Ringkasan: role & user yang boleh melihat Nilai PO / Profit / Margin.
+  const capBox = document.getElementById('nilai-access-summary');
+  if (capBox) {
+    const capRoles = roles.filter(r => Number(r.is_admin) || (r.access || {}).cap_nilai_po);
+    const capKeys = capRoles.map(r => r.role_key);
+    const capUsers = masterUsers.filter(u => capKeys.includes(u.role) && u.status !== 'NON AKTIF');
+    capBox.innerHTML = `
+      <div class="font-bold text-amber-900 mb-1"><i class="fa-solid fa-lock mr-1"></i> Yang bisa melihat Nilai PO, DPP, PPN, Profit/Loss &amp; Margin</div>
+      <div><span class="text-amber-800">Role:</span> ${capRoles.map(r => `<span class="inline-block px-1.5 py-0.5 mr-1 mb-0.5 rounded bg-white border border-amber-200 font-semibold">${esc(r.label)}</span>`).join('')}</div>
+      <div class="mt-0.5"><span class="text-amber-800">User (${capUsers.length}):</span> ${esc(capUsers.map(u => u.full_name || u.username).join(', ') || '-')}</div>
+      <div class="mt-1 text-[10px] text-amber-700">Atur lewat Edit Role &rarr; bagian <b>Akses Data Sensitif</b>. Role lain tidak menerima nilai tsb sama sekali dari server.</div>`;
+  }
+
   const roleList = document.getElementById('master-role-list');
   roleList.innerHTML = roles.length ? roles.map(r => `
     <li class="flex items-center justify-between py-2">
@@ -5289,9 +5302,9 @@ async function autoFillARFromWOs(force = false) {
   if (!force && document.getElementById('ar-form-id').value) return;
   try {
     const data = await api(`api/account_receivable.php?action=auto_fill&wo_ids=${ids.join(',')}`);
-    document.getElementById('ar-penjualan').value = data.penjualan;
+    if (data.penjualan !== null) document.getElementById('ar-penjualan').value = data.penjualan; // null = tanpa izin Nilai PO
     document.getElementById('ar-is-ppn').value = Number(data.is_ppn) ? '1' : '0';
-    document.getElementById('ar-pph23').value = data.pph23;
+    if (data.pph23 !== null) document.getElementById('ar-pph23').value = data.pph23;
     const desk = document.getElementById('ar-deskripsi');
     if (!desk.value.trim() || force) desk.value = data.deskripsi;
     calcARSisa();
@@ -6021,9 +6034,11 @@ function renderFinanceDashboard() {
     else if (w.invoice_status === 'PENDING') { woPending++; woPendingVal += Number(w.wo_total); }
     else { woBelum++; woBelumVal += Number(w.wo_total); }
   });
-  document.getElementById('findash-wo-val-lunas').textContent = formatRupiah(woLunasVal);
-  document.getElementById('findash-wo-val-pending').textContent = formatRupiah(woPendingVal);
-  document.getElementById('findash-wo-val-belum').textContent = formatRupiah(woBelumVal);
+  // Nilai jual WO hanya untuk role berizin "Lihat Nilai PO"; lainnya cukup jumlah WO.
+  const woVal = (v, n) => CAN_NILAI ? formatRupiah(v) : `${n} WO`;
+  document.getElementById('findash-wo-val-lunas').textContent = woVal(woLunasVal, woLunas);
+  document.getElementById('findash-wo-val-pending').textContent = woVal(woPendingVal, woPending);
+  document.getElementById('findash-wo-val-belum').textContent = woVal(woBelumVal, woBelum);
 
   const ctxWO = document.getElementById('chart-wo-pipeline').getContext('2d');
   if (chartWOPipelineInstance) chartWOPipelineInstance.destroy();

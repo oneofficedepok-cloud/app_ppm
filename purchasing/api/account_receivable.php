@@ -73,9 +73,11 @@ switch ($method) {
                 $stmt->execute($woIds);
                 $wos = $stmt->fetchAll();
             }
+            // Role tanpa izin "Lihat Nilai PO": nilai PO WO tidak dikirim (Penjualan diisi manual).
+            $canNilai = can_see_nilai_po(current_user());
             json_success([
-                'penjualan' => array_sum(array_map(fn($w) => (float) $w['nilai_po'], $wos)),
-                'pph23'     => array_sum(array_map(fn($w) => (float) $w['pph23'], $wos)),
+                'penjualan' => $canNilai ? array_sum(array_map(fn($w) => (float) $w['nilai_po'], $wos)) : null,
+                'pph23'     => $canNilai ? array_sum(array_map(fn($w) => (float) $w['pph23'], $wos)) : null,
                 'is_ppn'    => (int) ($wos[0]['is_ppn'] ?? 1),
                 'deskripsi' => implode(' / ', array_values(array_unique(array_filter(array_column($wos, 'project'))))),
             ]);

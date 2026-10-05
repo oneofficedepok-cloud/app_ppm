@@ -1092,6 +1092,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
             <button onclick="openRoleModal('add')" class="bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold px-2.5 py-1 rounded transition">+ Tambah</button>
           </div>
           <p class="text-[10px] text-slate-400 -mt-2">Buat/ubah role di sini akan langsung muncul di pilihan role saat tambah/edit user — tanpa perlu ubah kode.</p>
+          <div id="nilai-access-summary" class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-[11px] text-slate-700"></div>
           <div class="max-h-80 overflow-y-auto custom-scrollbar"><ul id="master-role-list" class="divide-y divide-slate-200 text-xs"></ul></div>
         </div>
       </div>
