@@ -1643,7 +1643,7 @@ function renderWOTracking() {
     if (filterCust !== 'ALL' && w.customer_nama !== filterCust) return false;
     if (filterStatus !== 'ALL' && w.computed_status !== filterStatus) return false;
     if (search) {
-      const haystack = `${w.wo_number} ${w.project} ${w.customer_nama || ''}`.toLowerCase();
+      const haystack = `${w.wo_number} ${w.project} ${w.customer_nama || ''} ${w.po_no || ''}`.toLowerCase();
       if (!haystack.includes(search)) return false;
     }
     return true;
@@ -1685,6 +1685,7 @@ function renderWOTracking() {
       <td class="py-3 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${categoryBadge[w.wo_category] || 'bg-slate-100 text-slate-600'}">${esc(w.wo_category || 'PROJECT')}</span></td>
       <td class="py-3 px-3 font-bold text-slate-800">${esc(w.project)}</td>
       <td class="py-3 px-3 font-semibold text-slate-700">${esc(w.customer_nama || '-')}</td>
+      <td class="py-3 px-3 font-semibold text-slate-700 whitespace-nowrap">${w.po_no && w.po_no.trim() && w.po_no !== '-' ? esc(w.po_no) : '<span class="text-slate-300">-</span>'}</td>
       <td class="py-3 px-3 text-center font-mono">${formatDateID(w.est_kirim)}</td>
       ${CAN_NILAI ? `<td class="py-3 px-3 text-right font-mono">${formatRupiah(w.dpp_gross)}</td>
       <td class="py-3 px-3 text-right font-mono ${Number(w.diskon) > 0 ? 'text-rose-600' : 'text-slate-400'}">${Number(w.diskon) > 0 ? '- ' : ''}${formatRupiah(w.diskon)}</td>
@@ -2004,7 +2005,7 @@ const TABLE_SORTS = {
     SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('approval_status', 'Status Approval (dikelompokkan)'),
     SORT_BY.text('supplier_nama', 'Supplier A-Z'), SORT_BY.text('pr_number', 'No. PR')],
   wo: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.dateDesc('est_kirim', 'Est. Kirim Terbaru'), SORT_BY.dateAsc('est_kirim', 'Est. Kirim Terdekat'),
-    SORT_BY.text(r => r.computed_status || r.status, 'Status (dikelompokkan)'), SORT_BY.text('customer_nama', 'Customer A-Z'),
+    SORT_BY.text(r => r.computed_status || r.status, 'Status (dikelompokkan)'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('po_no', 'No. PO'),
     SORT_BY.text(r => r.sj_status || 'BELUM SJ', 'Status Surat Jalan (dikelompokkan)'), SORT_BY.text('invoice_status', 'Status Invoice (dikelompokkan)'),
     ...(CAN_NILAI ? [SORT_BY.numDesc('wo_total', 'Nilai WO Terbesar'), SORT_BY.numDesc('profit_loss', 'Profit Terbesar'), SORT_BY.numAsc('profit_loss', 'Profit Terkecil / Rugi')] : [])],
   seal: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('product', 'Product A-Z'),

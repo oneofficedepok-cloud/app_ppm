@@ -548,7 +548,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Pencarian WO / Project / Customer</label>
           <div class="relative">
             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-2.5 text-slate-400 text-xs"></i>
-            <input type="text" id="filter-wo-search" oninput="renderWOTracking()" placeholder="Cari WO, Project, Customer..." class="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+            <input type="text" id="filter-wo-search" oninput="renderWOTracking()" placeholder="Cari WO, Project, Customer, No PO..." class="w-full pl-9 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
           </div>
         </div>
         <div>
@@ -580,6 +580,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
               <th class="py-3.5 px-3 text-center">Kategori</th>
               <th class="py-3.5 px-3">Nama Project</th>
               <th class="py-3.5 px-3">Customer</th>
+              <th class="py-3.5 px-3">No. PO</th>
               <th class="py-3.5 px-3 text-center">Est. Kirim</th>
               <?php if ($canNilai): ?>
               <th class="py-3.5 px-3 text-right bg-emerald-50 text-emerald-900" title="Qty x Harga Satuan (sebelum diskon)">Nilai DPP</th>
