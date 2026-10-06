@@ -5,6 +5,28 @@ require_once __DIR__ . '/../includes/pr_functions.php';
 $method = http_method();
 $pdo = db();
 
+/**
+ * Customer PR selalu mengikuti WO yang dipilih (kolom "Nama Customer (Auto)" di form).
+ * Tanpa WO: pakai customer_id yang dikirim, atau (saat edit) pertahankan yang lama.
+ */
+function pr_customer_id(PDO $pdo, array $b, ?int $existingId = null): ?int
+{
+    $woId = to_int_or_null(arr_val($b, 'wo_id'));
+    if ($woId) {
+        $stmt = $pdo->prepare('SELECT customer_id FROM work_orders WHERE id = :id');
+        $stmt->execute([':id' => $woId]);
+        $cust = $stmt->fetchColumn();
+        if ($cust !== false) return $cust !== null ? (int) $cust : null;
+    }
+    $sent = to_int_or_null(arr_val($b, 'customer_id'));
+    if ($sent) return $sent;
+    if ($existingId === null) return null;
+    $stmt = $pdo->prepare('SELECT customer_id FROM pr_items WHERE id = :id');
+    $stmt->execute([':id' => $existingId]);
+    $cur = $stmt->fetchColumn();
+    return $cur ? (int) $cur : null;
+}
+
 $action = $_GET['action'] ?? '';
 
 if ($method === 'POST' && $action === 'receive') {
@@ -100,7 +122,7 @@ switch ($method) {
 
         $sql = "
             SELECT pr.*,
-                   c.nama  AS customer_nama,
+                   COALESCE(cw.nama, c.nama) AS customer_nama,
                    s.nama  AS supplier_nama,
                    wo.wo_number AS wo_number,
                    b.nama  AS buyer_nama,
@@ -114,6 +136,7 @@ switch ($method) {
             LEFT JOIN customers c ON c.id = pr.customer_id
             LEFT JOIN suppliers s ON s.id = pr.supplier_id
             LEFT JOIN work_orders wo ON wo.id = pr.wo_id
+            LEFT JOIN customers cw ON cw.id = wo.customer_id
             LEFT JOIN master_buyers b ON b.id = pr.buyer_id
             LEFT JOIN users u ON u.id = pr.user_id
             LEFT JOIN users ul ON ul.id = pr.leader_id
@@ -267,7 +290,7 @@ switch ($method) {
                 ':tanggal'        => $tanggal,
                 ':pr_number'      => $prNumber,
                 ':item_no'        => (int) to_float(arr_val($b, 'item_no', 1)),
-                ':customer_id'    => to_int_or_null(arr_val($b, 'customer_id')),
+                ':customer_id'    => pr_customer_id($pdo, $b),
                 ':project'        => arr_val($b, 'project', ''),
                 ':wo_id'          => to_int_or_null(arr_val($b, 'wo_id')),
                 ':product'        => arr_val($b, 'product', ''),
@@ -358,7 +381,7 @@ switch ($method) {
             ':tanggal'        => arr_val($b, 'tanggal'),
             ':pr_number'      => $prNumber,
             ':item_no'        => (int) to_float(arr_val($b, 'item_no', 1)),
-            ':customer_id'    => to_int_or_null(arr_val($b, 'customer_id')),
+            ':customer_id'    => pr_customer_id($pdo, $b, $id),
             ':project'        => arr_val($b, 'project', ''),
             ':wo_id'          => to_int_or_null(arr_val($b, 'wo_id')),
             ':product'        => arr_val($b, 'product', ''),

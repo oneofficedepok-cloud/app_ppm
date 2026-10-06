@@ -216,6 +216,12 @@ Alur PR: **Buyer/User buat PR → Supervisor (tahap 1) → Manager Produksi (tah
   Tombol **Pilih Semua**, **Setujui Terpilih**, **Tolak Terpilih**. Filter *Status Approval → Menunggu Approval Saya*.
   1 klik = 1 tahap (PR yang disetujui Supervisor tetap harus disetujui Manager Produksi).
 
+### Atur Kolom Tabel
+
+Setiap tabel punya tombol **Atur Kolom** (kanan atas tabel): centang kolom yang mau ditampilkan supaya
+tabel tidak terlalu panjang ke kanan. Default semua kolom tampil; tombol **Tampilkan Semua** untuk kembali.
+Pilihan tersimpan di browser masing-masing user. Tabel PR kini juga punya kolom **Deskripsi**.
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:

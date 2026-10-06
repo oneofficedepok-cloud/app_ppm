@@ -514,6 +514,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
                 <th class="py-3 px-3 text-center bg-indigo-50/60 text-indigo-900">No. Item</th>
                 <th class="py-3 px-3">WO / Project / Customer</th>
                 <th class="py-3 px-3">Product Part / Spesifikasi</th>
+                <th class="py-3 px-3">Deskripsi</th>
                 <th class="py-3 px-3 text-center">Qty</th>
                 <th class="py-3 px-3 text-right">Harga Satuan</th>
                 <th class="py-3 px-3 text-right">DPP & PPN</th>

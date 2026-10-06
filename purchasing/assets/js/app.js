@@ -872,7 +872,7 @@ function getFilteredPRData() {
     if (approval === 'MINE') { if (!isMyApproval(p)) return false; }
     else if (approval !== 'ALL' && p.approval_status !== approval) return false;
     if (search) {
-      const haystack = `${p.pr_number} ${p.wo_number || ''} ${p.po_number || ''} ${p.invoice_number || ''} ${p.customer_nama || ''} ${p.project || ''} ${p.product || ''} ${p.type || ''} ${p.dimensi || ''} ${p.brand || ''} ${p.supplier_nama || ''} ${p.user_nama || ''}`.toLowerCase();
+      const haystack = `${p.pr_number} ${p.keterangan || ''} ${p.wo_number || ''} ${p.po_number || ''} ${p.invoice_number || ''} ${p.customer_nama || ''} ${p.project || ''} ${p.product || ''} ${p.type || ''} ${p.dimensi || ''} ${p.brand || ''} ${p.supplier_nama || ''} ${p.user_nama || ''}`.toLowerCase();
       if (!haystack.includes(search)) return false;
     }
     return true;
@@ -1046,7 +1046,7 @@ function renderPRTable() {
   document.getElementById('table-count').textContent = `${filtered.length} Items`;
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="17" class="text-center py-8 text-slate-400 font-semibold">Tidak ada data Purchasing Request yang cocok.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="18" class="text-center py-8 text-slate-400 font-semibold">Tidak ada data Purchasing Request yang cocok.</td></tr>`;
     return;
   }
 
@@ -1072,6 +1072,7 @@ function renderPRTable() {
         <div class="font-semibold text-slate-800">${esc(p.product || '-')}</div>
         <div class="text-[11px] text-slate-500">${esc(p.type || '-')} / ${esc(p.dimensi || '-')} / ${esc(p.brand || '-')}</div>
       </td>
+      <td class="py-2.5 px-3 min-w-[180px] max-w-[260px] whitespace-normal text-[11px] text-slate-600" title="${esc(p.keterangan || '')}">${p.keterangan ? esc(p.keterangan) : '<span class="text-slate-300">-</span>'}</td>
       <td class="py-2.5 px-3 text-center font-mono whitespace-nowrap">${formatQty(p.qty)} ${esc(p.uom || '')}</td>
       <td class="py-2.5 px-3 text-right font-mono">${formatRupiah(p.harga)}</td>
       <td class="py-2.5 px-3 text-right font-mono text-[11px]">
@@ -1403,7 +1404,9 @@ async function openModal(mode, id = null) {
     document.getElementById('form-manager-select').value = p.manager_karyawan_id || '';
     document.getElementById('form-divisi').value = p.divisi || '';
     document.getElementById('form-wo-select').value = p.wo_id || '';
-    document.getElementById('form-customer').value = p.customer_nama || '';
+    // Customer mengikuti WO terpilih (data terbaru), bukan salinan lama di PR.
+    const prWo = workOrders.find(x => String(x.id) === String(p.wo_id));
+    document.getElementById('form-customer').value = (prWo && prWo.customer_nama) || p.customer_nama || '';
     document.getElementById('form-project').value = p.project || '';
     headerDefaultBuyerId = p.buyer_id || '';
     document.getElementById('form-buyer-header-select').value = headerDefaultBuyerId;
@@ -2157,8 +2160,99 @@ function pageRows(name, rows) {
   const start = st.size ? (st.page - 1) * st.size : 0;
   const slice = st.size ? rows.slice(start, start + st.size) : rows;
   renderPager(name, total, start, slice.length, pages);
+  ensureColumnTool(name);
   return slice;
 }
+
+// ===================== ATUR KOLOM TABEL (pilih kolom yang tampil) =====================
+// Tombol "Atur Kolom" di atas setiap tabel: user mencentang kolom yang mau ditampilkan.
+// Default SEMUA kolom tampil. Pilihan disimpan per user & per tabel di browser (localStorage),
+// berdasarkan JUDUL kolom (bukan posisi) supaya tetap benar walau ada kolom baru.
+// Kolom disembunyikan lewat CSS nth-child, jadi tetap berlaku setiap tabel di-render ulang.
+const colToolReady = {};
+function colPrefKey(name) { return `hiddenCols:${(currentUser && currentUser.id) || 0}:${name}`; }
+function colLoadHidden(name) {
+  try { return JSON.parse(localStorage.getItem(colPrefKey(name)) || '[]'); } catch (e) { return []; }
+}
+function colSaveHidden(name, labels) {
+  try { localStorage.setItem(colPrefKey(name), JSON.stringify(labels)); } catch (e) { /* abaikan */ }
+}
+function colTable(name) {
+  const [tbodyId] = SORT_TARGETS[name] || [];
+  const tbody = tbodyId && document.getElementById(tbodyId);
+  return tbody && tbody.tagName === 'TBODY' ? tbody.closest('table') : null;
+}
+/** Judul kolom (baris header terakhir). Kolom pertama (Aksi) selalu tampil. */
+function colHeaders(name) {
+  const table = colTable(name);
+  const row = table && table.tHead && table.tHead.rows[table.tHead.rows.length - 1];
+  if (!row) return [];
+  return [...row.cells].map((th, i) => ({ i: i + 1, label: th.textContent.replace(/\s+/g, ' ').trim() || `Kolom ${i + 1}` }));
+}
+function colApply(name) {
+  const table = colTable(name);
+  if (!table) return;
+  if (!table.id) table.id = `tbl-${name}`;
+  const hidden = colLoadHidden(name);
+  const idx = colHeaders(name).filter(h => h.i > 1 && hidden.includes(h.label)).map(h => h.i);
+  let style = document.getElementById(`colstyle-${name}`);
+  if (!style) { style = document.createElement('style'); style.id = `colstyle-${name}`; document.head.appendChild(style); }
+  style.textContent = idx.map(i => `#${table.id} > thead > tr > :nth-child(${i}), #${table.id} > tbody > tr > :nth-child(${i}) { display: none; }`).join('\n');
+  const btn = document.getElementById(`coltool-btn-${name}`);
+  if (btn) {
+    const total = colHeaders(name).length - 1;
+    btn.innerHTML = `<i class="fa-solid fa-table-columns"></i> Atur Kolom${idx.length ? ` <span class="px-1.5 rounded bg-indigo-600 text-white">${total - idx.length}/${total}</span>` : ''}`;
+  }
+}
+function ensureColumnTool(name) {
+  const table = colTable(name);
+  if (!table) return;
+  colApply(name); // header bisa dibangun ulang (mis. Dashboard MTC) - hitung ulang posisinya
+  if (colToolReady[name]) return;
+  colToolReady[name] = true;
+  const scroller = table.parentElement && /overflow/.test(table.parentElement.className) ? table.parentElement : table;
+  const bar = document.createElement('div');
+  bar.className = 'relative flex justify-end px-3 py-1.5';
+  bar.innerHTML = `
+    <button type="button" id="coltool-btn-${name}" onclick="toggleColumnPanel('${name}', event)" class="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-600 text-[11px] font-bold hover:bg-slate-50 flex items-center gap-1.5"></button>
+    <div id="coltool-panel-${name}" class="hidden absolute right-3 top-full mt-1 z-40 w-64 bg-white border border-slate-200 rounded-xl shadow-xl text-xs" onclick="event.stopPropagation()"></div>`;
+  scroller.before(bar);
+  colApply(name);
+}
+function toggleColumnPanel(name, ev) {
+  if (ev) ev.stopPropagation();
+  const panel = document.getElementById(`coltool-panel-${name}`);
+  const open = panel.classList.contains('hidden');
+  document.querySelectorAll('[id^="coltool-panel-"]').forEach(p => p.classList.add('hidden'));
+  if (!open) return;
+  const hidden = colLoadHidden(name);
+  const heads = colHeaders(name).filter(h => h.i > 1);
+  panel.innerHTML = `
+    <div class="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+      <b class="text-slate-700">Kolom yang ditampilkan</b>
+      <button type="button" onclick="setAllColumns('${name}', true)" class="text-indigo-600 font-bold hover:underline">Tampilkan Semua</button>
+    </div>
+    <div class="max-h-72 overflow-y-auto custom-scrollbar py-1">
+      ${heads.map(h => `<label class="flex items-center gap-2 px-3 py-1 hover:bg-slate-50 cursor-pointer">
+        <input type="checkbox" class="w-4 h-4 accent-indigo-600" ${hidden.includes(h.label) ? '' : 'checked'} data-label="${esc(h.label)}" onchange="toggleColumn('${name}', this)">
+        <span class="text-slate-700">${esc(h.label)}</span></label>`).join('')}
+    </div>
+    <div class="px-3 py-1.5 border-t border-slate-100 text-[10px] text-slate-400">Kolom Aksi selalu tampil. Pilihan tersimpan di browser ini.</div>`;
+  panel.classList.remove('hidden');
+}
+function toggleColumn(name, cb) {
+  const label = cb.dataset.label;
+  let hidden = colLoadHidden(name).filter(l => l !== label);
+  if (!cb.checked) hidden.push(label);
+  colSaveHidden(name, hidden);
+  colApply(name);
+}
+function setAllColumns(name, show) {
+  colSaveHidden(name, show ? [] : colHeaders(name).filter(h => h.i > 1).map(h => h.label));
+  colApply(name);
+  document.querySelectorAll(`#coltool-panel-${name} input[type=checkbox]`).forEach(cb => { cb.checked = show; });
+}
+document.addEventListener('click', () => document.querySelectorAll('[id^="coltool-panel-"]').forEach(p => p.classList.add('hidden')));
 
 function renderPager(name, total, start, shown, pages) {
   const [targetId] = SORT_TARGETS[name] || [];
