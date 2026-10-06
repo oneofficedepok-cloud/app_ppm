@@ -378,46 +378,31 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
     <!-- 1. DASHBOARD & DETAIL PR -->
     <div id="tab-content-dashboard" class="hidden space-y-6">
-      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-        <div class="sm:col-span-2 lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold uppercase text-slate-400 tracking-wider">Grand Total Tagihan</p>
-            <h2 id="kpi-total-spend" class="text-2xl font-extrabold text-slate-900 mt-1">Rp 0</h2>
-            <p class="text-[11px] text-slate-500 mt-1">Akumulasi Pembayaran (Termasuk PPN)</p>
-          </div>
-          <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-bold"><i class="fa-solid fa-wallet"></i></div>
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm min-w-0">
+          <div class="flex justify-between items-start gap-2"><span class="text-[11px] font-bold text-slate-400 uppercase leading-tight">Grand Total Tagihan</span><span class="p-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs shrink-0"><i class="fa-solid fa-wallet"></i></span></div>
+          <div id="kpi-total-spend" class="text-lg font-bold text-slate-800 mt-2 whitespace-nowrap tabular-nums">Rp 0</div>
+          <p class="text-[11px] text-slate-500 mt-0.5 truncate">Akumulasi pembayaran (termasuk PPN)</p>
         </div>
-        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold uppercase text-slate-400 tracking-wider">Total DPP</p>
-            <h2 id="kpi-total-dpp" class="text-xl font-extrabold text-slate-800 mt-1">Rp 0</h2>
-            <p class="text-[11px] text-slate-500 mt-1">Dasar Pengenaan Pajak</p>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm min-w-0">
+          <div class="flex justify-between items-start gap-2"><span class="text-[11px] font-bold text-slate-400 uppercase leading-tight">Total DPP</span><span class="p-2 bg-blue-50 text-blue-600 rounded-lg text-xs shrink-0"><i class="fa-solid fa-file-invoice-dollar"></i></span></div>
+          <div id="kpi-total-dpp" class="text-lg font-bold text-blue-700 mt-2 whitespace-nowrap tabular-nums">Rp 0</div>
+          <p class="text-[11px] text-slate-500 mt-0.5 truncate">Dasar Pengenaan Pajak</p>
         </div>
-        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold uppercase text-slate-400 tracking-wider">Total PPN (Pajak)</p>
-            <h2 id="kpi-total-ppn" class="text-xl font-extrabold text-purple-600 mt-1">Rp 0</h2>
-            <p class="text-[11px] text-purple-600 font-medium mt-1">PPN Terutang 11%/12%</p>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg"><i class="fa-solid fa-percent"></i></div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm min-w-0">
+          <div class="flex justify-between items-start gap-2"><span class="text-[11px] font-bold text-slate-400 uppercase leading-tight">Total PPN (Pajak)</span><span class="p-2 bg-purple-50 text-purple-600 rounded-lg text-xs shrink-0"><i class="fa-solid fa-percent"></i></span></div>
+          <div id="kpi-total-ppn" class="text-lg font-bold text-purple-600 mt-2 whitespace-nowrap tabular-nums">Rp 0</div>
+          <p class="text-[11px] text-slate-500 mt-0.5 truncate">PPN terutang 11% / 12%</p>
         </div>
-        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold uppercase text-slate-400 tracking-wider">Selesai / Received</p>
-            <h2 id="kpi-received-count" class="text-xl font-extrabold text-emerald-600 mt-1">0</h2>
-            <p class="text-[11px] text-emerald-600 font-medium mt-1" id="kpi-received-percent">0% item</p>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg"><i class="fa-solid fa-circle-check"></i></div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm min-w-0">
+          <div class="flex justify-between items-start gap-2"><span class="text-[11px] font-bold text-slate-400 uppercase leading-tight">Selesai / Received</span><span class="p-2 bg-emerald-50 text-emerald-600 rounded-lg text-xs shrink-0"><i class="fa-solid fa-circle-check"></i></span></div>
+          <div id="kpi-received-count" class="text-lg font-bold text-emerald-600 mt-2 whitespace-nowrap tabular-nums">0</div>
+          <p id="kpi-received-percent" class="text-[11px] text-emerald-600 mt-0.5 truncate">0% item</p>
         </div>
-        <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
-          <div>
-            <p class="text-xs font-semibold uppercase text-slate-400 tracking-wider">Dibatalkan</p>
-            <h2 id="kpi-cancel-count" class="text-xl font-extrabold text-rose-600 mt-1">0</h2>
-            <p class="text-[11px] text-rose-500 font-medium mt-1" id="kpi-cancel-percent">0% item</p>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg"><i class="fa-solid fa-circle-xmark"></i></div>
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm min-w-0">
+          <div class="flex justify-between items-start gap-2"><span class="text-[11px] font-bold text-slate-400 uppercase leading-tight">Dibatalkan</span><span class="p-2 bg-rose-50 text-rose-600 rounded-lg text-xs shrink-0"><i class="fa-solid fa-circle-xmark"></i></span></div>
+          <div id="kpi-cancel-count" class="text-lg font-bold text-rose-600 mt-2 whitespace-nowrap tabular-nums">0</div>
+          <p id="kpi-cancel-percent" class="text-[11px] text-rose-500 mt-0.5 truncate">0% item</p>
         </div>
       </section>
 

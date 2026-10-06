@@ -211,6 +211,9 @@ function showApiError(err) {
 }
 
 // ===================== FORMAT HELPERS =====================
+// Angka di semua grafik (sumbu & tooltip) memakai format Indonesia: 60.000.000 (bukan 60,000,000).
+if (typeof Chart !== 'undefined') Chart.defaults.locale = 'id-ID';
+
 function formatRupiah(num) {
   // Tampilan Rupiah dibulatkan ke rupiah penuh (Rp 2.676.475), nilai asli di database tetap utuh.
   return 'Rp ' + Math.round(Number(num) || 0).toLocaleString('id-ID');
@@ -979,9 +982,9 @@ function renderKPI() {
   document.getElementById('kpi-total-spend').textContent = formatRupiah(totalSpend);
   document.getElementById('kpi-total-dpp').textContent = formatRupiah(totalDPP);
   document.getElementById('kpi-total-ppn').textContent = formatRupiah(totalPPN);
-  document.getElementById('kpi-received-count').textContent = receivedCount;
+  document.getElementById('kpi-received-count').textContent = receivedCount.toLocaleString('id-ID');
   document.getElementById('kpi-received-percent').textContent = (totalItems ? Math.round(receivedCount / totalItems * 100) : 0) + '% item';
-  document.getElementById('kpi-cancel-count').textContent = cancelCount;
+  document.getElementById('kpi-cancel-count').textContent = cancelCount.toLocaleString('id-ID');
   document.getElementById('kpi-cancel-percent').textContent = (totalItems ? Math.round(cancelCount / totalItems * 100) : 0) + '% item';
 }
 
