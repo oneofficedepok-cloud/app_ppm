@@ -203,6 +203,19 @@ Administrator → Import Data Excel): 1) Download Template, 2) isi di Excel, 3) 
   sudah ada dilewati (tidak dobel / ditimpa); Customer, Supplier & No WO harus sudah terdaftar; baris yang salah
   dilaporkan per baris tanpa membatalkan baris lain; file maks 10 MB, hanya .xlsx; dilindungi token CSRF.
 
+### Approval PR: Supervisor → Manager Produksi (+ approval massal)
+
+Alur PR: **Buyer/User buat PR → Supervisor (tahap 1) → Manager Produksi (tahap 2 / final)**.
+
+- Yang boleh approve diatur di **Role Management → Edit Role → Akses Data Sensitif**:
+  centang **Approval PR Tahap 1 (Supervisor)** dan/atau **Approval PR Tahap 2 / Final (Manager Produksi)**.
+  Approver cukup punya akses **Lihat** menu PR. Admin selalu bisa approve.
+- `migration_security_roles.sql` membuat role **Supervisor** & **Manager Produksi** (kalau belum ada) beserta
+  izin approval-nya. Leader & Manager Purchasing tidak lagi approve (bisa diberi lagi lewat centang di atas).
+- **Approval massal**: di tabel PR ada bar *Approval Massal* + centang per baris untuk PR yang menunggu Anda.
+  Tombol **Pilih Semua**, **Setujui Terpilih**, **Tolak Terpilih**. Filter *Status Approval → Menunggu Approval Saya*.
+  1 klik = 1 tahap (PR yang disetujui Supervisor tetap harus disetujui Manager Produksi).
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:

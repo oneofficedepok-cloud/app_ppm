@@ -364,8 +364,8 @@ function printPR(prNumber) {
     </div>
     <div class="sign-grid">
       <div class="box">User Peminta<div class="nm">${esc(head.karyawan_nama || head.user_nama || '')}</div></div>
-      <div class="box">Atasan / Leader<div class="nm">${esc(head.atasan_karyawan_nama || head.leader_nama || '')}</div></div>
-      <div class="box">Manager Purchasing<div class="nm">${esc(head.manager_karyawan_nama || head.manager_nama || '')}</div></div>
+      <div class="box">Supervisor<div class="nm">${esc(head.atasan_karyawan_nama || head.leader_nama || '')}</div></div>
+      <div class="box">Manager Produksi<div class="nm">${esc(head.manager_karyawan_nama || head.manager_nama || '')}</div></div>
     </div>
     <div class="print-footer">Dicetak ${new Date().toLocaleString('id-ID')}</div>
     </div>`;
@@ -869,7 +869,8 @@ function getFilteredPRData() {
     if (ppn === 'PPN' && !Number(p.is_ppn)) return false;
     if (ppn === 'NON_PPN' && Number(p.is_ppn)) return false;
     if (supplier !== 'ALL' && p.supplier_nama !== supplier) return false;
-    if (approval !== 'ALL' && p.approval_status !== approval) return false;
+    if (approval === 'MINE') { if (!isMyApproval(p)) return false; }
+    else if (approval !== 'ALL' && p.approval_status !== approval) return false;
     if (search) {
       const haystack = `${p.pr_number} ${p.wo_number || ''} ${p.po_number || ''} ${p.invoice_number || ''} ${p.customer_nama || ''} ${p.project || ''} ${p.product || ''} ${p.type || ''} ${p.dimensi || ''} ${p.brand || ''} ${p.supplier_nama || ''} ${p.user_nama || ''}`.toLowerCase();
       if (!haystack.includes(search)) return false;
@@ -917,10 +918,14 @@ function statusBadgeClass(status) {
   }
 }
 
-// ===================== ALUR APPROVAL: Buyer buat -> Leader cek -> Manager Purchasing approve =====================
+// ===================== ALUR APPROVAL: Buyer buat -> Supervisor cek -> Manager Produksi approve =====================
+// Status di database tetap PENDING_LEADER (= tahap Supervisor) & PENDING_MANAGER (= tahap Manager Produksi).
+// Yang boleh approve diatur Admin lewat izin khusus di Role Management.
+const CAN_APPROVE_SPV = IS_ADMIN || !!USER_ACCESS.cap_pr_approve_spv;
+const CAN_APPROVE_MGR = IS_ADMIN || !!USER_ACCESS.cap_pr_approve_mgr;
 const APPROVAL_LABELS = {
-  PENDING_LEADER: 'Menunggu Leader',
-  PENDING_MANAGER: 'Menunggu Manager',
+  PENDING_LEADER: 'Menunggu Supervisor',
+  PENDING_MANAGER: 'Menunggu Manager Produksi',
   APPROVED: 'Disetujui',
   REJECTED: 'Ditolak',
 };
@@ -940,13 +945,11 @@ function approvalBadgeClass(status) {
 /** Tombol aksi approval yang relevan untuk PR baris ini, sesuai role user yang sedang login. */
 function approvalActionButton(p) {
   if (!currentUser) return '';
-  const canAct = currentUser.is_admin;
-
-  if (p.approval_status === 'PENDING_LEADER' && (canAct || currentUser.role === 'leader')) {
-    return `<button onclick="openApprovalModal(${p.id})" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold" title="Cek sebagai Leader"><i class="fa-solid fa-magnifying-glass"></i> Cek</button>`;
+  if (p.approval_status === 'PENDING_LEADER' && CAN_APPROVE_SPV) {
+    return `<button onclick="openApprovalModal(${p.id})" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold" title="Cek sebagai Supervisor"><i class="fa-solid fa-magnifying-glass"></i> Cek</button>`;
   }
-  if (p.approval_status === 'PENDING_MANAGER' && (canAct || currentUser.role === 'manager_purchasing')) {
-    return `<button onclick="openApprovalModal(${p.id})" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold" title="Approve sebagai Manager Purchasing"><i class="fa-solid fa-stamp"></i> Approve</button>`;
+  if (p.approval_status === 'PENDING_MANAGER' && CAN_APPROVE_MGR) {
+    return `<button onclick="openApprovalModal(${p.id})" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold" title="Approve sebagai Manager Produksi"><i class="fa-solid fa-stamp"></i> Approve</button>`;
   }
   if (p.approval_status === 'REJECTED') {
     return `<button onclick="resubmitPR(${p.id})" class="px-2 py-1 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-[10px] font-bold" title="Kirim ulang untuk direview dari awal"><i class="fa-solid fa-rotate-right"></i> Kirim Ulang</button>`;
@@ -971,7 +974,69 @@ function qtyInputValue(v, fallback = '') {
   return v === null || v === undefined || v === '' || !isFinite(n) ? fallback : n;
 }
 
+/** PR ini sedang menunggu approval di tahap milik user yang login? */
+function isMyApproval(p) {
+  return (p.approval_status === 'PENDING_LEADER' && CAN_APPROVE_SPV) || (p.approval_status === 'PENDING_MANAGER' && CAN_APPROVE_MGR);
+}
+const prApproveSel = new Set(); // PR yang dicentang untuk approval massal
+
+function toggleApprovePick(id, checked) {
+  if (checked) prApproveSel.add(id); else prApproveSel.delete(id);
+  renderPRApprovalBar();
+}
+
+/** Bar "Approval Massal" di atas tabel PR (hanya untuk role yang punya izin approval). */
+function renderPRApprovalBar() {
+  const bar = document.getElementById('pr-approval-bar');
+  if (!bar) return;
+  if (!CAN_APPROVE_SPV && !CAN_APPROVE_MGR) { bar.classList.add('hidden'); return; }
+  const mine = getFilteredPRData().filter(isMyApproval);
+  // Buang pilihan yang sudah tidak menunggu approval user ini (mis. sudah diproses).
+  [...prApproveSel].forEach(id => { const p = prItems.find(x => x.id === id); if (!p || !isMyApproval(p)) prApproveSel.delete(id); });
+  const stage = [CAN_APPROVE_SPV ? 'Supervisor' : '', CAN_APPROVE_MGR ? 'Manager Produksi' : ''].filter(Boolean).join(' & ');
+  bar.classList.remove('hidden');
+  bar.innerHTML = `
+    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+      <div class="text-amber-900"><i class="fa-solid fa-stamp mr-1"></i><b>Approval Massal</b> (${esc(stage)}) &middot;
+        <b>${mine.length}</b> PR menunggu approval Anda${mine.length ? ' di tampilan ini' : ''} &middot; <b>${prApproveSel.size}</b> dipilih</div>
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button type="button" onclick="pickAllMyApprovals()" ${mine.length ? '' : 'disabled'} class="px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-800 font-bold hover:bg-amber-100 disabled:opacity-40"><i class="fa-solid fa-check-double mr-1"></i>Pilih Semua (${mine.length})</button>
+        <button type="button" onclick="prApproveSel.clear(); renderPRTable();" ${prApproveSel.size ? '' : 'disabled'} class="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-600 font-bold hover:bg-slate-50 disabled:opacity-40">Kosongkan</button>
+        <button type="button" onclick="bulkApprovePR('reject')" ${prApproveSel.size ? '' : 'disabled'} class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold disabled:opacity-40"><i class="fa-solid fa-xmark mr-1"></i>Tolak Terpilih</button>
+        <button type="button" onclick="bulkApprovePR('approve')" ${prApproveSel.size ? '' : 'disabled'} class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold disabled:opacity-40"><i class="fa-solid fa-stamp mr-1"></i>Setujui Terpilih (${prApproveSel.size})</button>
+      </div>
+    </div>`;
+}
+
+function pickAllMyApprovals() {
+  getFilteredPRData().filter(isMyApproval).forEach(p => prApproveSel.add(p.id));
+  renderPRTable();
+}
+
+async function bulkApprovePR(decision) {
+  const ids = [...prApproveSel];
+  if (!ids.length) return;
+  const verb = decision === 'approve' ? 'SETUJUI' : 'TOLAK';
+  if (!(await showConfirm(`${verb} ${ids.length} PR yang dipilih? PR dari tahap Supervisor akan diteruskan ke Manager Produksi; PR di tahap Manager Produksi menjadi final.`))) return;
+  try {
+    // Dikirim per 500 PR (batas server) supaya "Pilih Semua" ribuan PR tetap jalan.
+    let processed = 0, skipped = 0;
+    for (let i = 0; i < ids.length; i += 500) {
+      const res = await api('api/pr_items.php?action=bulk_approve', 'POST',
+        { ids: ids.slice(i, i + 500), decision, note: decision === 'approve' ? 'Approval massal' : 'Ditolak (massal)' });
+      processed += res.processed; skipped += res.skipped;
+    }
+    showToast(`${processed} PR ${decision === 'approve' ? 'disetujui' : 'ditolak'}${skipped ? `, ${skipped} dilewati` : ''}.`);
+    prApproveSel.clear();
+    await refresh('prItems');
+    renderDashboard();
+  } catch (err) {
+    showApiError(err);
+  }
+}
+
 function renderPRTable() {
+  renderPRApprovalBar();
   const SHEET_BADGE = {
     PROJECT: 'bg-indigo-100 text-indigo-800', GENERAL: 'bg-slate-200 text-slate-700',
     CONSUMABLE: 'bg-emerald-100 text-emerald-800', MAINTENANCE: 'bg-amber-100 text-amber-800', INVENTARIS: 'bg-purple-100 text-purple-800',
@@ -1029,7 +1094,7 @@ function renderPRTable() {
       <td class="py-2.5 px-3 text-center"><span class="px-2 py-1 rounded-full text-[10px] uppercase font-bold ${statusBadgeClass(p.status)}">${esc(p.status)}</span></td>
       <td class="py-2.5 px-3 text-center bg-rose-50/30">
         <span class="px-2 py-1 rounded-full text-[10px] uppercase font-bold ${approvalBadgeClass(p.approval_status)}" title="${p.approval_status === 'REJECTED' ? esc((p.leader_note || p.manager_note) ? 'Catatan: ' + (p.manager_note || p.leader_note) : '') : ''}">${approvalLabel(p.approval_status)}</span>
-        <div class="mt-1">${approvalActionButton(p)}</div>
+        <div class="mt-1 flex items-center justify-center gap-1">${isMyApproval(p) ? `<input type="checkbox" ${prApproveSel.has(p.id) ? 'checked' : ''} onchange="toggleApprovePick(${p.id}, this.checked)" class="w-4 h-4 accent-emerald-600 cursor-pointer" title="Pilih untuk approval massal">` : ''}${approvalActionButton(p)}</div>
       </td>
       <td class="py-2.5 px-3 text-center">
         ${p.lampiran ? `<a href="${esc(p.lampiran)}" target="_blank" class="text-emerald-600 hover:text-emerald-800"><i class="fa-brands fa-google-drive text-lg"></i></a>` : '<span class="text-slate-300">-</span>'}
@@ -1450,7 +1515,7 @@ async function deletePRItem(id) {
   }
 }
 
-// ===================== ALUR APPROVAL PR (Cek Leader / Approve Manager) =====================
+// ===================== ALUR APPROVAL PR (Cek Supervisor / Approve Manager Produksi) =====================
 
 function openApprovalModal(prId) {
   const p = prItems.find(x => x.id === prId);
@@ -1475,13 +1540,13 @@ function openApprovalModal(prId) {
   if (p.approval_status === 'PENDING_LEADER') {
     document.getElementById('approval-stage').value = 'leader_check';
     header.className = 'px-6 py-4 bg-amber-600 text-white flex items-center justify-between';
-    title.textContent = 'Cek PR (sebagai Leader)';
-    approveBtn.textContent = 'Setujui & Teruskan ke Manager';
+    title.textContent = 'Cek PR (sebagai Supervisor)';
+    approveBtn.textContent = 'Setujui & Teruskan ke Manager Produksi';
     approveBtn.className = 'px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-md';
   } else if (p.approval_status === 'PENDING_MANAGER') {
     document.getElementById('approval-stage').value = 'manager_approve';
     header.className = 'px-6 py-4 bg-blue-600 text-white flex items-center justify-between';
-    title.textContent = 'Approve PR (sebagai Manager Purchasing)';
+    title.textContent = 'Approve PR (sebagai Manager Produksi)';
     approveBtn.textContent = 'Setujui (Final)';
     approveBtn.className = 'px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md';
   } else {
@@ -1514,7 +1579,7 @@ async function submitApprovalDecision(decision) {
 }
 
 async function resubmitPR(id) {
-  if (!(await showConfirm('Kirim ulang PR ini untuk direview dari awal (menunggu cek Leader lagi)?'))) return;
+  if (!(await showConfirm('Kirim ulang PR ini untuk direview dari awal (menunggu Supervisor lagi)?'))) return;
   try {
     await api('api/pr_items.php?action=resubmit', 'POST', { id });
     showToast('PR dikirim ulang untuk approval.');
@@ -4402,7 +4467,7 @@ function roleAccessBadges(r) {
     return `<span title="${esc(title)}" class="px-1.5 py-0.5 rounded text-[9px] font-bold border ${tone}">${esc(mod.label.toUpperCase())} ${viewN}/${keys.length}${editN ? '' : ' (LIHAT)'}</span>`;
   }).join('');
   const capBadges = Object.entries(appCapabilities).filter(([k]) => access[k]).map(([, c]) =>
-    `<span title="${esc(c.label)}" class="px-1.5 py-0.5 rounded text-[9px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-100"><i class="fa-solid fa-eye"></i> NILAI PO</span>`).join('');
+    `<span title="${esc(c.label)}" class="px-1.5 py-0.5 rounded text-[9px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-100"><i class="fa-solid fa-key"></i> ${esc(c.short || c.label)}</span>`).join('');
   return (badges + capBadges) || '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-100">BELUM ADA AKSES</span>';
 }
 

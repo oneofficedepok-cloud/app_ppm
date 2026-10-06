@@ -56,7 +56,18 @@ const APP_MODULES = [
  * dengan format yang sama ("cap_nilai_po:view"). Role Admin otomatis punya semua.
  */
 const APP_CAPABILITIES = [
+    'cap_pr_approve_spv' => [
+        'label' => 'Approval PR Tahap 1 (Supervisor)',
+        'short' => 'APPROVE PR: SPV',
+        'desc'  => 'Boleh mengecek & menyetujui/menolak PR yang berstatus "Menunggu Supervisor", lalu meneruskannya ke Manager Produksi. Termasuk approval massal.',
+    ],
+    'cap_pr_approve_mgr' => [
+        'label' => 'Approval PR Tahap 2 / Final (Manager Produksi)',
+        'short' => 'APPROVE PR: MANAGER',
+        'desc'  => 'Boleh menyetujui (final) / menolak PR yang berstatus "Menunggu Manager Produksi". Termasuk approval massal.',
+    ],
     'cap_nilai_po' => [
+        'short' => 'NILAI PO',
         'label' => 'Lihat Nilai PO, Profit/Loss & Margin',
         'desc'  => 'Nilai PO / harga jual WO, DPP, PPN, Total Nilai Jual, Profit & Loss (WO & Budget), Total Nilai PO & Estimasi Margin (Dashboard MTC). Tanpa izin ini nilai tsb disembunyikan dan tidak dikirim ke browser.',
     ],

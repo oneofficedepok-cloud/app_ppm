@@ -33,7 +33,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
     .perm-readonly [onclick^="bulkDelete"], .perm-readonly [onclick^="openCashflowModal"],
     .perm-readonly [onclick^="editCashflowRow"], .perm-readonly [onclick^="openMovementModal"],
     .perm-readonly [onclick^="openReceiveGoodsModal"], .perm-readonly [onclick^="consumeProductionMaterial"],
-    .perm-readonly [onclick^="openApprovalModal"], .perm-readonly [onclick^="resubmitPR"],
+    .perm-readonly [onclick^="resubmitPR"],
     .perm-readonly [onclick^="jumpToEditWO"], .perm-readonly [onclick^="jumpToMTCRecordEdit"],
     .perm-readonly input[data-bulk], .perm-readonly input[onchange^="toggleBulkAll"] { display: none !important; }
   </style>
@@ -483,8 +483,9 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
             <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Status Approval</label>
             <select id="filter-approval" onchange="applyFilters()" class="w-full py-2 px-3 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500">
               <option value="ALL">Semua</option>
-              <option value="PENDING_LEADER">Menunggu Cek Leader</option>
-              <option value="PENDING_MANAGER">Menunggu Approve Manager</option>
+              <option value="PENDING_LEADER">Menunggu Supervisor</option>
+              <option value="PENDING_MANAGER">Menunggu Manager Produksi</option>
+              <option value="MINE">Menunggu Approval Saya</option>
               <option value="APPROVED">Disetujui</option>
               <option value="REJECTED">Ditolak</option>
             </select>
@@ -501,6 +502,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           </div>
           <span id="table-count" class="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1 rounded-full">0 Items</span>
         </div>
+        <div id="pr-approval-bar" class="hidden px-5 py-3 bg-amber-50 border-b border-amber-200 text-xs"></div>
         <div class="overflow-x-auto custom-scrollbar">
           <table class="w-full text-left border-collapse whitespace-nowrap">
             <thead>
@@ -1581,7 +1583,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
     </div>
   </div>
 
-  <!-- MODAL: AKSI APPROVAL PR (Cek Leader / Approve Manager) -->
+  <!-- MODAL: AKSI APPROVAL PR (Cek Supervisor / Approve Manager Produksi) -->
   <div id="approval-modal" class="fixed inset-0 z-50 hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-md overflow-hidden">
       <div id="approval-modal-header" class="px-6 py-4 bg-amber-600 text-white flex items-center justify-between">

@@ -10,6 +10,10 @@ $action = $_GET['action'] ?? '';
 if ($method === 'POST' && $action === 'receive') {
     // Penerimaan barang dilakukan tim Gudang dari menu Incoming / Receiving Goods.
     require_edit(['incoming', 'receiving']);
+} elseif ($method === 'POST' && in_array($action, ['leader_check', 'manager_approve', 'bulk_approve'], true)) {
+    // Approval PR: cukup boleh MELIHAT menu PR + punya izin approval (dicek di handler-nya),
+    // jadi Supervisor / Manager Produksi tidak perlu hak ubah data PR.
+    require_view(['dashboard']);
 } else {
     // Baca: menu PR + menu yang memakai data PR (Incoming/Receiving Gudang,
     // biaya aktual WO, Finance Dashboard). Ubah & approval: menu PR.
@@ -125,68 +129,81 @@ switch ($method) {
     case 'POST':
         $prAction = $_GET['action'] ?? '';
 
-        // ============= ALUR APPROVAL: Leader cek =============
-        if ($prAction === 'leader_check') {
-            $user = require_role(['leader']);
+        // ============= ALUR APPROVAL: Supervisor (tahap 1) -> Manager Produksi (tahap 2/final) =============
+        // Siapa yang boleh approve diatur Admin lewat Role Management (izin khusus
+        // cap_pr_approve_spv / cap_pr_approve_mgr), bukan nama role yang ditanam di kode.
+        // Kolom DB tetap leader_* / manager_* dan status PENDING_LEADER / PENDING_MANAGER.
+        if (in_array($prAction, ['leader_check', 'manager_approve', 'bulk_approve'], true)) {
+            $user = require_login();
+            $canSpv = user_level($user, 'cap_pr_approve_spv') >= PERM_VIEW;
+            $canMgr = user_level($user, 'cap_pr_approve_mgr') >= PERM_VIEW;
             $b = get_json_input();
-            $id = to_int_or_null(arr_val($b, 'id'));
             $decision = arr_val($b, 'decision'); // 'approve' | 'reject'
             $note = clean_str(arr_val($b, 'note', ''));
-            if (!$id || !in_array($decision, ['approve', 'reject'], true)) {
-                json_error('Data tidak lengkap.', 422);
+            if (!in_array($decision, ['approve', 'reject'], true)) json_error('Data tidak lengkap.', 422);
+
+            /** Proses 1 PR sesuai tahapnya. Return status baru, atau null kalau user tidak berhak / status sudah berubah. */
+            $decide = function (int $id, ?string $onlyStage) use ($pdo, $user, $canSpv, $canMgr, $decision, $note): ?string {
+                $cur = $pdo->prepare('SELECT approval_status FROM pr_items WHERE id = :id FOR UPDATE');
+                $cur->execute([':id' => $id]);
+                $status = $cur->fetchColumn();
+                if ($status === 'PENDING_LEADER' && $canSpv && $onlyStage !== 'manager_approve') {
+                    $new = $decision === 'approve' ? 'PENDING_MANAGER' : 'REJECTED';
+                    $pdo->prepare('UPDATE pr_items SET approval_status = :s, leader_id = :uid, leader_checked_at = NOW(), leader_note = :note WHERE id = :id')
+                        ->execute([':s' => $new, ':uid' => $user['id'], ':note' => $note, ':id' => $id]);
+                    log_activity($decision === 'approve' ? 'spv_approve' : 'spv_reject', 'pr_items', $id, $note);
+                    return $new;
+                }
+                if ($status === 'PENDING_MANAGER' && $canMgr && $onlyStage !== 'leader_check') {
+                    $new = $decision === 'approve' ? 'APPROVED' : 'REJECTED';
+                    $pdo->prepare('UPDATE pr_items SET approval_status = :s, manager_id = :uid, manager_approved_at = NOW(), manager_note = :note WHERE id = :id')
+                        ->execute([':s' => $new, ':uid' => $user['id'], ':note' => $note, ':id' => $id]);
+                    log_activity($decision === 'approve' ? 'mgr_approve' : 'mgr_reject', 'pr_items', $id, $note);
+                    return $new;
+                }
+                return null;
+            };
+
+            if ($prAction === 'bulk_approve') {
+                // Approval massal: hanya PR yang memang menunggu tahap milik user ini yang diproses
+                // (1 tahap per klik - PR dari Supervisor tetap harus dicek Manager Produksi).
+                if (!$canSpv && !$canMgr) json_error('Role Anda tidak punya izin approval PR. Hubungi admin.', 403);
+                $ids = array_values(array_unique(array_filter(array_map('intval', (array) arr_val($b, 'ids', [])), fn($v) => $v > 0)));
+                if (!$ids) json_error('Tidak ada PR yang dipilih.', 422);
+                if (count($ids) > 500) json_error('Maksimal 500 PR sekali proses.', 422);
+                $done = 0; $skipped = 0;
+                $pdo->beginTransaction();
+                try {
+                    foreach ($ids as $id) { if ($decide($id, null) !== null) $done++; else $skipped++; }
+                    $pdo->commit();
+                } catch (Throwable $e) {
+                    $pdo->rollBack();
+                    throw $e;
+                }
+                $verb = $decision === 'approve' ? 'disetujui' : 'ditolak';
+                json_success(['processed' => $done, 'skipped' => $skipped],
+                    "$done PR $verb." . ($skipped ? " $skipped PR dilewati (bukan tahap approval Anda / sudah diproses)." : ''));
             }
 
-            $cur = $pdo->prepare('SELECT approval_status FROM pr_items WHERE id = :id');
-            $cur->execute([':id' => $id]);
-            $row = $cur->fetch();
-            if (!$row) json_error('Data PR tidak ditemukan.', 404);
-            if ($row['approval_status'] !== 'PENDING_LEADER') {
-                json_error('PR ini sudah tidak dalam status menunggu cek Leader (mungkin sudah diproses orang lain).', 409);
-            }
-
-            $newStatus = $decision === 'approve' ? 'PENDING_MANAGER' : 'REJECTED';
-            $stmt = $pdo->prepare(
-                'UPDATE pr_items SET approval_status = :s, leader_id = :uid, leader_checked_at = NOW(), leader_note = :note WHERE id = :id'
-            );
-            $stmt->execute([':s' => $newStatus, ':uid' => $user['id'], ':note' => $note, ':id' => $id]);
-
-            log_activity($decision === 'approve' ? 'leader_approve' : 'leader_reject', 'pr_items', $id, $note);
-            json_success(
-                ['id' => $id, 'approval_status' => $newStatus],
-                $decision === 'approve' ? 'PR diteruskan ke Manager Purchasing untuk approval final.' : 'PR ditolak di tahap pengecekan Leader.'
-            );
-        }
-
-        // ============= ALUR APPROVAL: Manager Purchasing approve =============
-        if ($prAction === 'manager_approve') {
-            $user = require_role(['manager_purchasing']);
-            $b = get_json_input();
             $id = to_int_or_null(arr_val($b, 'id'));
-            $decision = arr_val($b, 'decision');
-            $note = clean_str(arr_val($b, 'note', ''));
-            if (!$id || !in_array($decision, ['approve', 'reject'], true)) {
-                json_error('Data tidak lengkap.', 422);
-            }
+            if (!$id) json_error('Data tidak lengkap.', 422);
+            $exists = $pdo->prepare('SELECT approval_status FROM pr_items WHERE id = :id');
+            $exists->execute([':id' => $id]);
+            $status = $exists->fetchColumn();
+            if ($status === false) json_error('Data PR tidak ditemukan.', 404);
+            $needed = $prAction === 'leader_check' ? ['PENDING_LEADER', $canSpv, 'Supervisor'] : ['PENDING_MANAGER', $canMgr, 'Manager Produksi'];
+            if (!$needed[1]) json_error("Role Anda tidak punya izin approval tahap {$needed[2]}. Hubungi admin.", 403);
+            if ($status !== $needed[0]) json_error("PR ini sudah tidak menunggu approval {$needed[2]} (mungkin sudah diproses orang lain).", 409);
 
-            $cur = $pdo->prepare('SELECT approval_status FROM pr_items WHERE id = :id');
-            $cur->execute([':id' => $id]);
-            $row = $cur->fetch();
-            if (!$row) json_error('Data PR tidak ditemukan.', 404);
-            if ($row['approval_status'] !== 'PENDING_MANAGER') {
-                json_error('PR ini sudah tidak dalam status menunggu approve Manager (mungkin sudah diproses orang lain).', 409);
-            }
-
-            $newStatus = $decision === 'approve' ? 'APPROVED' : 'REJECTED';
-            $stmt = $pdo->prepare(
-                'UPDATE pr_items SET approval_status = :s, manager_id = :uid, manager_approved_at = NOW(), manager_note = :note WHERE id = :id'
-            );
-            $stmt->execute([':s' => $newStatus, ':uid' => $user['id'], ':note' => $note, ':id' => $id]);
-
-            log_activity($decision === 'approve' ? 'manager_approve' : 'manager_reject', 'pr_items', $id, $note);
-            json_success(
-                ['id' => $id, 'approval_status' => $newStatus],
-                $decision === 'approve' ? 'PR disetujui (APPROVED).' : 'PR ditolak di tahap approval Manager Purchasing.'
-            );
+            $pdo->beginTransaction();
+            $new = $decide($id, $prAction);
+            $pdo->commit();
+            $msg = [
+                'PENDING_MANAGER' => 'PR diteruskan ke Manager Produksi untuk approval final.',
+                'APPROVED' => 'PR disetujui (APPROVED).',
+                'REJECTED' => "PR ditolak di tahap {$needed[2]}.",
+            ][$new] ?? 'Tersimpan.';
+            json_success(['id' => $id, 'approval_status' => $new], $msg);
         }
 
         // ============= ALUR APPROVAL: Kirim ulang PR yang ditolak =============
@@ -213,7 +230,7 @@ switch ($method) {
             $stmt->execute([':id' => $id]);
 
             log_activity('resubmit', 'pr_items', $id, '');
-            json_success(['id' => $id], 'PR dikirim ulang untuk approval dari awal (menunggu cek Leader).');
+            json_success(['id' => $id], 'PR dikirim ulang untuk approval dari awal (menunggu Supervisor).');
         }
 
         // ============= TAMBAH PR BARU (alur normal) =============

@@ -85,3 +85,23 @@ UPDATE `roles` SET `modules` = CONCAT(`modules`, ',cap_nilai_po:view')
   WHERE `role_key` = 'manager_purchasing' AND `modules` IS NOT NULL AND `modules` <> ''
     AND `modules` NOT LIKE '%cap_nilai_po%'
     AND (SELECT COUNT(*) FROM (SELECT `id` FROM `roles` WHERE `modules` LIKE '%cap_nilai_po%') AS t) = 0;
+
+-- ---------------------------------------------------------
+-- 5. Approval PR: Supervisor (tahap 1) -> Manager Produksi (tahap 2 / final)
+--    Siapa yang boleh approve diatur di Role Management -> Akses Data Sensitif
+--    (centang "Approval PR Tahap 1 / Tahap 2"). Role baru dibuat kalau belum ada;
+--    izin approval hanya diberikan SEKALI (saat belum ada role yang memilikinya),
+--    jadi pengaturan Admin tidak tertimpa saat file ini dijalankan ulang.
+-- ---------------------------------------------------------
+INSERT INTO `roles` (`role_key`, `label`, `is_admin`, `is_system`, `modules`) VALUES
+('supervisor', 'Supervisor', 0, 0, 'dashboard:view,tracking:view,seal:view'),
+('manager_produksi', 'Manager Produksi', 0, 0, 'dashboard:view,transport:view,tracking:edit,seal:edit,mtcdash:edit,mtcdivisi:edit,mtcmaster:view')
+ON DUPLICATE KEY UPDATE `role_key` = `role_key`;
+
+UPDATE `roles` SET `modules` = CONCAT(COALESCE(NULLIF(`modules`, ''), 'dashboard:view'), ',cap_pr_approve_spv:view')
+  WHERE `role_key` = 'supervisor' AND COALESCE(`modules`, '') NOT LIKE '%cap_pr_approve_spv%'
+    AND (SELECT COUNT(*) FROM (SELECT `id` FROM `roles` WHERE `modules` LIKE '%cap_pr_approve_spv%') AS t) = 0;
+
+UPDATE `roles` SET `modules` = CONCAT(COALESCE(NULLIF(`modules`, ''), 'dashboard:view'), ',cap_pr_approve_mgr:view')
+  WHERE `role_key` = 'manager_produksi' AND COALESCE(`modules`, '') NOT LIKE '%cap_pr_approve_mgr%'
+    AND (SELECT COUNT(*) FROM (SELECT `id` FROM `roles` WHERE `modules` LIKE '%cap_pr_approve_mgr%') AS t) = 0;
