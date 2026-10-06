@@ -212,8 +212,86 @@ function showApiError(err) {
 
 // ===================== FORMAT HELPERS =====================
 function formatRupiah(num) {
-  return 'Rp ' + (Number(num) || 0).toLocaleString('id-ID');
+  // Tampilan Rupiah dibulatkan ke rupiah penuh (Rp 2.676.475), nilai asli di database tetap utuh.
+  return 'Rp ' + Math.round(Number(num) || 0).toLocaleString('id-ID');
 }
+
+// ===================== INPUT UANG FORMAT RUPIAH (12.500.000) =====================
+// Kolom isian uang tampil dengan pemisah ribuan saat diketik / dibuka. Supaya SEMUA kode lama
+// (parseFloat(el.value), el.value = 5000000, form.reset) tetap jalan tanpa diubah, properti
+// .value elemen tsb di-override: yang TAMPIL "12.500.000", yang DIBACA kode "12500000".
+// Desimal pakai koma (12.500,5). Elemen baru (baris item PR/MTC/WO dll.) ikut otomatis.
+const MONEY_INPUT_SELECTOR = [
+  '#wo-form-harga-satuan', '#wo-form-diskon', '#wo-form-budget-prod', '#wo-form-aktual-prod', '#wo-form-budget-pem',
+  '#wo-form-budget-lain', '#wo-form-total-lain', '#transport-harga', '#inv-harga', '#mtcm-harga', '#mtcmp-harga',
+  '#cf-nominal', '#cf-pph23', '#ar-penjualan', '#ar-pph23', '#ar-biaya-lain', '#ar-terbayar', '#ap-pembelian',
+  '#ap-biaya-lain', '#ap-terbayar', '#talangan-pinjaman',
+  '.pri-harga', '.mtci-harga', '.seali-harga', '.wobi-budget', '.wobi-actual',
+].join(', ');
+const NATIVE_INPUT_VALUE = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+
+/** Teks tampilan Indonesia ("12.500.000,5") -> string angka JS ("12500000.5"). Kosong -> ''. */
+function moneyRawFromDisplay(txt) {
+  let t = String(txt ?? '').replace(/[^\d,\-]/g, '');
+  if (!/\d/.test(t)) return '';
+  const neg = t.startsWith('-');
+  t = t.replace(/-/g, '');
+  const [i, d = ''] = t.split(',');
+  const num = (i.replace(/^0+(?=\d)/, '') || '0') + (d ? '.' + d.slice(0, 2) : '');
+  return (neg ? '-' : '') + num;
+}
+/** Nilai dari kode (5000000 / "5000000.00") -> tampilan "5.000.000". */
+function moneyDisplayFromValue(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const s = String(v).trim();
+  const n = /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : Number(moneyRawFromDisplay(s));
+  if (!isFinite(n)) return '';
+  return n.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+}
+/** Format ulang saat mengetik, posisi kursor dijaga. */
+function moneyReformatTyping(el) {
+  const old = NATIVE_INPUT_VALUE.get.call(el);
+  const caret = el.selectionStart ?? old.length;
+  const sigBefore = old.slice(0, caret).replace(/[^\d,\-]/g, '').length; // digit/koma sebelum kursor
+  let t = old.replace(/[^\d,\-]/g, '');
+  const neg = t.startsWith('-');
+  t = t.replace(/-/g, '');
+  const firstComma = t.indexOf(',');
+  let intPart = firstComma >= 0 ? t.slice(0, firstComma) : t;
+  const decPart = firstComma >= 0 ? t.slice(firstComma + 1).replace(/,/g, '').slice(0, 2) : null;
+  intPart = intPart.replace(/^0+(?=\d)/, '');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  const out = (neg ? '-' : '') + grouped + (decPart !== null ? ',' + decPart : '');
+  NATIVE_INPUT_VALUE.set.call(el, out);
+  let pos = 0, seen = 0;
+  while (pos < out.length && seen < sigBefore) { if (/[\d,\-]/.test(out[pos])) seen++; pos++; }
+  try { el.setSelectionRange(pos, pos); } catch (e) { /* abaikan */ }
+}
+function enhanceMoneyInput(el) {
+  if (!(el instanceof HTMLInputElement) || el.dataset.money === '1') return;
+  const raw = NATIVE_INPUT_VALUE.get.call(el);
+  el.dataset.money = '1';
+  el.type = 'text';
+  el.inputMode = 'decimal';
+  el.autocomplete = 'off';
+  if (el.defaultValue && /^-?\d+(\.\d+)?$/.test(el.defaultValue)) el.defaultValue = moneyDisplayFromValue(el.defaultValue); // untuk form.reset()
+  Object.defineProperty(el, 'value', {
+    configurable: true,
+    get() { return moneyRawFromDisplay(NATIVE_INPUT_VALUE.get.call(this)); },
+    set(v) { NATIVE_INPUT_VALUE.set.call(this, moneyDisplayFromValue(v)); },
+  });
+  el.value = raw;
+  el.addEventListener('input', () => moneyReformatTyping(el));
+}
+function enhanceMoneyInputsIn(root) {
+  if (root.matches && root.matches(MONEY_INPUT_SELECTOR)) enhanceMoneyInput(root);
+  if (root.querySelectorAll) root.querySelectorAll(MONEY_INPUT_SELECTOR).forEach(enhanceMoneyInput);
+}
+document.addEventListener('DOMContentLoaded', () => {
+  enhanceMoneyInputsIn(document.body);
+  new MutationObserver(muts => muts.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) enhanceMoneyInputsIn(n); })))
+    .observe(document.body, { childList: true, subtree: true });
+});
 
 // Terima format Y-m-d (dari <input type=date> / MySQL DATE) -> tampilkan DD/MM/YYYY
 function formatDateID(dateStr) {

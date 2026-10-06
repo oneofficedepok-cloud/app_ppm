@@ -222,6 +222,12 @@ Setiap tabel punya tombol **Atur Kolom** (kanan atas tabel): centang kolom yang 
 tabel tidak terlalu panjang ke kanan. Default semua kolom tampil; tombol **Tampilkan Semua** untuk kembali.
 Pilihan tersimpan di browser masing-masing user. Tabel PR kini juga punya kolom **Deskripsi**.
 
+### Format Rupiah
+
+Semua nilai uang tampil dalam format Rupiah (`Rp 12.500.000`, dibulatkan ke rupiah penuh di tampilan;
+nilai asli di database tetap utuh). Kolom isian uang di form (harga, diskon, budget, penjualan, pembelian,
+terbayar, nominal, dll.) otomatis diberi pemisah ribuan saat diketik: `12.500.000`, desimal pakai koma (`12.500,5`).
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:
