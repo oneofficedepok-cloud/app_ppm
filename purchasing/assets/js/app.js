@@ -2718,6 +2718,55 @@ function tfNoMatchRow(colspan) {
   return `<tr><td colspan="${colspan}" class="text-center py-8 text-slate-400 font-semibold">Tidak ada data yang cocok dengan pencarian / filter. <button onclick="this.closest('[id^=tab-content-]').querySelector('button[onclick^=tfReset]')?.click()" class="ml-1 text-indigo-600 hover:underline font-bold">Reset filter</button></td></tr>`;
 }
 
+/** Cetak semua item Seal CNC milik 1 WO (dokumen A4). */
+function printSealWO(woId) {
+  if (!woId) { showToast('Item ini belum terhubung ke WO.', 'error'); return; }
+  const items = sealItems.filter(x => Number(x.wo_id) === Number(woId));
+  if (!items.length) { showToast('Tidak ada data Seal CNC untuk WO ini.', 'error'); return; }
+  const w = workOrders.find(x => Number(x.id) === Number(woId)) || {};
+  const first = items[0];
+  const totalQty = items.reduce((t, x) => t + (Number(x.qty) || 0), 0);
+  const grand = items.reduce((t, x) => t + (Number(x.total) || 0), 0);
+  const rows = items.map((x, i) => `
+    <tr><td class="center">${i + 1}</td><td><b>${esc(x.product || '-')}</b></td><td>${esc(x.type || '-')}</td>
+    <td>${esc(x.dimensi || '-')}</td><td>${esc(x.brand || '-')}</td><td class="center">${formatQty(x.qty)}</td>
+    <td class="num">${formatRupiah(x.harga)}</td><td class="num" style="font-weight:700;">${formatRupiah(x.total)}</td></tr>`).join('');
+  const body = `
+    <div class="print-header">
+      <div><div class="company">PANCA PUTRA MADANI</div><div style="color:#64748b;">Daftar Pesanan / Produksi Seal CNC</div></div>
+      <div class="doc-no">SEAL CNC<br><span style="font-size:16px;">${esc(w.wo_number || first.wo_number || '-')}</span></div>
+    </div>
+    <div class="meta-grid">
+      <div><span class="lbl">No. WO</span> ${esc(w.wo_number || first.wo_number || '-')}</div>
+      <div><span class="lbl">Customer</span> ${esc(w.customer_nama || first.customer_nama || '-')}</div>
+      <div><span class="lbl">Nama Project</span> ${esc(w.project || first.project || '-')}</div>
+      <div><span class="lbl">No. PO Customer</span> ${esc(w.po_no || '-')}</div>
+      <div><span class="lbl">Estimasi Kirim</span> ${formatDateID(w.est_kirim)}</div>
+      <div><span class="lbl">Jumlah Item</span> ${items.length} item &middot; Qty ${formatQty(totalQty)}</div>
+    </div>
+    <h2>Rincian Item Seal CNC</h2>
+    <table>
+      <thead><tr><th style="width:28px;">No</th><th>Product Part</th><th>Type</th><th>Dimensi</th><th>Brand</th><th class="center">Qty</th><th class="num">Harga</th><th class="num">Total</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td colspan="5" class="num"><b>TOTAL</b></td><td class="center"><b>${formatQty(totalQty)}</b></td><td></td><td class="num"><b>${formatRupiah(grand)}</b></td></tr></tfoot>
+    </table>
+    <div class="sign-grid">
+      <div class="box">Dibuat Oleh</div><div class="box">Diperiksa (Produksi)</div><div class="box">Disetujui</div>
+    </div>`;
+  openPrintWindow(`Seal CNC ${w.wo_number || first.wo_number || ''}`, body);
+}
+
+/** Tombol "Print per WO" di atas tabel: pakai No WO yang dipilih di filter. */
+function printSealByFilter() {
+  const woNo = document.getElementById(tfId('seal', 'wo'))?.value || '';
+  if (!woNo || woNo === 'ALL') {
+    showToast('Pilih No WO di filter dulu, atau klik ikon print di baris item Seal-nya.', 'error');
+    return;
+  }
+  const item = sealItems.find(x => x.wo_number === woNo);
+  printSealWO(item ? item.wo_id : null);
+}
+
 function renderSealTable() {
   const tbody = document.getElementById('seal-table-tbody');
   const rows = tfApply('seal');
@@ -2736,6 +2785,7 @@ function renderSealTable() {
       <td class="py-2.5 px-4 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
           ${bulkCheckbox('seal', s.id)}
+          <button onclick="printSealWO(${s.wo_id ? Number(s.wo_id) : 'null'})" class="p-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition" title="Print semua Seal CNC WO ini"><i class="fa-solid fa-print"></i></button>
           <button onclick="openSealModal('edit', ${s.id})" class="p-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition"><i class="fa-solid fa-pen-to-square"></i></button>
           <button onclick="deleteSealItem(${s.id})" class="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition"><i class="fa-solid fa-trash-can"></i></button>
         </div>

@@ -42,7 +42,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- TOP HEADER -->
   <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex items-center justify-between h-16 gap-3">
         <!-- Kiri: logo + nama aplikasi (tidak boleh terlipat) -->
         <div class="flex items-center gap-3 min-w-0 shrink">
@@ -116,7 +116,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   <!-- NAV TAB BAR -->
   <!-- LEVEL 1: PEMILIH MODUL (Overview / Purchasing / Finance) -->
   <nav class="bg-slate-900 sticky top-16 z-20 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-2 overflow-x-auto custom-scrollbar py-2.5 text-xs font-bold">
         <button id="section-btn-overview" onclick="switchSection('overview')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
           <i class="fa-solid fa-house"></i> DASHBOARD
@@ -157,7 +157,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- LEVEL 2: SUB-MENU PURCHASING -->
   <nav id="subnav-purchasing" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('dashboard')): ?>
         <button id="tab-btn-dashboard" onclick="switchTab('dashboard')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
@@ -175,7 +175,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- LEVEL 2: SUB-MENU PRODUKSI -->
   <nav id="subnav-produksi" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('tracking')): ?>
         <button id="tab-btn-tracking" onclick="switchTab('tracking')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
@@ -193,7 +193,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- LEVEL 2: SUB-MENU MASTER DATA -->
   <nav id="subnav-masterdata" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('customers')): ?>
         <button id="tab-btn-customers" onclick="switchTab('customers')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
@@ -216,7 +216,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- LEVEL 2: SUB-MENU GUDANG & PRODUKSI -->
   <nav id="subnav-gudang" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('stok')): ?>
         <button id="tab-btn-stok" onclick="switchTab('stok')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
@@ -250,7 +250,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- LEVEL 2: SUB-MENU FINANCE -->
   <nav id="subnav-finance" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('findash')): ?>
         <button id="tab-btn-findash" onclick="switchTab('findash')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
@@ -288,7 +288,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- LEVEL 2: SUB-MENU MTC PRODUKSI -->
   <nav id="subnav-mtc" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('mtcdash')): ?>
         <button id="tab-btn-mtcdash" onclick="switchTab('mtcdash')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
@@ -309,7 +309,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
     </div>
   </nav>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+  <main class="w-full max-w-none mx-auto px-4 sm:px-6 py-6 flex-grow w-full">
     <?php if (!empty($user['weak_password'])): ?>
     <div class="mb-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-2xl p-4 flex items-start gap-2">
       <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
@@ -604,7 +604,10 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-compact-disc text-amber-500"></i> Menu Produksi & Pesanan SEAL CNC</h3>
           <p class="text-xs text-slate-400">Pencatatan item Seal CNC terikat Work Order (WO) dengan kalkulasi otomatis</p>
         </div>
-        <button onclick="openSealModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md"><i class="fa-solid fa-plus-circle"></i> + Tambah Data Seal CNC</button>
+        <div class="flex items-center gap-2">
+          <button onclick="printSealByFilter()" title="Cetak semua Seal CNC milik 1 WO (pilih No WO di filter, atau klik ikon print di baris)" class="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm"><i class="fa-solid fa-print text-slate-600"></i> Print per WO</button>
+          <button onclick="openSealModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md"><i class="fa-solid fa-plus-circle"></i> + Tambah Data Seal CNC</button>
+        </div>
       </div>
       <div id="tf-bar-seal"></div>
 

@@ -228,6 +228,13 @@ Semua nilai uang tampil dalam format Rupiah (`Rp 12.500.000`, dibulatkan ke rupi
 nilai asli di database tetap utuh). Kolom isian uang di form (harga, diskon, budget, penjualan, pembelian,
 terbayar, nominal, dll.) otomatis diberi pemisah ribuan saat diketik: `12.500.000`, desimal pakai koma (`12.500,5`).
 
+### Tampilan Lebar & Print Seal CNC per WO
+
+- Seluruh halaman memakai **lebar penuh layar** (tabel lebar lebih banyak kolom terlihat tanpa digeser).
+- **Seal CNC → Print per WO**: klik ikon printer di baris item (mencetak SEMUA item Seal milik WO tsb),
+  atau pilih *No WO* di filter lalu klik tombol **Print per WO**. Dokumen A4 berisi info WO, rincian item,
+  total qty & nilai, dan kolom tanda tangan.
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:
