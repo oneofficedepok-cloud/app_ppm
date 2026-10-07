@@ -464,3 +464,47 @@ function require_login_redirect(): array
     }
     return $user;
 }
+
+// ---------------------------------------------------------------------
+// HAPUS DATA = KHUSUS ADMIN (aturan keamanan data)
+// Semua permintaan DELETE ke api/*.php hanya boleh dilakukan akun Admin.
+// User lain yang perlu menghapus PR / WO / data lain wajib menghubungi Admin
+// (dengan persetujuan atasannya). Sebelum data dihapus, referensinya
+// (No PR, No WO, No Invoice, ...) disimpan dulu untuk log Riwayat.
+// ---------------------------------------------------------------------
+function guard_delete_request(): void
+{
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'DELETE') return;
+    $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    if (basename(dirname($_SERVER['SCRIPT_FILENAME'] ?? '')) !== 'api') return;
+
+    $user = require_login();
+    if (empty($user['is_admin'])) {
+        json_error('Menghapus data hanya boleh dilakukan Admin. Silakan hubungi Admin dengan persetujuan atasan Anda.', 403);
+    }
+
+    $map = [
+        'pr_items.php' => 'pr_items', 'work_orders.php' => 'work_orders', 'seal_items.php' => 'seal_items',
+        'transport_items.php' => 'transport_items', 'account_receivable.php' => 'account_receivable',
+        'account_payable.php' => 'account_payable', 'dana_talangan.php' => 'dana_talangan',
+        'surat_jalan.php' => 'surat_jalan', 'customers.php' => 'customers', 'suppliers.php' => 'suppliers',
+        'inventory_items.php' => 'inventory_items', 'inventory_movements.php' => 'inventory_movements',
+        'production_orders.php' => 'production_orders', 'roles.php' => 'roles',
+    ];
+    $module = $map[$script] ?? null;
+    if ($script === 'mtc.php') {
+        $module = ['records' => 'mtc_divisi_records', 'mesin' => 'mtc_master_mesin', 'mp' => 'mtc_master_mp'][$_GET['resource'] ?? ''] ?? null;
+    } elseif ($script === 'master.php') {
+        $module = 'master_' . preg_replace('/[^a-z]/', '', (string) ($_GET['type'] ?? ''));
+    } elseif ($script === 'cashflow.php') {
+        $raw = (string) ($_GET['id'] ?? '');
+        foreach (['CF-MAN-' => 'manual_cashflow', 'CF-AR-' => 'account_receivable', 'CF-AP-' => 'account_payable'] as $pre => $mod) {
+            if (str_starts_with($raw, $pre)) activity_ref_capture($mod, [(int) substr($raw, strlen($pre))]);
+        }
+        return;
+    }
+    if (!$module) return;
+    $ids = isset($_GET['id']) ? [(int) $_GET['id']] : array_map('intval', explode(',', (string) ($_GET['ids'] ?? '')));
+    activity_ref_capture($module, array_slice($ids, 0, 1000));
+}
+guard_delete_request();

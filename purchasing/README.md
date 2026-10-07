@@ -235,11 +235,17 @@ terbayar, nominal, dll.) otomatis diberi pemisah ribuan saat diketik: `12.500.00
   atau pilih *No WO* di filter lalu klik tombol **Print per WO**. Dokumen A4 berisi info WO, rincian item,
   total qty & nilai, dan kolom tanda tangan.
 
-### Riwayat PR (tanggal & approval)
+### Riwayat / Log Aplikasi & Aturan Hapus Data
 
-Di tabel PR, di bawah badge **Status** tampil *Tgl PR* (dan *Diterima* + penerima kalau RECEIVED); di bawah badge
-**Approval** tampil riwayat otomatis: **Dibuat** (tanggal-jam + akun pembuat), **Approve/Ditolak SPV**, dan
-**Approve/Ditolak Mgr** (tanggal-jam + nama akun yang menyetujui). Terisi otomatis saat aksi dilakukan.
+- **Tabel PR**: di bawah badge Approval cukup tampil approval terakhir, mis. *Approve by Manager* + tanggal-jam.
+- **Administrator → Riwayat / Log Aplikasi**: semua aktivitas tercatat otomatis (buat, ubah, approve/tolak,
+  hapus, import, terima barang, login, dll.) lengkap dengan waktu, user, modul, dan **nomor dokumen**
+  (No PR, No WO, No Invoice, No SJ, nama customer/supplier, ...). Bisa dicari per nomor, difilter per modul /
+  aksi / user / tanggal, dan diexport ke Excel. Log hanya bisa dilihat Admin dan tidak bisa diubah / dihapus.
+  Data yang dihapus tetap tercatat nomornya di log.
+- **Hapus data hanya untuk Admin**: tombol hapus (PR, WO, Seal, Transport, AR, AP, SJ, master data, stok, dll.)
+  disembunyikan untuk user non-admin dan server menolak permintaan hapus dari non-admin. User yang perlu
+  menghapus data wajib menghubungi Admin dengan persetujuan atasannya.
 
 ### Akun Saya
 

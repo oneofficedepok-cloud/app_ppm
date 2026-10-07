@@ -1063,27 +1063,17 @@ function formatDateTimeID(dt) {
 }
 
 /**
- * Riwayat PR (otomatis dari aksi di aplikasi): kapan dibuat, kapan disetujui / ditolak
- * Supervisor (tahap 1) & Manager Produksi (tahap 2), beserta nama akunnya.
+ * Info approval terakhir di bawah badge Approval (otomatis dari aksi): mis. "Approve by Manager" + tanggal.
+ * Riwayat lengkap (siapa & kapan untuk semua aksi) ada di Administrator -> Riwayat / Log Aplikasi.
  */
 function prTimelineHtml(p) {
-  const row = (icon, color, label, when, who) => `
-    <div class="flex items-start gap-1 whitespace-nowrap" title="${esc(label)}${when ? ' ' + esc(formatDateTimeID(when)) : ''}${who ? ' oleh ' + esc(who) : ''}">
-      <i class="fa-solid ${icon} ${color} text-[9px] mt-[2px] w-3 text-center"></i>
-      <span><span class="text-slate-500">${label}</span> <b class="text-slate-700">${when ? esc(formatDateTimeID(when)) : '-'}</b>${who ? `<br><span class="text-slate-400">oleh ${esc(who)}</span>` : ''}</span>
-    </div>`;
-  const rejectedAtManager = p.approval_status === 'REJECTED' && p.manager_approved_at;
-  let html = row('fa-file-circle-plus', 'text-slate-400', 'Dibuat', p.created_at, p.user_nama);
-  if (p.leader_checked_at) {
-    const rejectedHere = p.approval_status === 'REJECTED' && !rejectedAtManager;
-    html += row(rejectedHere ? 'fa-circle-xmark' : 'fa-circle-check', rejectedHere ? 'text-rose-500' : 'text-amber-500',
-      rejectedHere ? 'Ditolak SPV' : 'Approve SPV', p.leader_checked_at, p.leader_nama);
-  }
-  if (p.manager_approved_at) {
-    html += row(rejectedAtManager ? 'fa-circle-xmark' : 'fa-stamp', rejectedAtManager ? 'text-rose-500' : 'text-blue-600',
-      rejectedAtManager ? 'Ditolak Mgr' : 'Approve Mgr', p.manager_approved_at, p.manager_nama);
-  }
-  return `<div class="mt-1.5 pt-1.5 border-t border-dashed border-slate-200 text-left text-[9.5px] leading-tight space-y-1">${html}</div>`;
+  let label = '', when = '', cls = 'text-emerald-700';
+  const rejected = p.approval_status === 'REJECTED';
+  if (p.manager_approved_at) { label = rejected ? 'Ditolak by Manager' : 'Approve by Manager'; when = p.manager_approved_at; }
+  else if (p.leader_checked_at) { label = rejected ? 'Ditolak by Supervisor' : 'Approve by Supervisor'; when = p.leader_checked_at; cls = rejected ? '' : 'text-amber-700'; }
+  if (!label) return '';
+  if (rejected) cls = 'text-rose-600';
+  return `<div class="mt-1 text-[10px] leading-tight ${cls}"><div class="font-semibold">${label}</div><div class="text-slate-500">${esc(formatDateTimeID(when))}</div></div>`;
 }
 
 /** PR ini sedang menunggu approval di tahap milik user yang login? */
@@ -1206,8 +1196,7 @@ function renderPRTable() {
       </td>
       <td class="py-2.5 px-3 text-center align-top">
         <span class="px-2 py-1 rounded-full text-[10px] uppercase font-bold ${statusBadgeClass(p.status)}">${esc(p.status)}</span>
-        <div class="mt-1.5 text-[9.5px] text-slate-500 leading-tight whitespace-nowrap">Tgl PR: <b class="text-slate-700">${formatDateID(p.tanggal)}</b></div>
-        ${p.status === 'RECEIVED' && p.tgl_datang ? `<div class="text-[9.5px] text-emerald-700 leading-tight whitespace-nowrap">Diterima: <b>${formatDateID(p.tgl_datang)}</b>${p.penerima_barang ? `<br><span class="text-slate-400">oleh ${esc(p.penerima_barang)}</span>` : ''}</div>` : ''}
+        <div class="mt-1 text-[10px] text-slate-500 leading-tight whitespace-nowrap">Tgl PR: ${formatDateID(p.tanggal)}</div>
       </td>
       <td class="py-2.5 px-3 text-center align-top bg-rose-50/30">
         <span class="px-2 py-1 rounded-full text-[10px] uppercase font-bold ${approvalBadgeClass(p.approval_status)}" title="${p.approval_status === 'REJECTED' ? esc((p.leader_note || p.manager_note) ? 'Catatan: ' + (p.manager_note || p.leader_note) : '') : ''}">${approvalLabel(p.approval_status)}</span>
@@ -4664,7 +4653,102 @@ function renderMasterLists() {
 }
 
 /** Menu Administrator (khusus admin): Master User & Divisi + Role Management. */
+// ===================== RIWAYAT / LOG APLIKASI (Administrator) =====================
+const LOG_MODULE_LABELS = {
+  pr_items: 'Purchase Request (PR)', work_orders: 'Work Order (WO)', seal_items: 'Seal CNC', transport_items: 'Transportasi',
+  account_receivable: 'AR (Piutang)', account_payable: 'AP (Hutang)', dana_talangan: 'Dana Talangan', manual_cashflow: 'Cash Flow',
+  surat_jalan: 'Surat Jalan', customers: 'Customer', suppliers: 'Supplier', inventory_items: 'Stok Material',
+  inventory_movements: 'Pergerakan Stok', production_orders: 'Produksi & BOM', mtc_divisi_records: 'MTC Divisi Produksi',
+  mtc_divisi_items: 'MTC Pekerjaan', mtc_master_mesin: 'MTC Master Mesin', mtc_master_mp: 'MTC Tarif Manpower',
+  master_products: 'Master Product', master_buyers: 'Master Buyer', master_karyawan: 'Master Karyawan', master_users: 'User',
+  roles: 'Role', auth: 'Login', account: 'Akun Saya',
+  // nama tipe pada log "Import (ringkasan)"
+  ar: 'AR (Piutang)', ap: 'AP (Hutang)', sj: 'Surat Jalan', mtc: 'MTC Pekerjaan', karyawan: 'Master Karyawan',
+  products: 'Master Product', buyers: 'Master Buyer', users: 'User',
+};
+const LOG_ACTION_LABELS = {
+  create: ['Buat', 'bg-emerald-100 text-emerald-700'], update: ['Ubah', 'bg-blue-100 text-blue-700'],
+  delete: ['Hapus', 'bg-rose-100 text-rose-700'], bulk_delete: ['Hapus Massal', 'bg-rose-100 text-rose-700'],
+  import: ['Import', 'bg-teal-100 text-teal-700'], import_summary: ['Import (ringkasan)', 'bg-teal-50 text-teal-700'],
+  spv_approve: ['Approve Supervisor', 'bg-amber-100 text-amber-800'], spv_reject: ['Tolak Supervisor', 'bg-rose-100 text-rose-700'],
+  mgr_approve: ['Approve Manager', 'bg-indigo-100 text-indigo-700'], mgr_reject: ['Tolak Manager', 'bg-rose-100 text-rose-700'],
+  leader_approve: ['Approve Supervisor', 'bg-amber-100 text-amber-800'], leader_reject: ['Tolak Supervisor', 'bg-rose-100 text-rose-700'],
+  manager_approve: ['Approve Manager', 'bg-indigo-100 text-indigo-700'], manager_reject: ['Tolak Manager', 'bg-rose-100 text-rose-700'],
+  resubmit: ['Kirim Ulang', 'bg-slate-200 text-slate-700'], receive: ['Terima Barang', 'bg-emerald-100 text-emerald-700'],
+  consume: ['Pakai Material', 'bg-teal-100 text-teal-700'], stock_adjust: ['Koreksi Stok', 'bg-amber-100 text-amber-800'],
+  login: ['Login', 'bg-slate-100 text-slate-600'], logout: ['Logout', 'bg-slate-100 text-slate-600'],
+  login_failed: ['Login Gagal', 'bg-rose-50 text-rose-600'], change_password: ['Ganti Password', 'bg-slate-100 text-slate-600'],
+};
+let logFacetsLoaded = false;
+let logState = { page: 1, size: 50, total: 0 };
+let logDebounce = null;
+function debouncedLoadLog() { clearTimeout(logDebounce); logDebounce = setTimeout(() => loadActivityLog(1), 350); }
+
+function logQueryString(page, size) {
+  const v = id => encodeURIComponent(document.getElementById(id)?.value || '');
+  return `q=${v('log-q')}&module=${v('log-module')}&action=${v('log-action')}&user_id=${v('log-user')}&from=${v('log-from')}&to=${v('log-to')}&page=${page}&size=${size}`;
+}
+
+async function loadActivityLog(page = 1) {
+  const tbody = document.getElementById('log-tbody');
+  if (!tbody || !IS_ADMIN) return;
+  try {
+    if (!logFacetsLoaded) {
+      const f = await api('api/activity_log.php?action=facets');
+      document.getElementById('log-module').innerHTML = '<option value="">Semua Modul</option>' + f.modules.map(m => opt(m, LOG_MODULE_LABELS[m] || m)).join('');
+      document.getElementById('log-action').innerHTML = '<option value="">Semua Aksi</option>' + f.actions.map(a => opt(a, (LOG_ACTION_LABELS[a] || [a])[0])).join('');
+      document.getElementById('log-user').innerHTML = '<option value="">Semua User</option>' + f.users.map(u => opt(u.id, `${u.full_name} (@${u.username})`)).join('');
+      logFacetsLoaded = true;
+    }
+    tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-400"><i class="fa-solid fa-spinner fa-spin"></i> Memuat log...</td></tr>';
+    const d = await api(`api/activity_log.php?${logQueryString(page, logState.size)}`);
+    logState = { page: d.page, size: d.size, total: d.total };
+    tbody.innerHTML = d.rows.length ? d.rows.map(r => {
+      const [aLabel, aCls] = LOG_ACTION_LABELS[r.action] || [r.action, 'bg-slate-100 text-slate-600'];
+      return `<tr class="hover:bg-slate-50 align-top">
+        <td class="py-2 px-3 whitespace-nowrap font-mono text-[11px]">${esc(formatDateTimeID(r.created_at))}</td>
+        <td class="py-2 px-3 whitespace-nowrap"><div class="font-semibold">${esc(r.user_nama || '-')}</div><div class="text-[10px] text-slate-400">${r.username ? '@' + esc(r.username) : ''}</div></td>
+        <td class="py-2 px-3 whitespace-nowrap"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${aCls}">${esc(aLabel)}</span></td>
+        <td class="py-2 px-3 whitespace-nowrap">${esc(LOG_MODULE_LABELS[r.module] || r.module)}${r.record_id ? ` <span class="text-slate-400">#${r.record_id}</span>` : ''}</td>
+        <td class="py-2 px-3 min-w-[320px]">${esc(r.detail || '-')}</td>
+        <td class="py-2 px-3 whitespace-nowrap text-[10px] text-slate-400">${esc(r.ip_address || '')}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" class="py-6 text-center text-slate-400">Tidak ada log yang cocok.</td></tr>';
+    const pages = Math.max(1, Math.ceil(d.total / d.size));
+    document.getElementById('log-pager').innerHTML = `
+      <span>${d.total.toLocaleString('id-ID')} catatan &middot; halaman ${d.page} dari ${pages}</span>
+      <div class="flex items-center gap-1.5">
+        <select onchange="logState.size = Number(this.value); loadActivityLog(1)" class="p-1.5 border border-slate-300 rounded-lg bg-white">
+          ${[25, 50, 100, 200].map(n => `<option value="${n}" ${n === d.size ? 'selected' : ''}>${n} / halaman</option>`).join('')}
+        </select>
+        <button type="button" ${d.page <= 1 ? 'disabled' : ''} onclick="loadActivityLog(${d.page - 1})" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold disabled:opacity-40">&larr; Sebelumnya</button>
+        <button type="button" ${d.page >= pages ? 'disabled' : ''} onclick="loadActivityLog(${d.page + 1})" class="px-3 py-1.5 rounded-lg border border-slate-300 bg-white font-bold disabled:opacity-40">Berikutnya &rarr;</button>
+      </div>`;
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" class="py-6 text-center text-rose-600">${esc(err.message || 'Gagal memuat log.')}</td></tr>`;
+  }
+}
+
+/** Export log sesuai filter (maks 1000 baris terbaru) ke Excel. */
+async function exportActivityLog() {
+  if (typeof XLSX === 'undefined') { showToast('Library Excel belum termuat, coba lagi.', 'error'); return; }
+  try {
+    const d = await api(`api/activity_log.php?${logQueryString(1, 1000)}`);
+    if (!d.rows.length) { showToast('Tidak ada log untuk diexport.', 'error'); return; }
+    const rows = [['Waktu', 'User', 'Username', 'Aksi', 'Modul', 'ID Data', 'Data / Keterangan', 'IP'],
+      ...d.rows.map(r => [r.created_at, r.user_nama || '', r.username || '', (LOG_ACTION_LABELS[r.action] || [r.action])[0],
+        LOG_MODULE_LABELS[r.module] || r.module, r.record_id || '', r.detail || '', r.ip_address || ''])];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [18, 22, 14, 18, 22, 8, 80, 14].map(w => ({ wch: w }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Log Aplikasi');
+    XLSX.writeFile(wb, `Log_Aplikasi_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast(`Export ${d.rows.length} baris log berhasil${d.total > 1000 ? ' (1000 terbaru dari ' + d.total + ')' : ''}.`);
+  } catch (err) { showApiError(err); }
+}
+
 function renderAdminSection() {
+  loadActivityLog(logState.page || 1);
   document.getElementById('master-user-count').textContent = masterUsers.length;
   document.getElementById('master-role-count').textContent = roles.length;
 

@@ -28,6 +28,11 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
     /* Menu yang role-nya hanya boleh LIHAT: sembunyikan semua tombol tambah/edit/hapus/proses.
        (Pengaman sebenarnya tetap di server - API menolak dengan 403.) */
+    <?php if (empty($user['is_admin'])): ?>
+    /* Hapus data hanya untuk Admin (server juga menolak). */
+    [onclick^="delete"], [onclick^="bulkDelete"], input[data-bulk], input[onchange^="toggleBulkAll"],
+    div:has(> [id^="bulk-count-"]) { display: none !important; }
+    <?php endif; ?>
     .perm-readonly [onclick*="Modal('add"], .perm-readonly [onclick*="Modal('edit"],
     .perm-readonly [onclick^="openAddMasterModal"], .perm-readonly [onclick^="delete"],
     .perm-readonly [onclick^="bulkDelete"], .perm-readonly [onclick^="openCashflowModal"],
@@ -1120,6 +1125,37 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <button onclick="handleImportUpload()" id="import-upload-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-5 py-2 rounded-lg transition flex items-center justify-center gap-2 whitespace-nowrap"><i class="fa-solid fa-upload"></i> Upload & Import</button>
         </div>
         <div id="import-result-box" class="hidden text-xs rounded-lg p-3 border space-y-2"></div>
+      </div>
+
+      <!-- RIWAYAT / LOG APLIKASI (audit trail) -->
+      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3" id="log-panel">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+          <div>
+            <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2"><i class="fa-solid fa-clock-rotate-left text-indigo-600"></i> Riwayat / Log Aplikasi</h4>
+            <p class="text-[10px] text-slate-400 mt-0.5">Semua aktivitas tercatat otomatis: buat, ubah, approve, hapus, import, login. Cari berdasarkan No PR, No WO, No Invoice, No SJ, nama, dll. Log tidak bisa diubah / dihapus.</p>
+          </div>
+          <button type="button" onclick="exportActivityLog()" class="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs">
+          <div class="col-span-2"><label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Cari (No PR / No WO / No Invoice / nama ...)</label>
+            <input type="text" id="log-q" oninput="debouncedLoadLog()" placeholder="mis. P-260001 atau 246568" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Modul</label><select id="log-module" onchange="loadActivityLog(1)" class="w-full p-2 bg-white border border-slate-300 rounded-lg"><option value="">Semua Modul</option></select></div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Aksi</label><select id="log-action" onchange="loadActivityLog(1)" class="w-full p-2 bg-white border border-slate-300 rounded-lg"><option value="">Semua Aksi</option></select></div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">User</label><select id="log-user" onchange="loadActivityLog(1)" class="w-full p-2 bg-white border border-slate-300 rounded-lg"><option value="">Semua User</option></select></div>
+          <div class="grid grid-cols-2 gap-1"><div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Dari</label><input type="date" id="log-from" onchange="loadActivityLog(1)" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+            <div><label class="block text-[10px] font-bold uppercase text-slate-400 mb-0.5">Sampai</label><input type="date" id="log-to" onchange="loadActivityLog(1)" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div></div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-xs text-left">
+              <thead class="bg-slate-100 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                <tr><th class="py-2.5 px-3 whitespace-nowrap">Waktu</th><th class="py-2.5 px-3">User</th><th class="py-2.5 px-3">Aksi</th><th class="py-2.5 px-3">Modul</th><th class="py-2.5 px-3">Data / Keterangan</th><th class="py-2.5 px-3">IP</th></tr>
+              </thead>
+              <tbody id="log-tbody" class="divide-y divide-slate-100 text-slate-700"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="log-pager" class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"></div>
       </div>
     </div>
     <div id="tab-content-findash" class="hidden space-y-6">
