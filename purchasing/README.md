@@ -235,6 +235,12 @@ terbayar, nominal, dll.) otomatis diberi pemisah ribuan saat diketik: `12.500.00
   atau pilih *No WO* di filter lalu klik tombol **Print per WO**. Dokumen A4 berisi info WO, rincian item,
   total qty & nilai, dan kolom tanda tangan.
 
+### Riwayat PR (tanggal & approval)
+
+Di tabel PR, di bawah badge **Status** tampil *Tgl PR* (dan *Diterima* + penerima kalau RECEIVED); di bawah badge
+**Approval** tampil riwayat otomatis: **Dibuat** (tanggal-jam + akun pembuat), **Approve/Ditolak SPV**, dan
+**Approve/Ditolak Mgr** (tanggal-jam + nama akun yang menyetujui). Terisi otomatis saat aksi dilakukan.
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:

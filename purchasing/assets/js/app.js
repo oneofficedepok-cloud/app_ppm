@@ -1055,6 +1055,37 @@ function qtyInputValue(v, fallback = '') {
   return v === null || v === undefined || v === '' || !isFinite(n) ? fallback : n;
 }
 
+/** "2026-10-07 14:05:33" -> "07/10/2026 14:05" */
+function formatDateTimeID(dt) {
+  if (!dt) return '';
+  const [d, t = ''] = String(dt).split(' ');
+  return `${formatDateID(d)}${t ? ' ' + t.slice(0, 5) : ''}`;
+}
+
+/**
+ * Riwayat PR (otomatis dari aksi di aplikasi): kapan dibuat, kapan disetujui / ditolak
+ * Supervisor (tahap 1) & Manager Produksi (tahap 2), beserta nama akunnya.
+ */
+function prTimelineHtml(p) {
+  const row = (icon, color, label, when, who) => `
+    <div class="flex items-start gap-1 whitespace-nowrap" title="${esc(label)}${when ? ' ' + esc(formatDateTimeID(when)) : ''}${who ? ' oleh ' + esc(who) : ''}">
+      <i class="fa-solid ${icon} ${color} text-[9px] mt-[2px] w-3 text-center"></i>
+      <span><span class="text-slate-500">${label}</span> <b class="text-slate-700">${when ? esc(formatDateTimeID(when)) : '-'}</b>${who ? `<br><span class="text-slate-400">oleh ${esc(who)}</span>` : ''}</span>
+    </div>`;
+  const rejectedAtManager = p.approval_status === 'REJECTED' && p.manager_approved_at;
+  let html = row('fa-file-circle-plus', 'text-slate-400', 'Dibuat', p.created_at, p.user_nama);
+  if (p.leader_checked_at) {
+    const rejectedHere = p.approval_status === 'REJECTED' && !rejectedAtManager;
+    html += row(rejectedHere ? 'fa-circle-xmark' : 'fa-circle-check', rejectedHere ? 'text-rose-500' : 'text-amber-500',
+      rejectedHere ? 'Ditolak SPV' : 'Approve SPV', p.leader_checked_at, p.leader_nama);
+  }
+  if (p.manager_approved_at) {
+    html += row(rejectedAtManager ? 'fa-circle-xmark' : 'fa-stamp', rejectedAtManager ? 'text-rose-500' : 'text-blue-600',
+      rejectedAtManager ? 'Ditolak Mgr' : 'Approve Mgr', p.manager_approved_at, p.manager_nama);
+  }
+  return `<div class="mt-1.5 pt-1.5 border-t border-dashed border-slate-200 text-left text-[9.5px] leading-tight space-y-1">${html}</div>`;
+}
+
 /** PR ini sedang menunggu approval di tahap milik user yang login? */
 function isMyApproval(p) {
   return (p.approval_status === 'PENDING_LEADER' && CAN_APPROVE_SPV) || (p.approval_status === 'PENDING_MANAGER' && CAN_APPROVE_MGR);
@@ -1173,10 +1204,15 @@ function renderPRTable() {
         <div class="font-semibold">${esc(p.buyer_nama || '-')} / ${esc(p.karyawan_nama || p.user_nama || '-')}</div>
         <div class="text-[10px] text-slate-400">${esc(p.divisi || '-')}</div>
       </td>
-      <td class="py-2.5 px-3 text-center"><span class="px-2 py-1 rounded-full text-[10px] uppercase font-bold ${statusBadgeClass(p.status)}">${esc(p.status)}</span></td>
-      <td class="py-2.5 px-3 text-center bg-rose-50/30">
+      <td class="py-2.5 px-3 text-center align-top">
+        <span class="px-2 py-1 rounded-full text-[10px] uppercase font-bold ${statusBadgeClass(p.status)}">${esc(p.status)}</span>
+        <div class="mt-1.5 text-[9.5px] text-slate-500 leading-tight whitespace-nowrap">Tgl PR: <b class="text-slate-700">${formatDateID(p.tanggal)}</b></div>
+        ${p.status === 'RECEIVED' && p.tgl_datang ? `<div class="text-[9.5px] text-emerald-700 leading-tight whitespace-nowrap">Diterima: <b>${formatDateID(p.tgl_datang)}</b>${p.penerima_barang ? `<br><span class="text-slate-400">oleh ${esc(p.penerima_barang)}</span>` : ''}</div>` : ''}
+      </td>
+      <td class="py-2.5 px-3 text-center align-top bg-rose-50/30">
         <span class="px-2 py-1 rounded-full text-[10px] uppercase font-bold ${approvalBadgeClass(p.approval_status)}" title="${p.approval_status === 'REJECTED' ? esc((p.leader_note || p.manager_note) ? 'Catatan: ' + (p.manager_note || p.leader_note) : '') : ''}">${approvalLabel(p.approval_status)}</span>
         <div class="mt-1 flex items-center justify-center gap-1">${isMyApproval(p) ? `<input type="checkbox" ${prApproveSel.has(p.id) ? 'checked' : ''} onchange="toggleApprovePick(${p.id}, this.checked)" class="w-4 h-4 accent-emerald-600 cursor-pointer" title="Pilih untuk approval massal">` : ''}${approvalActionButton(p)}</div>
+        ${prTimelineHtml(p)}
       </td>
       <td class="py-2.5 px-3 text-center">
         ${p.lampiran ? `<a href="${esc(p.lampiran)}" target="_blank" class="text-emerald-600 hover:text-emerald-800"><i class="fa-brands fa-google-drive text-lg"></i></a>` : '<span class="text-slate-300">-</span>'}
