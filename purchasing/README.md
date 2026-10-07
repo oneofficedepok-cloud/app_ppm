@@ -247,6 +247,12 @@ terbayar, nominal, dll.) otomatis diberi pemisah ribuan saat diketik: `12.500.00
   disembunyikan untuk user non-admin dan server menolak permintaan hapus dari non-admin. User yang perlu
   menghapus data wajib menghubungi Admin dengan persetujuan atasannya.
 
+### Freeze Kolom Tabel
+
+Saat tabel digeser ke kanan, kolom kiri tetap diam: PR (sampai No PR), Transportasi / WO & Budget / Seal CNC
+(sampai No. WO), Cash Flow (sampai Kode), AR (sampai Customer), Dashboard MTC (sampai Customer & No PO).
+Lebar & posisi dihitung otomatis (ikut menyesuaikan kalau ada kolom yang disembunyikan lewat Atur Kolom).
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:

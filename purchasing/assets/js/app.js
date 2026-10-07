@@ -2304,16 +2304,67 @@ function colApply(name) {
   let style = document.getElementById(`colstyle-${name}`);
   if (!style) { style = document.createElement('style'); style.id = `colstyle-${name}`; document.head.appendChild(style); }
   style.textContent = idx.map(i => `#${table.id} > thead > tr > :nth-child(${i}), #${table.id} > tbody > tr > :nth-child(${i}) { display: none; }`).join('\n');
+  requestAnimationFrame(() => applyFreeze(name));
   const btn = document.getElementById(`coltool-btn-${name}`);
   if (btn) {
     const total = colHeaders(name).length - 1;
     btn.innerHTML = `<i class="fa-solid fa-table-columns"></i> Atur Kolom${idx.length ? ` <span class="px-1.5 rounded bg-indigo-600 text-white">${total - idx.length}/${total}</span>` : ''}`;
   }
 }
+// ===================== FREEZE KOLOM (kolom kiri tidak ikut tergeser) =====================
+// Kolom dari paling kiri SAMPAI kolom berjudul ini tetap diam saat tabel digeser ke kanan.
+const FREEZE_UNTIL = {
+  pr: 'No PR', transport: 'No. WO', wo: 'No. WO', seal: 'No. WO',
+  cashflow: 'Kode', ar: 'Customer', mtcdash: 'Customer & No PO',
+};
+const normHead = t => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+/** Warna latar SOLID untuk sel beku (warna semi-transparan dicampur dengan putih supaya isi di belakangnya tidak tembus). */
+function opaqueBg(el) {
+  for (let e = el; e && e !== document.body; e = e.parentElement) {
+    const m = getComputedStyle(e).backgroundColor.match(/rgba?\(([^)]+)\)/);
+    if (!m) continue;
+    const [r, g, b, a = 1] = m[1].split(/[\s,\/]+/).filter(Boolean).map(Number);
+    if (!a) continue;
+    const mix = c => Math.round(c * a + 255 * (1 - a));
+    return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+  }
+  return '#ffffff';
+}
+/** Hitung posisi kiri tiap kolom beku dari lebar kolom yang tampil, lalu pasang CSS sticky. */
+function applyFreeze(name) {
+  const until = FREEZE_UNTIL[name];
+  const table = colTable(name);
+  if (!until || !table || !table.tHead) return;
+  if (!table.id) table.id = `tbl-${name}`;
+  const row = table.tHead.rows[table.tHead.rows.length - 1];
+  const cells = [...row.cells];
+  const last = cells.findIndex(th => normHead(th.textContent) === normHead(until));
+  let style = document.getElementById(`freeze-${name}`);
+  if (!style) { style = document.createElement('style'); style.id = `freeze-${name}`; document.head.appendChild(style); }
+  if (last < 0) { style.textContent = ''; return; }
+  const id = `#${table.id}`;
+  const body = `${id} > tbody > tr:not(:has(> td[colspan]))`;
+  let left = 0, css = '', lastVisible = -1;
+  for (let i = 0; i <= last; i++) if (cells[i].offsetWidth > 0) lastVisible = i;
+  for (let i = 0; i <= last; i++) {
+    const w = cells[i].offsetWidth;
+    if (!w) continue; // kolom disembunyikan lewat "Atur Kolom"
+    const n = i + 1;
+    const shadow = i === lastVisible ? 'box-shadow: 3px 0 6px -2px rgba(15,23,42,.18);' : '';
+    css += `${id} > thead > tr > :nth-child(${n}) { position: sticky; left: ${left}px; z-index: 21; background-color: ${opaqueBg(cells[i])}; ${shadow} }\n`;
+    css += `${body} > :nth-child(${n}) { position: sticky; left: ${left}px; z-index: 11; background-color: #ffffff; ${shadow} }\n`;
+    css += `${body}:hover > :nth-child(${n}) { background-color: #f8fafc; }\n`;
+    left += w;
+  }
+  style.textContent = css;
+}
+window.addEventListener('resize', () => Object.keys(FREEZE_UNTIL).forEach(n => applyFreeze(n)));
+
 function ensureColumnTool(name) {
   const table = colTable(name);
   if (!table) return;
   colApply(name); // header bisa dibangun ulang (mis. Dashboard MTC) - hitung ulang posisinya
+  requestAnimationFrame(() => applyFreeze(name)); // setelah baris baru selesai digambar
   if (colToolReady[name]) return;
   colToolReady[name] = true;
   const scroller = table.parentElement && /overflow/.test(table.parentElement.className) ? table.parentElement : table;
