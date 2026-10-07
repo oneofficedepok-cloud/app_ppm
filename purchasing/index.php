@@ -1268,7 +1268,13 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
       </div>
 
       <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5">
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+          <div><label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Dari Tanggal</label>
+            <input type="date" id="filter-cf-from" onchange="renderCashflowTable()" class="w-full text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-slate-50">
+          </div>
+          <div><label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Sampai Tanggal</label>
+            <input type="date" id="filter-cf-to" onchange="renderCashflowTable()" class="w-full text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-slate-50">
+          </div>
           <div><label class="block text-[10px] font-bold uppercase text-slate-500 mb-0.5">Bulan</label>
             <select id="filter-cf-month" onchange="renderCashflowTable()" class="w-full text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-slate-50">
               <option value="ALL">Semua Bulan</option><option value="1">Januari</option><option value="2">Februari</option><option value="3">Maret</option><option value="4">April</option><option value="5">Mei</option><option value="6">Juni</option><option value="7">Juli</option><option value="8">Agustus</option><option value="9">September</option><option value="10">Oktober</option><option value="11">November</option><option value="12">Desember</option>
@@ -1300,6 +1306,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           </div>
         </div>
         <div class="flex items-center justify-end pt-2 border-t border-slate-100 text-xs text-slate-500 font-medium">
+          <button type="button" onclick="resetCashflowFilters()" class="mr-auto text-rose-600 font-bold hover:underline"><i class="fa-solid fa-rotate-left mr-1"></i>Reset Filter</button>
           Total Record: <span id="cf-record-count" class="font-bold text-slate-800 ml-1">0</span>
         </div>
       </div>
@@ -1311,7 +1318,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
               <tr>
                 <th class="py-3 px-3 text-center sticky left-0 z-20 bg-slate-800 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">Aksi</th>
                 <th class="py-3 px-3">Tanggal</th><th class="py-3 px-3">Kode</th><th class="py-3 px-3">Deskripsi</th>
-                <th class="py-3 px-3">Cust/Supp/PIC</th><th class="py-3 px-3">WO</th><th class="py-3 px-3">No PO</th>
+                <th class="py-3 px-3">Cust/Supp/PIC</th><th class="py-3 px-3">WO</th><th class="py-3 px-3">No Invoice / No PO</th>
                 <th class="py-3 px-3 text-right">DPP & PPh23</th><th class="py-3 px-3 text-right">Debit (Masuk)</th>
                 <th class="py-3 px-3 text-right">Kredit (Keluar)</th><th class="py-3 px-3 text-right">Saldo</th>
                 <th class="py-3 px-3 text-center">Status</th>

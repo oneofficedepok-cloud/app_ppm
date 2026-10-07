@@ -2318,12 +2318,20 @@ const FREEZE_UNTIL = {
   cashflow: 'Kode', ar: 'Customer', mtcdash: 'Customer & No PO',
 };
 const normHead = t => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-/** Warna latar SOLID untuk sel beku (warna semi-transparan dicampur dengan putih supaya isi di belakangnya tidak tembus). */
+/**
+ * Warna latar SOLID untuk sel beku. Warna dibaca lewat canvas (mendukung semua format CSS,
+ * termasuk oklch dari Tailwind), yang semi-transparan dicampur putih supaya isi di belakangnya tidak tembus.
+ */
+const _bgCanvas = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
 function opaqueBg(el) {
   for (let e = el; e && e !== document.body; e = e.parentElement) {
-    const m = getComputedStyle(e).backgroundColor.match(/rgba?\(([^)]+)\)/);
-    if (!m) continue;
-    const [r, g, b, a = 1] = m[1].split(/[\s,\/]+/).filter(Boolean).map(Number);
+    const css = getComputedStyle(e).backgroundColor;
+    if (!css || css === 'transparent') continue;
+    _bgCanvas.clearRect(0, 0, 1, 1);
+    _bgCanvas.fillStyle = '#000'; _bgCanvas.fillStyle = css;
+    _bgCanvas.fillRect(0, 0, 1, 1);
+    const [r, g, b, a255] = _bgCanvas.getImageData(0, 0, 1, 1).data;
+    const a = a255 / 255;
     if (!a) continue;
     const mix = c => Math.round(c * a + 255 * (1 - a));
     return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
@@ -5495,6 +5503,12 @@ function cfStatusBadgeClass(status) {
   return 'bg-amber-100 text-amber-700';
 }
 
+function resetCashflowFilters() {
+  ['filter-cf-from', 'filter-cf-to', 'filter-cf-search'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['filter-cf-month', 'filter-cf-year', 'filter-cf-kode', 'filter-cf-tp', 'filter-cf-status'].forEach(id => { const el = document.getElementById(id); if (el) el.value = 'ALL'; });
+  renderCashflowTable();
+}
+
 function renderCashflowTable() {
   const tbody = document.getElementById('cashflow-tbody');
   if (!tbody) return;
@@ -5505,8 +5519,13 @@ function renderCashflowTable() {
   const kodeVal = document.getElementById('filter-cf-kode')?.value || 'ALL';
   const tpVal = document.getElementById('filter-cf-tp')?.value || 'ALL';
   const statusVal = document.getElementById('filter-cf-status')?.value || 'ALL';
+  const fromVal = document.getElementById('filter-cf-from')?.value || '';
+  const toVal = document.getElementById('filter-cf-to')?.value || '';
 
   const filtered = cashflowCombined.filter(c => {
+    const tgl = String(c.tanggal || '').slice(0, 10);
+    if (fromVal && (!tgl || tgl < fromVal)) return false; // filter rentang tanggal (Dari - Sampai)
+    if (toVal && (!tgl || tgl > toVal)) return false;
     const matchKeyword = !search ||
       (c.deskripsi || '').toLowerCase().includes(search) ||
       (c.invoice || '').toLowerCase().includes(search) ||
@@ -5540,7 +5559,10 @@ function renderCashflowTable() {
       <td class="py-2.5 px-3 font-medium text-slate-800">${esc(c.deskripsi)}</td>
       <td class="py-2.5 px-3 text-slate-600">${esc(c.pic)}</td>
       <td class="py-2.5 px-3 text-blue-600 font-semibold">${esc(c.wo)}</td>
-      <td class="py-2.5 px-3">${esc(c.po)}</td>
+      <td class="py-2.5 px-3 text-[11px] whitespace-nowrap">
+        <div><span class="text-slate-400">INV:</span> <span class="font-semibold">${esc(c.invoice || '-')}</span></div>
+        <div><span class="text-slate-400">PO:</span> <span class="font-semibold">${esc(c.po || '-')}</span></div>
+      </td>
       <td class="py-2.5 px-3 text-right text-[11px]">
         <div>DPP: ${formatRupiah(c.dpp)}</div>
         <div class="text-indigo-600">PPh23: ${formatRupiah(c.pph23)}</div>
