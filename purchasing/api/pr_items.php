@@ -85,6 +85,9 @@ if ($method === 'POST' && $action === 'receive') {
     // Approval PR: cukup boleh MELIHAT menu PR + punya izin approval (dicek di handler-nya),
     // jadi Supervisor / Manager Produksi tidak perlu hak ubah data PR.
     require_view(['dashboard']);
+} elseif ($method === 'PUT' && can_view(current_user(), ['dashboard']) && can_proses_pr(current_user())) {
+    // Staff / Manager Purchasing cukup boleh MELIHAT menu PR untuk memproses PR;
+    // kolom yang boleh diubah dibatasi pr_apply_field_rules() (hanya bagian Purchasing).
 } else {
     // Baca: menu PR + menu yang memakai data PR (Incoming/Receiving Gudang,
     // biaya aktual WO, Finance Dashboard). Ubah & approval: menu PR.

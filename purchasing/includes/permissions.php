@@ -59,7 +59,7 @@ const APP_CAPABILITIES = [
     'cap_pr_proses' => [
         'label' => 'Proses PR (Staff Purchasing)',
         'short' => 'PROSES PR',
-        'desc'  => 'Boleh mengisi / mengubah bagian Purchasing di PR: Harga, PPN, No PO, No Invoice, Supplier, Tanggal Beli/Datang, Penerima, Status PR, Buyer, Lampiran & Deskripsi. Bagian barang (No Item, Produk, Type, Dimensi, Brand, Qty, Satuan) tetap hanya bisa diubah pembuat PR.',
+        'desc'  => 'Boleh mengisi / mengubah bagian Purchasing di PR: Harga, PPN, No PO, No Invoice, Supplier, Tanggal Beli/Datang, Penerima, Status PR, Buyer, Lampiran & Deskripsi. Bagian barang (No Item, Produk, Type, Dimensi, Brand, Qty, Satuan) tetap hanya bisa diubah pembuat PR. Role bernama Purchasing / Buyer otomatis mendapat izin ini.',
     ],
     'cap_pr_approve_spv' => [
         'label' => 'Approval PR Tahap 1 (Supervisor)',

@@ -130,6 +130,13 @@ function load_user(string $where, array $params, bool $withPassword = false): ?a
     // access : {"menu": "view"|"edit"}        (dikirim ke browser untuk tampilan menu)
     // modules: modul level-1 yang punya minimal 1 menu boleh dilihat
     $user['perms'] = $user['is_admin'] ? full_permissions() : parse_permissions($user['modules'] ?? '');
+    // Staff / Manager Purchasing & Buyer yang bisa membuka menu PR otomatis boleh
+    // memproses PR (isi Harga s/d Deskripsi), walau centang "Proses PR" belum diberikan.
+    if (!$user['is_admin'] && empty($user['perms']['cap_pr_proses'])
+        && ($user['perms']['dashboard'] ?? PERM_NONE) >= PERM_VIEW
+        && preg_match('/purchas|buyer|pembelian/i', $user['role'] . ' ' . $user['role_label'])) {
+        $user['perms']['cap_pr_proses'] = PERM_VIEW;
+    }
     $user['access'] = permissions_for_client($user['perms']);
     $user['modules'] = visible_modules($user['perms']);
     return $user;

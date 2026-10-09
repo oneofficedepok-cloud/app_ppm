@@ -1157,7 +1157,7 @@ function renderPRTable() {
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
           <button onclick="printPR('${esc(p.pr_number)}')" class="p-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition" title="Print PR"><i class="fa-solid fa-print"></i></button>
-          ${canEditPR(p) ? `<button onclick="openModal('edit', ${p.id})" class="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition" title="${CAN_PROSES_PR && !IS_ADMIN && Number(p.user_id) !== Number(currentUser?.id) ? 'Proses (isi harga, PO, supplier, status)' : 'Edit'}"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
+          ${canEditPR(p) ? `<button onclick="openPREdit(${p.id})" class="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition" title="${CAN_PROSES_PR && !IS_ADMIN && Number(p.user_id) !== Number(currentUser?.id) ? 'Proses (isi harga, PO, supplier, status)' : 'Edit'}"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
           <button onclick="deletePRItem(${p.id})" class="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition" title="Hapus"><i class="fa-solid fa-trash-can"></i></button>
         </div>
       </td>
@@ -1495,8 +1495,11 @@ let prFormLock = { req: true, pur: true };
 
 /** Boleh membuka Edit PR: pembuatnya, Staff Purchasing, atau Admin. */
 function canEditPR(p) {
-  return IS_ADMIN || CAN_PROSES_PR || (currentUser && Number(p.user_id) === Number(currentUser.id));
+  return IS_ADMIN || CAN_PROSES_PR || (canEdit('dashboard') && currentUser && Number(p.user_id) === Number(currentUser.id));
 }
+// Nama fungsi sengaja beda dari openModal('edit'...) supaya tombol Proses PR tetap tampil
+// untuk Purchasing yang menu PR-nya hanya "Lihat" (CSS .perm-readonly).
+function openPREdit(id) { openModal('edit', id); }
 function setPRFieldLocked(el, locked) {
   if (!el) return;
   el.disabled = locked;
