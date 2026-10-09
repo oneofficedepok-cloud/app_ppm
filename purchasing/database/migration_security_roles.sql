@@ -105,3 +105,13 @@ UPDATE `roles` SET `modules` = CONCAT(COALESCE(NULLIF(`modules`, ''), 'dashboard
 UPDATE `roles` SET `modules` = CONCAT(COALESCE(NULLIF(`modules`, ''), 'dashboard:view'), ',cap_pr_approve_mgr:view')
   WHERE `role_key` = 'manager_produksi' AND COALESCE(`modules`, '') NOT LIKE '%cap_pr_approve_mgr%'
     AND (SELECT COUNT(*) FROM (SELECT `id` FROM `roles` WHERE `modules` LIKE '%cap_pr_approve_mgr%') AS t) = 0;
+
+-- ---------------------------------------------------------
+-- 6. Proses PR (Staff Purchasing): yang boleh mengisi Harga, PO, Supplier, Status, dll.
+--    Pembuat PR hanya mengisi data barang. Diberikan SEKALI ke Staff Purchasing,
+--    Buyer & Manager Purchasing (saat belum ada role yang memiliki izin ini).
+-- ---------------------------------------------------------
+UPDATE `roles` SET `modules` = CONCAT(COALESCE(NULLIF(`modules`, ''), 'dashboard:edit'), ',cap_pr_proses:view')
+  WHERE `role_key` IN ('staff_purchasing', 'buyer', 'manager_purchasing')
+    AND COALESCE(`modules`, '') NOT LIKE '%cap_pr_proses%'
+    AND (SELECT COUNT(*) FROM (SELECT `id` FROM `roles` WHERE `modules` LIKE '%cap_pr_proses%') AS t) = 0;

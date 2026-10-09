@@ -1157,7 +1157,7 @@ function renderPRTable() {
       <td class="py-2.5 px-3 text-center sticky left-0 z-10 bg-white group-hover:bg-slate-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
         <div class="flex items-center justify-center space-x-1">
           <button onclick="printPR('${esc(p.pr_number)}')" class="p-1.5 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition" title="Print PR"><i class="fa-solid fa-print"></i></button>
-          <button onclick="openModal('edit', ${p.id})" class="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>
+          ${canEditPR(p) ? `<button onclick="openModal('edit', ${p.id})" class="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition" title="${CAN_PROSES_PR && !IS_ADMIN && Number(p.user_id) !== Number(currentUser?.id) ? 'Proses (isi harga, PO, supplier, status)' : 'Edit'}"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
           <button onclick="deletePRItem(${p.id})" class="p-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition" title="Hapus"><i class="fa-solid fa-trash-can"></i></button>
         </div>
       </td>
@@ -1422,7 +1422,7 @@ function addPRItemBlock(data = null) {
     block.querySelector('.pri-uom').value = data.uom || '';
     block.querySelector('.pri-harga').value = data.harga;
     block.querySelector('.pri-is-ppn').checked = !!Number(data.is_ppn);
-    block.querySelector('.pri-ppn-rate').value = data.ppn_rate;
+    block.querySelector('.pri-ppn-rate').value = String(Number(data.ppn_rate) || 11); // DB "11.00" -> opsi "11"
     block.querySelector('.pri-po').value = data.po_number || '';
     block.querySelector('.pri-invoice').value = data.invoice_number || '';
     block.querySelector('.pri-supplier').value = data.supplier_id || '';
@@ -1439,6 +1439,7 @@ function addPRItemBlock(data = null) {
 
   calcPRItemBlockTotal(block.querySelector('.pri-qty'));
   updatePRItemLabelsAndButtons();
+  applyPRFormLocks();
   return block;
 }
 
@@ -1482,6 +1483,65 @@ function calcPRItemBlockTotal(el) {
   block.querySelector('.pri-total').value = formatRupiah(total);
 }
 
+// ===================== HAK ISI FORM PR (seperti ERP) =====================
+// Pembuat PR mengisi data barang; Staff Purchasing (izin "Proses PR") mengisi harga s/d deskripsi.
+// Pembuat tidak bisa mengisi bagian Purchasing, Purchasing tidak bisa mengubah data barang,
+// dan selain pembuat PR tidak ada yang bisa mengubah data barang (kecuali Admin). Server menegakkan hal yang sama.
+const CAN_PROSES_PR = IS_ADMIN || !!USER_ACCESS.cap_pr_proses;
+const PR_REQ_SEL = '.pri-item-no, .pri-product, .pri-type, .pri-dimensi, .pri-brand, .pri-qty, .pri-uom';
+const PR_PUR_SEL = '.pri-harga, .pri-is-ppn, .pri-ppn-rate, .pri-po, .pri-invoice, .pri-supplier, .pri-tgl-beli, .pri-tgl-datang, .pri-penerima, .pri-status, .pri-buyer, .pri-lampiran, .pri-keterangan';
+const PR_REQ_HEADER_IDS = ['form-sheet', 'form-pr', 'form-tanggal', 'form-atasan-select', 'form-manager-select', 'form-wo-select'];
+let prFormLock = { req: true, pur: true };
+
+/** Boleh membuka Edit PR: pembuatnya, Staff Purchasing, atau Admin. */
+function canEditPR(p) {
+  return IS_ADMIN || CAN_PROSES_PR || (currentUser && Number(p.user_id) === Number(currentUser.id));
+}
+function setPRFieldLocked(el, locked) {
+  if (!el) return;
+  el.disabled = locked;
+  el.classList.toggle('opacity-60', locked);
+  el.classList.toggle('cursor-not-allowed', locked);
+}
+function applyPRFormLocks() {
+  const { req, pur } = prFormLock;
+  document.querySelectorAll('#pr-items-container .pri-block').forEach(block => {
+    block.querySelectorAll(PR_REQ_SEL).forEach(el => setPRFieldLocked(el, !req));
+    block.querySelectorAll(PR_PUR_SEL).forEach(el => setPRFieldLocked(el, !pur));
+    if (!req) block.querySelector('.pri-remove-btn')?.classList.add('hidden');
+    const purBox = block.querySelector('.pri-harga')?.closest('.space-y-2');
+    let note = block.querySelector('.pri-pur-note');
+    if (!pur && purBox && !note) {
+      note = document.createElement('div');
+      note.className = 'pri-pur-note text-[10px] font-bold text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-2.5 py-1.5';
+      note.innerHTML = '<i class="fa-solid fa-lock mr-1"></i>Bagian Harga s/d Deskripsi diisi oleh Staff Purchasing.';
+      purBox.before(note);
+    }
+  });
+  PR_REQ_HEADER_IDS.forEach(id => setPRFieldLocked(document.getElementById(id), !req));
+  const autoBtn = document.querySelector('#form-pr + button, #form-pr ~ button');
+  if (autoBtn) autoBtn.classList.toggle('hidden', !req);
+  setPRFieldLocked(document.getElementById('form-buyer-header-select'), !pur);
+  document.getElementById('pr-add-item-btn')?.classList.toggle('hidden', !req);
+  const banner = document.getElementById('pr-lock-note');
+  if (banner) {
+    const msg = !req && pur ? '<i class="fa-solid fa-circle-info mr-1"></i>Anda memproses PR ini sebagai <b>Staff Purchasing</b>: data barang (No Item, Produk, Type, Dimensi, Brand, Qty, Satuan) hanya bisa diubah oleh pembuat PR.'
+      : req && !pur ? '<i class="fa-solid fa-circle-info mr-1"></i>Isi data barang yang diminta. Harga, PO, Supplier, Status dan Deskripsi akan diisi oleh <b>Staff Purchasing</b>.'
+      : '';
+    banner.innerHTML = msg;
+    banner.className = msg ? 'text-[11px] rounded-lg px-3 py-2 border bg-indigo-50 border-indigo-200 text-indigo-800' : 'hidden';
+  }
+}
+
+/** User Peminta = akun yang membuat PR (otomatis, tidak bisa dipilih). */
+function setPRRequester(name, divisi) {
+  document.getElementById('form-peminta').value = name || '-';
+  document.getElementById('form-divisi').value = divisi || '';
+  // Hubungkan ke Master Karyawan kalau namanya sama (untuk cetak & laporan lama).
+  const k = karyawanList.find(x => (x.nama || '').trim().toUpperCase() === String(name || '').trim().toUpperCase());
+  document.getElementById('form-karyawan-select').value = k ? k.id : '';
+}
+
 async function openModal(mode, id = null) {
   document.getElementById('pr-form').reset();
   document.getElementById('form-id').value = '';
@@ -1494,17 +1554,21 @@ async function openModal(mode, id = null) {
   if (mode === 'add') {
     title.textContent = 'Form Purchasing Request (PR) - Tambah Baru';
     document.getElementById('form-tanggal').value = new Date().toISOString().slice(0, 10);
+    prFormLock = { req: true, pur: CAN_PROSES_PR };
+    setPRRequester(currentUser?.full_name || currentUser?.username, currentUser?.divisi);
     await autoGeneratePRNumber();
     addPRItemBlock();
   } else {
     const p = prItems.find(x => x.id === id);
     if (!p) return;
     title.textContent = `Edit Purchasing Request - ${p.pr_number}`;
+    prFormLock = { req: IS_ADMIN || (currentUser && Number(p.user_id) === Number(currentUser.id)), pur: CAN_PROSES_PR };
 
     document.getElementById('form-id').value = p.id;
     document.getElementById('form-sheet').value = p.sheet;
     document.getElementById('form-pr').value = p.pr_number;
     document.getElementById('form-tanggal').value = p.tanggal;
+    document.getElementById('form-peminta').value = p.user_nama || p.karyawan_nama || '-';
     document.getElementById('form-karyawan-select').value = p.karyawan_id || '';
     document.getElementById('form-atasan-select').value = p.atasan_karyawan_id || '';
     document.getElementById('form-manager-select').value = p.manager_karyawan_id || '';
@@ -1520,6 +1584,7 @@ async function openModal(mode, id = null) {
     addPRItemBlock(p);
   }
 
+  applyPRFormLocks();
   document.getElementById('pr-modal').classList.remove('hidden');
 }
 

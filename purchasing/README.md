@@ -253,6 +253,20 @@ Saat tabel digeser ke kanan, kolom kiri tetap diam: PR (sampai No PR), Transport
 (sampai No. WO), Cash Flow (sampai Kode), AR (sampai Customer), Dashboard MTC (sampai Customer & No PO).
 Lebar & posisi dihitung otomatis (ikut menyesuaikan kalau ada kolom yang disembunyikan lewat Atur Kolom).
 
+### Alur Isi PR seperti ERP (Pembuat vs Staff Purchasing)
+
+- **User / Peminta** otomatis = akun yang login & membuat PR (tidak bisa dipilih), Divisi ikut akun tsb.
+- **Pembuat PR** hanya mengisi data barang: No Item, Nama Produk, Type, Dimensi, Brand, Qty, Satuan (+ Kategori,
+  Tanggal, WO, Atasan/Manager). Bagian Harga s/d Deskripsi terkunci.
+- **Staff Purchasing** (izin *Proses PR* di Role Management → Akses Data Sensitif) mengisi Harga, PPN, No PO,
+  No Invoice, Supplier, Tanggal Beli/Datang, Penerima, Status, Buyer, Lampiran & Deskripsi — tetapi tidak bisa
+  mengubah data barang isian pembuat.
+- Selain pembuat PR, Staff Purchasing, dan Admin tidak bisa membuka Edit PR. Aturan ditegakkan juga di server.
+- Purchasing mengisi harga/PO/status **tidak** mereset approval; pembuat yang mengubah data barang setelah
+  disetujui Supervisor → PR dikirim ulang untuk approval.
+- Jalankan ulang `database/migration_security_roles.sql`: izin *Proses PR* otomatis diberikan ke Staff Purchasing,
+  Buyer & Manager Purchasing.
+
 ### Akun Saya
 
 Semua user (role apapun) punya tombol **Akun Saya** di kanan atas untuk:

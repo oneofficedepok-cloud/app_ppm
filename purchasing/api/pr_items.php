@@ -5,6 +5,55 @@ require_once __DIR__ . '/../includes/pr_functions.php';
 $method = http_method();
 $pdo = db();
 
+/** Kolom PR yang diisi PEMBUAT PR (user peminta). Hanya pembuat PR (atau Admin) yang boleh mengubah. */
+const PR_REQUESTER_FIELDS = ['sheet', 'tanggal', 'pr_number', 'item_no', 'wo_id', 'project', 'product', 'type', 'dimensi',
+    'brand', 'qty', 'uom', 'karyawan_id', 'atasan_karyawan_id', 'manager_karyawan_id', 'divisi'];
+/** Kolom PR yang diisi STAFF PURCHASING (izin "Proses PR"). Pembuat PR tidak bisa mengisi bagian ini. */
+const PR_PURCHASING_FIELDS = ['harga', 'is_ppn', 'ppn_rate', 'po_number', 'invoice_number', 'supplier_id', 'tgl_beli',
+    'tgl_datang', 'penerima_barang', 'status', 'buyer_id', 'lampiran', 'keterangan'];
+
+function can_proses_pr(array $user): bool
+{
+    return !empty($user['is_admin']) || user_level($user, 'cap_pr_proses') >= PERM_VIEW;
+}
+
+/**
+ * Terapkan aturan siapa-mengisi-apa ke input PR (seperti ERP):
+ * - PR baru: pembuat = user login; bagian Purchasing hanya terisi kalau user punya izin Proses PR.
+ * - Edit: bagian pembuat hanya oleh pembuat PR / Admin, bagian Purchasing hanya oleh Staff Purchasing / Admin.
+ *   Bagian yang tidak boleh diubah diambil dari data lama (input dari browser diabaikan).
+ * Return [$b, $requesterChanged].
+ */
+function pr_apply_field_rules(array $b, array $user, ?array $row): array
+{
+    $isAdmin = !empty($user['is_admin']);
+    $canPur = can_proses_pr($user);
+    if ($row === null) {
+        $b['user_id'] = (int) $user['id'];
+        if (trim((string) ($b['divisi'] ?? '')) === '') $b['divisi'] = $user['divisi'] ?? ''; // divisi pembuat PR
+        if (!$canPur) {
+            foreach (PR_PURCHASING_FIELDS as $f) $b[$f] = null;
+            $b['status'] = 'ON PROSES';
+            $b['ppn_rate'] = 11;
+        }
+        return [$b, true];
+    }
+    $isCreator = $row['user_id'] !== null && (int) $row['user_id'] === (int) $user['id'];
+    $canReq = $isAdmin || $isCreator;
+    if (!$canReq && !$canPur) {
+        json_error('PR ini hanya bisa diubah oleh pembuatnya atau Staff Purchasing. Hubungi Admin bila perlu.', 403);
+    }
+    $changed = false;
+    foreach (PR_REQUESTER_FIELDS as $f) {
+        if (!$canReq) { $b[$f] = $row[$f]; continue; }
+        if ((string) ($b[$f] ?? '') !== (string) ($row[$f] ?? '') && !in_array($f, ['qty'], true)) $changed = true;
+        if ($f === 'qty' && abs((float) ($b[$f] ?? 0) - (float) $row[$f]) > 0.0005) $changed = true;
+    }
+    if (!$canPur) foreach (PR_PURCHASING_FIELDS as $f) $b[$f] = $row[$f];
+    $b['user_id'] = $row['user_id'] ?? ($isCreator ? (int) $user['id'] : null); // pembuat PR tidak pernah berubah
+    return [$b, $changed];
+}
+
 /**
  * Customer PR selalu mengikuti WO yang dipilih (kolom "Nama Customer (Auto)" di form).
  * Tanpa WO: pakai customer_id yang dikirim, atau (saat edit) pertahankan yang lama.
@@ -258,6 +307,7 @@ switch ($method) {
 
         // ============= TAMBAH PR BARU (alur normal) =============
         $b = get_json_input();
+        [$b] = pr_apply_field_rules($b, current_user(), null);
 
         $prNumber = clean_str(arr_val($b, 'pr_number', ''));
         $tanggal  = arr_val($b, 'tanggal');
@@ -340,22 +390,26 @@ switch ($method) {
             json_error('ID dan No. PR wajib diisi.', 422);
         }
 
+        $currentUser = current_user();
+        $curStmt = $pdo->prepare('SELECT * FROM pr_items WHERE id = :id');
+        $curStmt->execute([':id' => $id]);
+        $curRow = $curStmt->fetch();
+        if (!$curRow) json_error('Data PR tidak ditemukan.', 404);
+
+        // Bagian pembuat vs bagian Purchasing (yang tidak boleh diubah user ini diambil dari data lama).
+        [$b, $requesterChanged] = pr_apply_field_rules($b, $currentUser, $curRow);
+        $prNumber = clean_str(arr_val($b, 'pr_number', ''));
+
         $qty   = to_float(arr_val($b, 'qty', 0));
         $harga = to_float(arr_val($b, 'harga', 0));
         $isPpn = (bool) arr_val($b, 'is_ppn', false);
         $ppnRate = to_float(arr_val($b, 'ppn_rate', 11));
         [$dpp, $ppnAmount, $total] = calc_ppn($qty, $harga, $isPpn, $ppnRate);
 
-        // Kalau data PR yang SUDAH LEWAT tahap cek Leader diubah oleh bukan-admin,
-        // kirim ulang ke antrian review dari awal — supaya tidak ada celah
-        // mengubah harga/qty diam-diam setelah disetujui.
-        $currentUser = current_user();
-        $curStmt = $pdo->prepare('SELECT approval_status FROM pr_items WHERE id = :id');
-        $curStmt->execute([':id' => $id]);
-        $curRow = $curStmt->fetch();
-        if (!$curRow) json_error('Data PR tidak ditemukan.', 404);
-
-        $resetApproval = empty($currentUser['is_admin'])
+        // Kalau isi permintaan barang (produk/qty/dll.) diubah setelah PR lewat tahap Supervisor
+        // oleh bukan-admin, PR dikirim ulang untuk approval dari awal. Staff Purchasing yang
+        // mengisi harga / PO / status TIDAK mereset approval.
+        $resetApproval = empty($currentUser['is_admin']) && $requesterChanged
             && in_array($curRow['approval_status'], ['PENDING_MANAGER', 'APPROVED', 'REJECTED'], true);
 
         $sql = 'UPDATE pr_items SET

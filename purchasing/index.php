@@ -1561,8 +1561,9 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
               <input type="date" id="form-tanggal" required class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
             </div>
             <div>
-              <label class="block font-semibold text-slate-600 mb-1">User / Peminta *</label>
-              <select id="form-karyawan-select" required onchange="handleFormKaryawanChange()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"></select>
+              <label class="block font-semibold text-slate-600 mb-1">User / Peminta (Auto)</label>
+              <input type="text" id="form-peminta" readonly title="Otomatis: akun yang membuat PR" class="w-full p-2 bg-slate-100 font-bold text-slate-700 border border-slate-300 rounded-lg">
+              <select id="form-karyawan-select" class="hidden" onchange="handleFormKaryawanChange()"></select>
             </div>
             <div>
               <label class="block font-semibold text-slate-600 mb-1">Divisi User (Auto)</label>
@@ -1605,6 +1606,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2"><i class="fa-solid fa-cube text-indigo-600"></i> 3. Detail Barang, Harga & Logistik per Item</h4>
           <button type="button" id="pr-add-item-btn" onclick="addPRItemBlock()" class="text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-2.5 py-1 rounded-lg flex items-center gap-1"><i class="fa-solid fa-plus"></i> Tambah Item Barang</button>
         </div>
+        <div id="pr-lock-note" class="hidden text-[11px] rounded-lg px-3 py-2 border"></div>
         <div id="pr-items-container" class="space-y-4"></div>
 
         <div class="pt-3 flex items-center justify-end space-x-2 border-t border-slate-100">
