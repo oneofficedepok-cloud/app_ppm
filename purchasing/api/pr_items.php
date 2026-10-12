@@ -30,6 +30,10 @@ function pr_apply_field_rules(array $b, array $user, ?array $row): array
     $isAdmin = !empty($user['is_admin']);
     $canPur = can_proses_pr($user);
     if ($row === null) {
+        // PR baru wajib punya jenjang approver (Approver 1 & 2) untuk divisi pembuatnya.
+        if (!$isAdmin && pr_missing_approver_stages(pr_approval_rules(db()), $user['divisi'] ?? '')) {
+            json_error(PR_NO_APPROVER_MSG, 422);
+        }
         $b['user_id'] = (int) $user['id'];
         if (trim((string) ($b['divisi'] ?? '')) === '') $b['divisi'] = $user['divisi'] ?? ''; // divisi pembuat PR
         if (!$canPur) {

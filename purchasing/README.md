@@ -511,8 +511,11 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - Menu **Administrator → Approver PR**: Admin memilih **Approver 1 (Supervisor)** dan **Approver 2 (Manager)**.
   Baris **Default** berlaku untuk semua divisi; tambah baris per divisi bila approvernya berbeda.
 - Divisi yang dipakai = divisi akun pembuat PR. Nama approver langsung tampil di form PR (bagian *Approval PR*).
-- Jika approver ditetapkan, hanya user itu (dan Admin) yang bisa Cek/Approve tahap tsb. Jika kosong,
-  kembali ke izin khusus di Role Management (Approval PR Supervisor / Manager).
+- Jika approver ditetapkan, hanya user itu (dan Admin) yang bisa Cek/Approve tahap tsb.
+- **PR baru wajib punya jenjang approver**: bila divisi pembuat belum punya Approver 1 & 2 (langsung atau lewat
+  Default), user tidak bisa membuat PR dan diminta menghubungi tim IT / Admin (dicek juga di server).
+  Admin tetap bisa membuat PR (dengan peringatan). PR lama tanpa approver tetap bisa di-approve oleh
+  pemegang izin Approval PR di Role Management.
 - Approver dihitung saat data dibaca, jadi PR yang masih menunggu ikut berubah bila Admin mengganti approver.
 - Pilihan **Buyer** dihapus dari form PR (data buyer lama tetap tersimpan).
 - Tabel `pr_approval_rules` dibuat otomatis oleh aplikasi — tidak perlu import SQL.

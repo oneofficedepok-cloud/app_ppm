@@ -1099,7 +1099,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
           <div>
             <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2"><i class="fa-solid fa-stamp text-amber-600"></i> Approver PR</h4>
-            <p class="text-[10px] text-slate-400 mt-0.5">Tetapkan siapa yang meng-approve PR. Nama approver langsung muncul di form PR siapapun pembuatnya. Baris <b>Default</b> berlaku untuk semua divisi; isi baris divisi hanya bila approvernya berbeda. Bila approver ditetapkan, hanya user itu (dan Admin) yang bisa approve tahap tsb. Approver perlu akses lihat menu PR.</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">Tetapkan siapa yang meng-approve PR. Nama approver langsung muncul di form PR siapapun pembuatnya. Baris <b>Default</b> berlaku untuk semua divisi; isi baris divisi hanya bila approvernya berbeda. Bila approver ditetapkan, hanya user itu (dan Admin) yang bisa approve tahap tsb. Approver perlu akses lihat menu PR. <b class="text-rose-600">Divisi yang belum punya Approver 1 &amp; 2 (termasuk lewat Default) tidak bisa membuat PR.</b></p>
           </div>
           <div class="flex gap-2 shrink-0">
             <button type="button" onclick="addPRApproverRow()" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[10px] font-bold px-2.5 py-1.5 rounded transition">+ Divisi</button>

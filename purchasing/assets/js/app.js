@@ -172,6 +172,7 @@ function showConfirm(message = '', opts = {}) {
   const noBtn = document.getElementById('confirm-modal-no');
   yesBtn.textContent = opts.yesText || 'YA';
   noBtn.textContent = opts.noText || 'TIDAK';
+  noBtn.classList.toggle('hidden', !!opts.alertOnly); // alertOnly: cukup 1 tombol (pemberitahuan)
   yesBtn.className = 'flex-1 text-white text-sm font-bold py-2.5 rounded-xl transition ' +
     (isDelete ? 'bg-rose-600 hover:bg-rose-700' : 'bg-indigo-600 hover:bg-indigo-700');
   const icon = document.getElementById('confirm-modal-icon');
@@ -191,7 +192,7 @@ function showConfirm(message = '', opts = {}) {
     noBtn.onclick = () => close(false);
     modal.onclick = (e) => { if (e.target === modal) close(false); };
     document.addEventListener('keydown', onKey);
-    setTimeout(() => noBtn.focus(), 0);
+    setTimeout(() => (opts.alertOnly ? yesBtn : noBtn).focus(), 0);
   });
 }
 
@@ -1575,11 +1576,26 @@ function setPRRequester(name, divisi) {
 
 /** Tampilkan nama Approver 1 & 2 di form PR (otomatis dari pengaturan Admin / yang sudah approve). */
 function setPRApproverFields(spv, mgr) {
-  document.getElementById('form-approver-spv').value = spv || 'Semua user berizin Approval Supervisor';
-  document.getElementById('form-approver-mgr').value = mgr || 'Semua user berizin Approval Manager';
+  document.getElementById('form-approver-spv').value = spv || 'Belum ditetapkan';
+  document.getElementById('form-approver-mgr').value = mgr || 'Belum ditetapkan';
 }
 
 async function openModal(mode, id = null) {
+  if (mode === 'add') {
+    // PR baru wajib punya jenjang approver untuk divisi pembuatnya (diatur Admin).
+    const ap = prApproversFor(currentUser?.divisi);
+    const missing = [!ap.spv && 'Approver 1 (Supervisor)', !ap.mgr && 'Approver 2 (Manager)'].filter(Boolean);
+    if (missing.length) {
+      const div = currentUser?.divisi || '-';
+      if (!IS_ADMIN) {
+        await showConfirm(`Jenjang approver PR untuk divisi ${div} belum ditetapkan: ${missing.join(' & ')}. PR belum bisa dibuat. Silakan hubungi tim IT / Admin untuk membuat jenjang approver.`,
+          { title: 'Approver PR belum ditetapkan', yesText: 'OK, MENGERTI', alertOnly: true, danger: false });
+        return;
+      }
+      if (!(await showConfirm(`Divisi ${div} belum punya ${missing.join(' & ')}. User lain di divisi ini tidak bisa membuat PR sampai diatur di Administrator -> Approver PR. Tetap buat PR sebagai Admin?`,
+        { title: 'Approver PR belum ditetapkan', yesText: 'TETAP BUAT', noText: 'BATAL', danger: false }))) return;
+    }
+  }
   document.getElementById('pr-form').reset();
   document.getElementById('form-id').value = '';
   document.getElementById('pr-items-container').innerHTML = '';

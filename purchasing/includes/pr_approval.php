@@ -92,3 +92,15 @@ function pr_is_assigned_approver(array $rules, int $userId): bool
     }
     return false;
 }
+
+const PR_NO_APPROVER_MSG = 'Jenjang approver PR untuk divisi Anda belum ditetapkan, jadi PR belum bisa dibuat. Hubungi tim IT / Admin untuk membuat jenjang approver (Administrator -> Approver PR).';
+
+/** Tahap yang belum punya approver untuk divisi ini (mis. ['Supervisor']). Kosong = lengkap. */
+function pr_missing_approver_stages(array $rules, ?string $divisi): array
+{
+    $ap = pr_resolve_approvers($rules, $divisi);
+    $missing = [];
+    if (!$ap['spv']) $missing[] = 'Approver 1 (Supervisor)';
+    if (!$ap['mgr']) $missing[] = 'Approver 2 (Manager)';
+    return $missing;
+}
