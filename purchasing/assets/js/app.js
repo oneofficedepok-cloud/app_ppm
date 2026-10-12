@@ -1325,7 +1325,7 @@ function buildPRItemBlockHTML() {
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Type / Tipe</label><input type="text" class="pri-type w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="Hydraulic Seal"></div>
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Dimensi / Ukuran</label><input type="text" class="pri-dimensi w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="NBR 70 / 50x60mm"></div>
-      <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Brand / Merk</label><input type="text" class="pri-brand w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="NOK / Komatsu"></div>
+      <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Material</label><input type="text" class="pri-brand w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="NBR / PU / Steel"></div>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Qty (Kuantitas) *</label><input type="number" class="pri-qty w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs" min="0.01" step="any" value="1" oninput="calcPRItemBlockTotal(this)" required></div>
@@ -1528,7 +1528,7 @@ function applyPRFormLocks() {
   document.getElementById('pr-add-item-btn')?.classList.toggle('hidden', !req);
   const banner = document.getElementById('pr-lock-note');
   if (banner) {
-    const msg = !req && pur ? '<i class="fa-solid fa-circle-info mr-1"></i>Anda memproses PR ini sebagai <b>Staff Purchasing</b>: data barang (No Item, Produk, Type, Dimensi, Brand, Qty, Satuan) hanya bisa diubah oleh pembuat PR.'
+    const msg = !req && pur ? '<i class="fa-solid fa-circle-info mr-1"></i>Anda memproses PR ini sebagai <b>Staff Purchasing</b>: data barang (No Item, Produk, Type, Dimensi, Material, Qty, Satuan) hanya bisa diubah oleh pembuat PR.'
       : req && !pur ? '<i class="fa-solid fa-circle-info mr-1"></i>Isi data barang yang diminta. Harga, PO, Supplier, Status dan Deskripsi akan diisi oleh <b>Staff Purchasing</b>.'
       : '';
     banner.innerHTML = msg;
@@ -2976,7 +2976,7 @@ function buildSealItemBlockHTML() {
     <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
       <div class="sm:col-span-2"><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Product Part</label><select class="seali-product w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs"></select></div>
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Type</label><input type="text" class="seali-type w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="Rod Seal"></div>
-      <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Brand</label><input type="text" class="seali-brand w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="NOK"></div>
+      <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Material</label><input type="text" class="seali-brand w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="PU / NBR"></div>
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Dimensi</label><input type="text" class="seali-dimensi w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="50x65x10 mm"></div>
