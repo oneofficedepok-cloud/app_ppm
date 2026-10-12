@@ -2400,12 +2400,14 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         </div>
         <div><label class="block font-semibold text-slate-700 mb-1">No Faktur Pajak</label><input type="text" id="ar-faktur-pajak" placeholder="010.000-26.00000001" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
         <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-          <span class="text-xs font-bold text-slate-700 block border-b border-slate-200 pb-1">Status Pembayaran Customer</span>
-          <div class="grid grid-cols-2 gap-3">
-            <div><label class="block text-[11px] font-semibold text-slate-600 mb-1">Jumlah Terbayar (Rp)</label><input type="number" id="ar-terbayar" value="0" oninput="calcARSisa()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
-            <div><label class="block text-[11px] font-semibold text-slate-600 mb-1">Tanggal Bayar</label><input type="date" id="ar-tgl-bayar" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+          <div class="flex items-center justify-between border-b border-slate-200 pb-1">
+            <span class="text-xs font-bold text-slate-700">Status Pembayaran Customer <span id="ar-calc-status" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">PENDING</span></span>
+            <button type="button" onclick="addARPaymentClick()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-lg"><i class="fa-solid fa-plus mr-1"></i>Tambah Pembayaran</button>
           </div>
-          <div class="flex justify-between items-center text-xs pt-1"><span>Sisa Piutang:</span><span id="ar-calc-sisa" class="font-bold text-amber-600">Rp 0</span></div>
+          <p class="text-[10px] text-slate-400">Customer bayar bertahap? Klik <b>+ Tambah Pembayaran</b> untuk tiap pembayaran (ke-1, ke-2, ke-3, ...). Sisa Piutang dihitung otomatis; saat sisa Rp 0 status jadi TERBAYAR LUNAS di AR &amp; Cash Flow.</p>
+          <div id="ar-payments-list" class="space-y-2"></div>
+          <div class="flex justify-between items-center text-xs pt-1 border-t border-slate-200"><span>Total Terbayar:</span><span id="ar-calc-terbayar" class="font-bold text-emerald-700">Rp 0</span></div>
+          <div class="flex justify-between items-center text-xs"><span>Sisa Piutang:</span><span id="ar-calc-sisa" class="font-bold text-amber-600">Rp 0</span></div>
         </div>
         <div class="pt-2 flex items-center justify-end space-x-2 border-t border-slate-100">
           <button type="button" onclick="closeARModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl font-semibold">Batal</button>

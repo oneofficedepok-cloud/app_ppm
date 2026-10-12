@@ -208,6 +208,21 @@ CREATE TABLE `account_receivable_wo` (
   CONSTRAINT fk_arwo_wo FOREIGN KEY (`wo_id`) REFERENCES `work_orders`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Pembayaran AR bertahap (partial): 1 invoice bisa dibayar 2x, 3x, dst.
+-- account_receivable.terbayar / tgl_bayar = total & tanggal pembayaran terakhir (diisi otomatis).
+-- (Tabel ini juga dibuat otomatis oleh aplikasi bila belum ada.)
+CREATE TABLE IF NOT EXISTS `ar_payments` (
+  `id`         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `ar_id`      INT UNSIGNED NOT NULL,
+  `tgl_bayar`  DATE NOT NULL,
+  `jumlah`     DECIMAL(18,2) NOT NULL DEFAULT 0,
+  `keterangan` VARCHAR(255) NULL,
+  `created_by` INT UNSIGNED NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_arpay_ar (`ar_id`),
+  CONSTRAINT fk_arpay_ar FOREIGN KEY (`ar_id`) REFERENCES `account_receivable`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Surat Jalan (SJ): 1 SJ bisa untuk beberapa WO
 CREATE TABLE `surat_jalan` (
   `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

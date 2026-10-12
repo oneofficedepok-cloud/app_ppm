@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/ar_payments.php';
 /**
  * Cash Flow BUKAN tabel tersendiri - ini gabungan otomatis dari:
  * 1. AR yang sudah dibayar (atau masih pending, pakai due_date)
@@ -19,39 +20,52 @@ function get_combined_cashflow(PDO $pdo): array
         LEFT JOIN work_orders wo ON wo.id = ar.wo_id
     ")->fetchAll();
 
+    $payMap = ar_payments_map($pdo);
     foreach ($arRows as $ar) {
         $ppn = (bool) $ar['is_ppn'] ? round((float) $ar['penjualan'] * 0.11, 2) : (float) $ar['ppn'];
         $ppn030 = (bool) $ar['is_ppn030'] ? round((float) $ar['penjualan'] * 0.11, 2) : (float) $ar['ppn030'];
         $sisa = ((float) $ar['penjualan'] + $ppn) - (float) $ar['terbayar'] - (float) $ar['pph23'] - $ppn030 - (float) $ar['biaya_lain'];
-
-        $tgl = $ar['due_date'];
-        $status = 'PENDING';
-        $nominal = (float) $ar['penjualan'] + $ppn;
-        if ((float) $ar['terbayar'] > 0 && $ar['tgl_bayar']) {
-            $tgl = $ar['tgl_bayar'];
-            $status = $sisa <= 0 ? 'TERBAYAR LUNAS' : 'PARTIAL';
-            $nominal = (float) $ar['terbayar'];
-        }
-
-        $list[] = [
-            'id' => 'CF-AR-' . $ar['id'],
-            'tanggal' => $tgl,
+        $desc = '[AR] ' . ($ar['deskripsi'] ?: 'Invoice Piutang') . ' (' . ($ar['customer_nama'] ?: '-') . ')';
+        $base = [
             'kode' => 'Piutang',
             'tp' => 'IN',
-            'deskripsi' => '[AR] ' . ($ar['deskripsi'] ?: 'Invoice Piutang') . ' (' . ($ar['customer_nama'] ?: '-') . ')',
             'invoice' => $ar['invoice_no'],
             'pic' => $ar['customer_nama'] ?: '-',
             'wo' => $ar['wo_number'] ?: '-',
             'po' => $ar['po_no'] ?: '-',
             'dpp' => (float) $ar['penjualan'],
             'pph23' => (float) $ar['pph23'],
-            'debit' => $nominal,
             'kredit' => 0,
-            'status' => $status,
             'is_auto' => true,
             'ref_id' => (int) $ar['id'],
             'source' => 'AR',
         ];
+
+        // Tiap pembayaran customer = 1 baris kas masuk. Setelah lunas (sisa Rp 0) semua baris
+        // pembayaran invoice ini berstatus TERBAYAR LUNAS, sebelum itu PARTIAL.
+        $payments = ar_payments_of($ar, $payMap);
+        $n = count($payments);
+        foreach ($payments as $i => $p) {
+            $list[] = $base + [
+                'id' => 'CF-AR-' . $ar['id'] . '-P' . $p['id'],
+                'tanggal' => $p['tgl_bayar'],
+                'deskripsi' => $desc . ($n > 1 ? ' - Pembayaran ke-' . ($i + 1) . ' dari ' . $n : ''),
+                'debit' => $p['jumlah'],
+                'status' => $sisa <= 0 ? 'TERBAYAR LUNAS' : 'PARTIAL',
+            ];
+        }
+
+        // Belum ada pembayaran -> proyeksi tagihan penuh di due date (seperti sebelumnya).
+        // Sudah dibayar sebagian -> sisanya tetap tampil PENDING di due date.
+        if (!$payments || $sisa > 0) {
+            $list[] = $base + [
+                'id' => 'CF-AR-' . $ar['id'],
+                'tanggal' => $ar['due_date'],
+                'deskripsi' => $desc . ($payments ? ' - Sisa Piutang' : ''),
+                'debit' => $payments ? $sisa : (float) $ar['penjualan'] + $ppn,
+                'status' => 'PENDING',
+            ];
+        }
     }
 
     // 2. AP -> Cashflow

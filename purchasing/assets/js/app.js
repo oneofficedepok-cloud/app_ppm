@@ -228,7 +228,7 @@ function formatRupiah(num) {
 const MONEY_INPUT_SELECTOR = [
   '#wo-form-harga-satuan', '#wo-form-diskon', '#wo-form-budget-prod', '#wo-form-aktual-prod', '#wo-form-budget-pem',
   '#wo-form-budget-lain', '#wo-form-total-lain', '#transport-harga', '#inv-harga', '#mtcm-harga', '#mtcmp-harga',
-  '#cf-nominal', '#cf-pph23', '#ar-penjualan', '#ar-pph23', '#ar-biaya-lain', '#ar-terbayar', '#ap-pembelian',
+  '#cf-nominal', '#cf-pph23', '#ar-penjualan', '#ar-pph23', '#ar-biaya-lain', '.arp-jumlah', '#ap-pembelian',
   '#ap-biaya-lain', '#ap-terbayar', '#talangan-pinjaman',
   '.pri-harga', '.mtci-harga', '.seali-harga', '.wobi-budget', '.wobi-actual',
 ].join(', ');
@@ -4851,7 +4851,7 @@ const LOG_MODULE_LABELS = {
 };
 const LOG_ACTION_LABELS = {
   create: ['Buat', 'bg-emerald-100 text-emerald-700'], update: ['Ubah', 'bg-blue-100 text-blue-700'],
-  delete: ['Hapus', 'bg-rose-100 text-rose-700'], bulk_delete: ['Hapus Massal', 'bg-rose-100 text-rose-700'],
+  delete: ['Hapus', 'bg-rose-100 text-rose-700'], payment_delete: ['Hapus Pembayaran', 'bg-rose-100 text-rose-700'], bulk_delete: ['Hapus Massal', 'bg-rose-100 text-rose-700'],
   import: ['Import', 'bg-teal-100 text-teal-700'], import_summary: ['Import (ringkasan)', 'bg-teal-50 text-teal-700'],
   spv_approve: ['Approve Supervisor', 'bg-amber-100 text-amber-800'], spv_reject: ['Tolak Supervisor', 'bg-rose-100 text-rose-700'],
   mgr_approve: ['Approve Manager', 'bg-indigo-100 text-indigo-700'], mgr_reject: ['Tolak Manager', 'bg-rose-100 text-rose-700'],
@@ -5902,7 +5902,7 @@ function renderARTable() {
       <td class="py-2.5 px-3 text-right text-indigo-600">${formatRupiah(a.pph23)}</td>
       <td class="py-2.5 px-3 text-center font-semibold">${a.top_days} Hari</td>
       <td class="py-2.5 px-3 font-bold">${formatDateID(a.due_date)}</td>
-      <td class="py-2.5 px-3 text-right text-emerald-600 font-bold">${formatRupiah(a.terbayar)}</td>
+      <td class="py-2.5 px-3 text-right text-emerald-600 font-bold">${formatRupiah(a.terbayar)}${(a.payments || []).length > 1 ? `<div class="text-[10px] font-semibold text-slate-400" title="${esc(a.payments.map((p, k) => `Ke-${k + 1}: ${formatDateID(p.tgl_bayar)} ${formatRupiah(p.jumlah)}`).join('\n'))}">${a.payments.length}x bayar</div>` : ''}</td>
       <td class="py-2.5 px-3 text-right font-bold text-amber-600">${formatRupiah(a.sisa_piutang)}</td>
       <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${cfStatusBadgeClass(a.status)}">${esc(a.status)}</span></td>
     </tr>
@@ -6058,18 +6058,69 @@ function calcARDueDate() {
   document.getElementById('ar-due-date').value = d.toISOString().slice(0, 10);
 }
 
-function calcARSisa() {
+/** Total tagihan bersih yang harus dibayar customer (sebelum pembayaran). */
+function arNetTagihan() {
   const penjualan = parseFloat(document.getElementById('ar-penjualan').value) || 0;
   const isPpn = document.getElementById('ar-is-ppn').value === '1';
   const isPpn030 = document.getElementById('ar-is-ppn030').value === '1';
   const pph23 = parseFloat(document.getElementById('ar-pph23').value) || 0;
   const biayaLain = parseFloat(document.getElementById('ar-biaya-lain').value) || 0;
-  const terbayar = parseFloat(document.getElementById('ar-terbayar').value) || 0;
-
   const ppn = isPpn ? penjualan * 0.11 : 0;
   const ppn030 = isPpn030 ? penjualan * 0.11 : 0;
-  const sisa = (penjualan + ppn) - terbayar - pph23 - ppn030 - biayaLain;
-  document.getElementById('ar-calc-sisa').textContent = formatRupiah(sisa);
+  return (penjualan + ppn) - pph23 - ppn030 - biayaLain;
+}
+
+// ---------- Pembayaran AR bertahap (partial 1x, 2x, 3x ...) ----------
+function arPaymentRows() { return [...document.querySelectorAll('#ar-payments-list .arp-row')]; }
+
+function addARPaymentRow(p = {}) {
+  const list = document.getElementById('ar-payments-list');
+  const row = document.createElement('div');
+  row.className = 'arp-row grid grid-cols-12 gap-2 items-end';
+  row.innerHTML = `
+    <div class="col-span-12 sm:col-span-1 text-[11px] font-bold text-slate-500 sm:pb-2.5 arp-no"></div>
+    <div class="col-span-6 sm:col-span-4"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Tanggal Bayar</label><input type="date" class="arp-tgl w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+    <div class="col-span-6 sm:col-span-4"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Jumlah (Rp)</label><input type="text" inputmode="decimal" class="arp-jumlah w-full p-2 bg-white border border-slate-300 rounded-lg" oninput="calcARSisa()"></div>
+    <div class="col-span-10 sm:col-span-2"><label class="block text-[10px] font-semibold text-slate-500 mb-0.5">Ket.</label><input type="text" class="arp-ket w-full p-2 bg-white border border-slate-300 rounded-lg" placeholder="Transfer..."></div>
+    <div class="col-span-2 sm:col-span-1 text-right"><button type="button" onclick="this.closest('.arp-row').remove(); calcARSisa();" class="p-2 text-slate-400 hover:text-rose-600" title="Hapus pembayaran ini"><i class="fa-solid fa-trash-can"></i></button></div>`;
+  list.appendChild(row);
+  enhanceMoneyInputsIn(row); // format Rupiah langsung (tidak menunggu MutationObserver)
+  row.querySelector('.arp-tgl').value = p.tgl_bayar || new Date().toISOString().slice(0, 10);
+  row.querySelector('.arp-jumlah').value = p.jumlah ?? '';
+  row.querySelector('.arp-ket').value = p.keterangan || '';
+  calcARSisa();
+  return row;
+}
+
+/** Tombol "+ Tambah Pembayaran": jumlah otomatis diisi sisa piutang (bisa diubah untuk bayar sebagian). */
+function addARPaymentClick() {
+  const sisa = Math.round(arNetTagihan() - arPaymentTotal());
+  const row = addARPaymentRow({ jumlah: sisa > 0 ? sisa : '' });
+  row.querySelector('.arp-jumlah').focus();
+}
+
+function arPaymentTotal() {
+  return arPaymentRows().reduce((t, r) => t + (parseFloat(r.querySelector('.arp-jumlah').value) || 0), 0);
+}
+
+function calcARSisa() {
+  const rows = arPaymentRows();
+  rows.forEach((r, i) => { r.querySelector('.arp-no').textContent = `Ke-${i + 1}`; });
+  const terbayar = arPaymentTotal();
+  const sisa = arNetTagihan() - terbayar;
+  const el = document.getElementById('ar-calc-sisa');
+  el.textContent = formatRupiah(Math.abs(sisa) < 0.5 ? 0 : sisa);
+  el.className = 'font-bold ' + (sisa < -0.5 ? 'text-rose-600' : sisa <= 0.5 && terbayar > 0 ? 'text-emerald-600' : 'text-amber-600');
+  const t = document.getElementById('ar-calc-terbayar');
+  if (t) t.textContent = `${formatRupiah(terbayar)}${rows.length ? ` (${rows.length}x bayar)` : ''}`;
+  const st = document.getElementById('ar-calc-status');
+  if (st) {
+    const [txt, cls] = sisa < -0.5 ? ['MELEBIHI TAGIHAN', 'bg-rose-100 text-rose-700']
+      : terbayar > 0 && sisa <= 0.5 ? ['TERBAYAR LUNAS', 'bg-emerald-100 text-emerald-700']
+      : terbayar > 0 ? ['PARTIAL', 'bg-blue-100 text-blue-700'] : ['PENDING', 'bg-amber-100 text-amber-700'];
+    st.textContent = txt;
+    st.className = 'px-2 py-0.5 rounded text-[10px] font-bold ' + cls;
+  }
 }
 
 function openARModal(mode, id = null) {
@@ -6086,6 +6137,7 @@ function openARModal(mode, id = null) {
     document.getElementById('ar-tgl-kirim').value = new Date().toISOString().slice(0, 10);
     populateARPOList();
     calcARDueDate();
+    document.getElementById('ar-payments-list').innerHTML = '';
     calcARSisa();
   } else {
     const a = arData.find(x => x.id === id);
@@ -6108,9 +6160,9 @@ function openARModal(mode, id = null) {
     document.getElementById('ar-biaya-lain').value = a.biaya_lain;
     document.getElementById('ar-top').value = a.top_days;
     document.getElementById('ar-faktur-pajak').value = a.faktur_pajak || '';
-    document.getElementById('ar-terbayar').value = a.terbayar;
-    document.getElementById('ar-tgl-bayar').value = a.tgl_bayar || '';
     document.getElementById('ar-due-date').value = a.due_date || '';
+    document.getElementById('ar-payments-list').innerHTML = '';
+    (a.payments || []).forEach(p => addARPaymentRow(p));
     calcARSisa();
   }
 
@@ -6141,9 +6193,13 @@ async function handleARSubmit(e) {
     top_days: document.getElementById('ar-top').value,
     due_date: document.getElementById('ar-due-date').value || null,
     faktur_pajak: document.getElementById('ar-faktur-pajak').value,
-    terbayar: document.getElementById('ar-terbayar').value,
-    tgl_bayar: document.getElementById('ar-tgl-bayar').value || null,
+    payments: arPaymentRows().map(r => ({
+      tgl_bayar: r.querySelector('.arp-tgl').value,
+      jumlah: r.querySelector('.arp-jumlah').value,
+      keterangan: r.querySelector('.arp-ket').value.trim(),
+    })),
   };
+  if (arNetTagihan() - arPaymentTotal() < -0.5) { showToast('Total pembayaran melebihi tagihan. Periksa lagi jumlahnya.', 'error'); return; }
 
   try {
     if (id) {

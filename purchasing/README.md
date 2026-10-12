@@ -520,6 +520,18 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - Pilihan **Buyer** dihapus dari form PR (data buyer lama tetap tersimpan).
 - Tabel `pr_approval_rules` dibuat otomatis oleh aplikasi — tidak perlu import SQL.
 
+## 8g. Update Log — Pembayaran AR Bertahap (Partial)
+
+- Form AR → **Status Pembayaran Customer**: tombol **+ Tambah Pembayaran** untuk tiap pembayaran
+  (ke-1, ke-2, ke-3, ...), masing-masing dengan tanggal, jumlah & keterangan. Jumlah otomatis terisi sisa piutang.
+- **Total Terbayar** & **Sisa Piutang** dihitung otomatis; status PENDING → PARTIAL → **TERBAYAR LUNAS** saat sisa Rp 0.
+  Total pembayaran tidak boleh melebihi tagihan (dicek juga di server).
+- **Cash Flow**: tiap pembayaran = 1 baris kas masuk di tanggal bayarnya. Sebelum lunas berstatus PARTIAL dan sisa
+  piutang tetap tampil PENDING di due date; setelah lunas semua baris pembayaran berstatus TERBAYAR LUNAS.
+  Hapus 1 baris pembayaran di Cash Flow (Admin) hanya menghapus pembayaran itu, bukan invoice-nya.
+- Data AR lama / hasil import (kolom Terbayar) otomatis dibaca sebagai pembayaran ke-1.
+- Tabel `ar_payments` dibuat otomatis oleh aplikasi — tidak perlu import SQL.
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

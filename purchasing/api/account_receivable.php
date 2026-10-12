@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/wo_functions.php';
 require_once __DIR__ . '/../includes/finance_calc.php';
+require_once __DIR__ . '/../includes/ar_payments.php';
 
 // Baca: menu AR + Finance Dashboard & Cash Flow (rekap). Ubah: menu AR.
 require_perm(['ar', 'findash', 'cashflow'], ['ar']);
@@ -36,6 +37,14 @@ function save_ar_wo_links(PDO $pdo, int $arId, array $woIds): void
     $pdo->prepare('DELETE FROM account_receivable_wo WHERE ar_id = :ar')->execute([':ar' => $arId]);
     $ins = $pdo->prepare('INSERT INTO account_receivable_wo (ar_id, wo_id) VALUES (:ar, :wo)');
     foreach ($woIds as $woId) $ins->execute([':ar' => $arId, ':wo' => $woId]);
+}
+
+/** Ringkasan pembayaran untuk Log Aplikasi. */
+function ar_payment_log_text(array $payments, float $sisa): string
+{
+    if (!$payments) return '';
+    $parts = array_map(fn($p) => $p['tgl_bayar'] . ' Rp ' . number_format($p['jumlah'], 0, ',', '.'), $payments);
+    return ' | Bayar ' . count($payments) . 'x: ' . implode(', ', $parts) . ' | Sisa Rp ' . number_format(max($sisa, 0), 0, ',', '.');
 }
 
 switch ($method) {
@@ -77,7 +86,9 @@ switch ($method) {
             ORDER BY ar.tgl_invoice DESC, ar.id DESC
         ";
         $rows = $pdo->query($sql)->fetchAll();
+        $payMap = ar_payments_map($pdo);
         foreach ($rows as &$a) {
+            $a['payments'] = ar_payments_of($a, $payMap); // riwayat pembayaran (partial 1x, 2x, 3x ...)
             [$ppn, $ppn030, $sisa] = calc_ar(
                 (float) $a['penjualan'], (bool) $a['is_ppn'], (bool) $a['is_ppn030'],
                 (float) $a['pph23'], (float) $a['biaya_lain'], (float) $a['terbayar']
@@ -106,9 +117,12 @@ switch ($method) {
         $isPpn030 = (bool) arr_val($b, 'is_ppn030', false);
         $pph23 = to_float(arr_val($b, 'pph23', 0));
         $biayaLain = to_float(arr_val($b, 'biaya_lain', 0));
-        $terbayar = to_float(arr_val($b, 'terbayar', 0));
+        [$payments, $terbayar, $tglBayar] = ar_payments_from_input($b);
         [$ppn, $ppn030, $sisa] = calc_ar($penjualan, $isPpn, $isPpn030, $pph23, $biayaLain, $terbayar);
+        if ($sisa < -1) json_error('Total pembayaran (' . number_format($terbayar, 0, ',', '.') . ') melebihi tagihan. Periksa lagi jumlah pembayarannya.', 422);
         [$woIds] = resolve_ar_wos($pdo, $b);
+        ar_payments_ensure($pdo);
+        $pdo->beginTransaction();
 
         $stmt = $pdo->prepare(
             'INSERT INTO account_receivable
@@ -127,16 +141,19 @@ switch ($method) {
                 ':isppn' => $isPpn ? 1 : 0, ':ppn' => $ppn, ':isppn030' => $isPpn030 ? 1 : 0, ':ppn030' => $ppn030,
                 ':pph23' => $pph23, ':biayalain' => $biayaLain, ':top' => $topDays,
                 ':due' => $dueDate, ':faktur' => arr_val($b, 'faktur_pajak', ''),
-                ':terbayar' => $terbayar, ':tglbayar' => arr_val($b, 'tgl_bayar') ?: null,
+                ':terbayar' => $terbayar, ':tglbayar' => $tglBayar,
             ]);
+            $newId = (int) $pdo->lastInsertId();
+            save_ar_wo_links($pdo, $newId, $woIds);
+            ar_payments_save($pdo, $newId, $payments);
+            $pdo->commit();
         } catch (PDOException $e) {
+            $pdo->rollBack();
             if ($e->getCode() === '23000') json_error('No. Invoice ini sudah pernah dipakai.', 409);
             throw $e;
         }
 
-        $newId = (int) $pdo->lastInsertId();
-        save_ar_wo_links($pdo, $newId, $woIds);
-        log_activity('create', 'account_receivable', $newId, $invoice);
+        log_activity('create', 'account_receivable', $newId, $invoice . ar_payment_log_text($payments, $sisa));
         json_success(['id' => $newId, 'sisa_piutang' => $sisa], 'Record AR berhasil ditambahkan.');
         break;
 
@@ -153,9 +170,12 @@ switch ($method) {
         $isPpn030 = (bool) arr_val($b, 'is_ppn030', false);
         $pph23 = to_float(arr_val($b, 'pph23', 0));
         $biayaLain = to_float(arr_val($b, 'biaya_lain', 0));
-        $terbayar = to_float(arr_val($b, 'terbayar', 0));
+        [$payments, $terbayar, $tglBayar] = ar_payments_from_input($b);
         [$ppn, $ppn030, $sisa] = calc_ar($penjualan, $isPpn, $isPpn030, $pph23, $biayaLain, $terbayar);
+        if ($sisa < -1) json_error('Total pembayaran (' . number_format($terbayar, 0, ',', '.') . ') melebihi tagihan. Periksa lagi jumlah pembayarannya.', 422);
         [$woIds] = resolve_ar_wos($pdo, $b);
+        ar_payments_ensure($pdo);
+        $pdo->beginTransaction();
 
         $stmt = $pdo->prepare(
             'UPDATE account_receivable SET
@@ -175,15 +195,18 @@ switch ($method) {
                 ':isppn' => $isPpn ? 1 : 0, ':ppn' => $ppn, ':isppn030' => $isPpn030 ? 1 : 0, ':ppn030' => $ppn030,
                 ':pph23' => $pph23, ':biayalain' => $biayaLain, ':top' => $topDays,
                 ':due' => $dueDate, ':faktur' => arr_val($b, 'faktur_pajak', ''),
-                ':terbayar' => $terbayar, ':tglbayar' => arr_val($b, 'tgl_bayar') ?: null, ':id' => $id,
+                ':terbayar' => $terbayar, ':tglbayar' => $tglBayar, ':id' => $id,
             ]);
+            save_ar_wo_links($pdo, $id, $woIds);
+            ar_payments_save($pdo, $id, $payments);
+            $pdo->commit();
         } catch (PDOException $e) {
+            $pdo->rollBack();
             if ($e->getCode() === '23000') json_error('No. Invoice sudah dipakai record lain.', 409);
             throw $e;
         }
 
-        save_ar_wo_links($pdo, $id, $woIds);
-        log_activity('update', 'account_receivable', $id, $invoice);
+        log_activity('update', 'account_receivable', $id, $invoice . ar_payment_log_text($payments, $sisa));
         json_success(['id' => $id, 'sisa_piutang' => $sisa], 'Record AR berhasil diperbarui.');
         break;
 

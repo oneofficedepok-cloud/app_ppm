@@ -84,6 +84,19 @@ switch ($method) {
             $stmt->execute([':id' => $realId]);
             log_activity('delete', 'manual_cashflow', $realId, '');
             json_success([], 'Transaksi Cash Flow berhasil dihapus.');
+        } elseif (preg_match('/^CF-AR-(\d+)-P(\d+)$/', $rawId, $m)) {
+            // Hapus 1 pembayaran AR saja (bukan invoice-nya), lalu hitung ulang total terbayar.
+            require_once __DIR__ . '/../includes/ar_payments.php';
+            ar_payments_ensure($pdo);
+            $arId = (int) $m[1];
+            if ((int) $m[2] > 0) {
+                $pdo->prepare('DELETE FROM ar_payments WHERE id = :p AND ar_id = :ar')->execute([':p' => (int) $m[2], ':ar' => $arId]);
+                ar_payments_sync_totals($pdo, $arId);
+            } else {
+                $pdo->prepare('UPDATE account_receivable SET terbayar = 0, tgl_bayar = NULL WHERE id = :id')->execute([':id' => $arId]);
+            }
+            log_activity('payment_delete', 'account_receivable', $arId, 'Hapus 1 pembayaran AR dari Cash Flow');
+            json_success([], 'Pembayaran AR berhasil dihapus.');
         } elseif (str_starts_with($rawId, 'CF-AR-')) {
             $realId = (int) str_replace('CF-AR-', '', $rawId);
             $stmt = $pdo->prepare('DELETE FROM account_receivable WHERE id = :id');
