@@ -1094,6 +1094,26 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         </div>
       </div>
 
+      <!-- APPROVER PR: ditetapkan Admin per divisi pembuat PR -->
+      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3" id="pr-approver-panel">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2">
+          <div>
+            <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2"><i class="fa-solid fa-stamp text-amber-600"></i> Approver PR</h4>
+            <p class="text-[10px] text-slate-400 mt-0.5">Tetapkan siapa yang meng-approve PR. Nama approver langsung muncul di form PR siapapun pembuatnya. Baris <b>Default</b> berlaku untuk semua divisi; isi baris divisi hanya bila approvernya berbeda. Bila approver ditetapkan, hanya user itu (dan Admin) yang bisa approve tahap tsb. Approver perlu akses lihat menu PR.</p>
+          </div>
+          <div class="flex gap-2 shrink-0">
+            <button type="button" onclick="addPRApproverRow()" class="bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[10px] font-bold px-2.5 py-1.5 rounded transition">+ Divisi</button>
+            <button type="button" onclick="savePRApprovers()" class="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold px-3 py-1.5 rounded transition"><i class="fa-solid fa-floppy-disk mr-1"></i>Simpan</button>
+          </div>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs">
+            <thead><tr class="text-left text-slate-500 border-b border-slate-200"><th class="py-1.5 pr-2 w-1/4">Divisi Pembuat PR</th><th class="py-1.5 pr-2">Approver 1 (Supervisor)</th><th class="py-1.5 pr-2">Approver 2 (Manager)</th><th class="w-8"></th></tr></thead>
+            <tbody id="pr-approver-rows"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
         <div class="border-b border-slate-200 pb-2">
           <h4 class="font-bold text-slate-700 text-sm flex items-center gap-2"><i class="fa-solid fa-file-import text-emerald-600"></i> Import Data dari Excel</h4>
@@ -1573,12 +1593,17 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         </div>
 
         <div class="bg-amber-50/70 p-4 rounded-xl border border-amber-200 space-y-3">
-          <h4 class="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-2 border-b border-amber-200/80 pb-1.5"><i class="fa-solid fa-user-check text-amber-600"></i> Approval Matrix & Penerimaan Purchasing</h4>
-          <p class="text-[10px] text-amber-700/80 -mt-1">Referensi struktur organisasi untuk PR ini (bukan alur approval sistem — alur approval PR tetap lewat tombol Cek/Approve di tabel).</p>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div><label class="block font-semibold text-slate-600 mb-1">Atasan Direct</label><select id="form-atasan-select" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"><option value="">-- Pilih --</option></select></div>
-            <div><label class="block font-semibold text-slate-600 mb-1">Manager Head</label><select id="form-manager-select" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"><option value="">-- Pilih --</option></select></div>
-            <div><label class="block font-semibold text-slate-600 mb-1">Buyer / Purchasing Intake</label><select id="form-buyer-header-select" onchange="handleHeaderBuyerChange()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"><option value="">-- Pilih Buyer --</option></select></div>
+          <!-- Field lama (referensi atasan karyawan & buyer) disembunyikan, data lama tetap tersimpan. -->
+          <div class="hidden">
+            <select id="form-atasan-select"><option value="">-- Pilih --</option></select>
+            <select id="form-manager-select"><option value="">-- Pilih --</option></select>
+            <select id="form-buyer-header-select" onchange="handleHeaderBuyerChange()"><option value="">-- Pilih Buyer --</option></select>
+          </div>
+          <h4 class="text-xs font-bold text-amber-800 uppercase tracking-wider flex items-center gap-2 border-b border-amber-200/80 pb-1.5"><i class="fa-solid fa-user-check text-amber-600"></i> Approval PR</h4>
+          <p class="text-[10px] text-amber-700/80 -mt-1">Approver ditetapkan Admin (Administrator &rarr; Approver PR) sesuai divisi pembuat PR, dan tampil otomatis di sini.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label class="block font-semibold text-slate-600 mb-1">Approver 1 (Supervisor)</label><input type="text" id="form-approver-spv" readonly class="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg font-bold text-slate-700" value="-"></div>
+            <div><label class="block font-semibold text-slate-600 mb-1">Approver 2 (Manager)</label><input type="text" id="form-approver-mgr" readonly class="w-full p-2 bg-slate-100 border border-slate-200 rounded-lg font-bold text-slate-700" value="-"></div>
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/pr_functions.php';
+require_once __DIR__ . '/../includes/pr_approval.php';
 
 $method = http_method();
 $pdo = db();
@@ -178,7 +179,7 @@ switch ($method) {
                    s.nama  AS supplier_nama,
                    wo.wo_number AS wo_number,
                    b.nama  AS buyer_nama,
-                   u.full_name AS user_nama,
+                   u.full_name AS user_nama, u.divisi AS user_divisi,
                    ul.full_name AS leader_nama,
                    um.full_name AS manager_nama,
                    k.nama  AS karyawan_nama, k.divisi AS karyawan_divisi,
@@ -198,7 +199,21 @@ switch ($method) {
             LEFT JOIN master_karyawan km ON km.id = pr.manager_karyawan_id
             ORDER BY pr.tanggal DESC, pr.id DESC
         ";
-        json_success($pdo->query($sql)->fetchAll());
+        $rows = $pdo->query($sql)->fetchAll();
+        // Approver yang ditetapkan Admin (per divisi pembuat PR) - null = semua pemegang izin approval.
+        $rules = pr_approval_rules($pdo);
+        if ($rules) {
+            $names = array_column($pdo->query('SELECT id, full_name FROM users')->fetchAll(), 'full_name', 'id');
+            foreach ($rows as &$r) {
+                $ap = pr_resolve_approvers($rules, pr_approval_divisi($r));
+                $r['approver_spv_id'] = $ap['spv'];
+                $r['approver_spv_nama'] = $ap['spv'] ? ($names[$ap['spv']] ?? null) : null;
+                $r['approver_mgr_id'] = $ap['mgr'];
+                $r['approver_mgr_nama'] = $ap['mgr'] ? ($names[$ap['mgr']] ?? null) : null;
+            }
+            unset($r);
+        }
+        json_success($rows);
         break;
 
     case 'POST':
@@ -210,18 +225,29 @@ switch ($method) {
         // Kolom DB tetap leader_* / manager_* dan status PENDING_LEADER / PENDING_MANAGER.
         if (in_array($prAction, ['leader_check', 'manager_approve', 'bulk_approve'], true)) {
             $user = require_login();
+            $rules = pr_approval_rules($pdo);
+            $assigned = pr_is_assigned_approver($rules, (int) $user['id']);
             $canSpv = user_level($user, 'cap_pr_approve_spv') >= PERM_VIEW;
             $canMgr = user_level($user, 'cap_pr_approve_mgr') >= PERM_VIEW;
+            /** Approver tahap 1 & 2 untuk PR ini (sesuai divisi pembuat PR). */
+            $approversOf = function (int $id) use ($pdo, $rules): array {
+                $q = $pdo->prepare('SELECT pr.divisi, u.divisi AS user_divisi FROM pr_items pr LEFT JOIN users u ON u.id = pr.user_id WHERE pr.id = :id');
+                $q->execute([':id' => $id]);
+                return pr_resolve_approvers($rules, pr_approval_divisi($q->fetch() ?: []));
+            };
             $b = get_json_input();
             $decision = arr_val($b, 'decision'); // 'approve' | 'reject'
             $note = clean_str(arr_val($b, 'note', ''));
             if (!in_array($decision, ['approve', 'reject'], true)) json_error('Data tidak lengkap.', 422);
 
             /** Proses 1 PR sesuai tahapnya. Return status baru, atau null kalau user tidak berhak / status sudah berubah. */
-            $decide = function (int $id, ?string $onlyStage) use ($pdo, $user, $canSpv, $canMgr, $decision, $note): ?string {
+            $decide = function (int $id, ?string $onlyStage) use ($pdo, $user, $approversOf, $decision, $note): ?string {
                 $cur = $pdo->prepare('SELECT approval_status FROM pr_items WHERE id = :id FOR UPDATE');
                 $cur->execute([':id' => $id]);
                 $status = $cur->fetchColumn();
+                $ap = $approversOf($id);
+                $canSpv = pr_can_approve_stage($user, 'spv', $ap);
+                $canMgr = pr_can_approve_stage($user, 'mgr', $ap);
                 if ($status === 'PENDING_LEADER' && $canSpv && $onlyStage !== 'manager_approve') {
                     $new = $decision === 'approve' ? 'PENDING_MANAGER' : 'REJECTED';
                     $pdo->prepare('UPDATE pr_items SET approval_status = :s, leader_id = :uid, leader_checked_at = NOW(), leader_note = :note WHERE id = :id')
@@ -242,7 +268,7 @@ switch ($method) {
             if ($prAction === 'bulk_approve') {
                 // Approval massal: hanya PR yang memang menunggu tahap milik user ini yang diproses
                 // (1 tahap per klik - PR dari Supervisor tetap harus dicek Manager Produksi).
-                if (!$canSpv && !$canMgr) json_error('Role Anda tidak punya izin approval PR. Hubungi admin.', 403);
+                if (!$canSpv && !$canMgr && !$assigned) json_error('Role Anda tidak punya izin approval PR. Hubungi admin.', 403);
                 $ids = array_values(array_unique(array_filter(array_map('intval', (array) arr_val($b, 'ids', [])), fn($v) => $v > 0)));
                 if (!$ids) json_error('Tidak ada PR yang dipilih.', 422);
                 if (count($ids) > 500) json_error('Maksimal 500 PR sekali proses.', 422);
@@ -266,8 +292,15 @@ switch ($method) {
             $exists->execute([':id' => $id]);
             $status = $exists->fetchColumn();
             if ($status === false) json_error('Data PR tidak ditemukan.', 404);
-            $needed = $prAction === 'leader_check' ? ['PENDING_LEADER', $canSpv, 'Supervisor'] : ['PENDING_MANAGER', $canMgr, 'Manager Produksi'];
-            if (!$needed[1]) json_error("Role Anda tidak punya izin approval tahap {$needed[2]}. Hubungi admin.", 403);
+            $ap = $approversOf($id);
+            $needed = $prAction === 'leader_check'
+                ? ['PENDING_LEADER', pr_can_approve_stage($user, 'spv', $ap), 'Supervisor', $ap['spv']]
+                : ['PENDING_MANAGER', pr_can_approve_stage($user, 'mgr', $ap), 'Manager Produksi', $ap['mgr']];
+            if (!$needed[1]) {
+                json_error($needed[3]
+                    ? "PR ini harus di-approve oleh approver {$needed[2]} yang ditetapkan Admin, bukan oleh Anda."
+                    : "Role Anda tidak punya izin approval tahap {$needed[2]}. Hubungi admin.", 403);
+            }
             if ($status !== $needed[0]) json_error("PR ini sudah tidak menunggu approval {$needed[2]} (mungkin sudah diproses orang lain).", 409);
 
             $pdo->beginTransaction();

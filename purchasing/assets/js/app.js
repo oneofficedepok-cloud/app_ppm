@@ -716,7 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadAllData() {
   try {
-    const [cust, supp, wo, pr, seal, trans, prod, buyers, users, rolesData, ar, ap, talangan, cashflow, invItems, prodOrders, invMoves, karyawanData, mesinData, mpData, divisiListData] = await Promise.all([
+    const [cust, supp, wo, pr, seal, trans, prod, buyers, users, rolesData, ar, ap, talangan, cashflow, invItems, prodOrders, invMoves, karyawanData, mesinData, mpData, divisiListData, prApproval] = await Promise.all([
       api('api/customers.php'),
       api('api/suppliers.php'),
       apiIf(READ_RULES.workOrders(), 'api/work_orders.php'),
@@ -738,6 +738,7 @@ async function loadAllData() {
       apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mesin'),
       apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mp'),
       api('api/mtc.php?resource=divisi_list'),
+      api('api/pr_approvers.php').catch(() => ({ rules: [] })),
     ]);
     customers = cust; suppliers = supp; workOrders = wo; prItems = pr;
     sealItems = seal; transportItems = trans;
@@ -747,6 +748,7 @@ async function loadAllData() {
     inventoryItems = invItems; productionOrders = prodOrders; inventoryMovements = invMoves;
     karyawanList = karyawanData;
     mtcMesinList = mesinData; mtcMpList = mpData; mtcDivisiList = divisiListData;
+    prApprovalData = prApproval || { rules: [] };
 
     updateDropdownOptions();
   } catch (err) {
@@ -776,6 +778,7 @@ async function refresh(...keys) {
     productionOrders: async () => (productionOrders = await apiIf(READ_RULES.productionOrders(), 'api/production_orders.php')),
     inventoryMovements: async () => (inventoryMovements = await apiIf(READ_RULES.inventoryMovements(), 'api/inventory_movements.php')),
     karyawanList: async () => (karyawanList = await api('api/master.php?type=karyawan')),
+    prApprovalData: async () => (prApprovalData = await api('api/pr_approvers.php')),
     mtcMesinList: async () => (mtcMesinList = await apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mesin')),
     mtcMpList: async () => (mtcMpList = await apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mp')),
   };
@@ -1004,6 +1007,28 @@ function statusBadgeClass(status) {
 // Yang boleh approve diatur Admin lewat izin khusus di Role Management.
 const CAN_APPROVE_SPV = IS_ADMIN || !!USER_ACCESS.cap_pr_approve_spv;
 const CAN_APPROVE_MGR = IS_ADMIN || !!USER_ACCESS.cap_pr_approve_mgr;
+// Approver PR yang ditetapkan Admin per divisi pembuat PR (api/pr_approvers.php). divisi '' = default.
+let prApprovalData = { rules: [] };
+function prApproversFor(divisi) {
+  const key = String(divisi || '').trim().toUpperCase();
+  const own = prApprovalData.rules.find(r => r.divisi === key && key !== '') || {};
+  const def = prApprovalData.rules.find(r => r.divisi === '') || {};
+  const pick = st => own[st + '_user_id'] ? { id: own[st + '_user_id'], nama: own[st + '_nama'] }
+    : def[st + '_user_id'] ? { id: def[st + '_user_id'], nama: def[st + '_nama'] } : null;
+  return { spv: pick('spv'), mgr: pick('mgr') };
+}
+/** Boleh approve tahap ini untuk PR p? Ada approver yang ditetapkan -> hanya dia (atau Admin); kalau tidak -> pemegang izin. */
+function canApproveStage(p, stage) {
+  if (IS_ADMIN) return true;
+  const assigned = stage === 'spv' ? p.approver_spv_id : p.approver_mgr_id;
+  if (assigned) return currentUser && Number(assigned) === Number(currentUser.id);
+  return stage === 'spv' ? CAN_APPROVE_SPV : CAN_APPROVE_MGR;
+}
+/** User login ditetapkan sebagai approver di salah satu aturan / punya izin approval. */
+function hasAnyPRApproval() {
+  const me = currentUser && Number(currentUser.id);
+  return CAN_APPROVE_SPV || CAN_APPROVE_MGR || prApprovalData.rules.some(r => r.spv_user_id === me || r.mgr_user_id === me);
+}
 const APPROVAL_LABELS = {
   PENDING_LEADER: 'Menunggu Supervisor',
   PENDING_MANAGER: 'Menunggu Manager Produksi',
@@ -1026,10 +1051,10 @@ function approvalBadgeClass(status) {
 /** Tombol aksi approval yang relevan untuk PR baris ini, sesuai role user yang sedang login. */
 function approvalActionButton(p) {
   if (!currentUser) return '';
-  if (p.approval_status === 'PENDING_LEADER' && CAN_APPROVE_SPV) {
+  if (p.approval_status === 'PENDING_LEADER' && canApproveStage(p, 'spv')) {
     return `<button onclick="openApprovalModal(${p.id})" class="px-2 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[10px] font-bold" title="Cek sebagai Supervisor"><i class="fa-solid fa-magnifying-glass"></i> Cek</button>`;
   }
-  if (p.approval_status === 'PENDING_MANAGER' && CAN_APPROVE_MGR) {
+  if (p.approval_status === 'PENDING_MANAGER' && canApproveStage(p, 'mgr')) {
     return `<button onclick="openApprovalModal(${p.id})" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold" title="Approve sebagai Manager Produksi"><i class="fa-solid fa-stamp"></i> Approve</button>`;
   }
   if (p.approval_status === 'REJECTED') {
@@ -1078,7 +1103,7 @@ function prTimelineHtml(p) {
 
 /** PR ini sedang menunggu approval di tahap milik user yang login? */
 function isMyApproval(p) {
-  return (p.approval_status === 'PENDING_LEADER' && CAN_APPROVE_SPV) || (p.approval_status === 'PENDING_MANAGER' && CAN_APPROVE_MGR);
+  return (p.approval_status === 'PENDING_LEADER' && canApproveStage(p, 'spv')) || (p.approval_status === 'PENDING_MANAGER' && canApproveStage(p, 'mgr'));
 }
 const prApproveSel = new Set(); // PR yang dicentang untuk approval massal
 
@@ -1091,11 +1116,14 @@ function toggleApprovePick(id, checked) {
 function renderPRApprovalBar() {
   const bar = document.getElementById('pr-approval-bar');
   if (!bar) return;
-  if (!CAN_APPROVE_SPV && !CAN_APPROVE_MGR) { bar.classList.add('hidden'); return; }
+  if (!hasAnyPRApproval()) { bar.classList.add('hidden'); return; }
   const mine = getFilteredPRData().filter(isMyApproval);
   // Buang pilihan yang sudah tidak menunggu approval user ini (mis. sudah diproses).
   [...prApproveSel].forEach(id => { const p = prItems.find(x => x.id === id); if (!p || !isMyApproval(p)) prApproveSel.delete(id); });
-  const stage = [CAN_APPROVE_SPV ? 'Supervisor' : '', CAN_APPROVE_MGR ? 'Manager Produksi' : ''].filter(Boolean).join(' & ');
+  const me = currentUser && Number(currentUser.id);
+  const isSpv = CAN_APPROVE_SPV || prApprovalData.rules.some(r => r.spv_user_id === me);
+  const isMgr = CAN_APPROVE_MGR || prApprovalData.rules.some(r => r.mgr_user_id === me);
+  const stage = [isSpv ? 'Supervisor' : '', isMgr ? 'Manager' : ''].filter(Boolean).join(' & ');
   bar.classList.remove('hidden');
   bar.innerHTML = `
     <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-2">
@@ -1361,14 +1389,14 @@ function buildPRItemBlockHTML() {
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Tanggal Datang / Received</label><input type="date" class="pri-tgl-datang w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"></div>
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Penerima Barang</label><input type="text" class="pri-penerima w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="Nama penerima"></div>
     </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div class="grid grid-cols-1 gap-3">
       <div>
         <label class="block font-semibold text-slate-600 mb-1 text-[11px]">Status PR</label>
         <select class="pri-status w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs">
           <option value="ON PROSES">ON PROSES</option><option value="PO ISSUED">PO ISSUED</option><option value="RECEIVED">RECEIVED</option><option value="STORE ROOM">STORE ROOM</option><option value="CANCEL">CANCEL</option>
         </select>
       </div>
-      <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Buyer / Purchasing</label><select class="pri-buyer w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-xs"></select></div>
+      <div class="hidden"><select class="pri-buyer"></select></div>
     </div>
     <div>
       <label class="block font-semibold text-slate-600 mb-1 text-[11px]">Lampiran Google Drive (URL)</label>
@@ -1490,7 +1518,7 @@ function calcPRItemBlockTotal(el) {
 const CAN_PROSES_PR = IS_ADMIN || !!USER_ACCESS.cap_pr_proses;
 const PR_REQ_SEL = '.pri-item-no, .pri-product, .pri-type, .pri-dimensi, .pri-brand, .pri-qty, .pri-uom';
 const PR_PUR_SEL = '.pri-harga, .pri-is-ppn, .pri-ppn-rate, .pri-po, .pri-invoice, .pri-supplier, .pri-tgl-beli, .pri-tgl-datang, .pri-penerima, .pri-status, .pri-buyer, .pri-lampiran, .pri-keterangan';
-const PR_REQ_HEADER_IDS = ['form-sheet', 'form-pr', 'form-tanggal', 'form-atasan-select', 'form-manager-select', 'form-wo-select'];
+const PR_REQ_HEADER_IDS = ['form-sheet', 'form-pr', 'form-tanggal', 'form-wo-select'];
 let prFormLock = { req: true, pur: true };
 
 /** Boleh membuka Edit PR: pembuatnya, Staff Purchasing, atau Admin. */
@@ -1545,6 +1573,12 @@ function setPRRequester(name, divisi) {
   document.getElementById('form-karyawan-select').value = k ? k.id : '';
 }
 
+/** Tampilkan nama Approver 1 & 2 di form PR (otomatis dari pengaturan Admin / yang sudah approve). */
+function setPRApproverFields(spv, mgr) {
+  document.getElementById('form-approver-spv').value = spv || 'Semua user berizin Approval Supervisor';
+  document.getElementById('form-approver-mgr').value = mgr || 'Semua user berizin Approval Manager';
+}
+
 async function openModal(mode, id = null) {
   document.getElementById('pr-form').reset();
   document.getElementById('form-id').value = '';
@@ -1559,6 +1593,8 @@ async function openModal(mode, id = null) {
     document.getElementById('form-tanggal').value = new Date().toISOString().slice(0, 10);
     prFormLock = { req: true, pur: CAN_PROSES_PR };
     setPRRequester(currentUser?.full_name || currentUser?.username, currentUser?.divisi);
+    const ap = prApproversFor(currentUser?.divisi);
+    setPRApproverFields(ap.spv?.nama, ap.mgr?.nama);
     await autoGeneratePRNumber();
     addPRItemBlock();
   } else {
@@ -1583,6 +1619,10 @@ async function openModal(mode, id = null) {
     document.getElementById('form-project').value = p.project || '';
     headerDefaultBuyerId = p.buyer_id || '';
     document.getElementById('form-buyer-header-select').value = headerDefaultBuyerId;
+    // Sudah diproses -> nama yang benar-benar approve; belum -> approver yang ditetapkan Admin.
+    setPRApproverFields(
+      p.leader_nama ? `${p.leader_nama} (sudah diproses)` : p.approver_spv_nama,
+      p.manager_nama ? `${p.manager_nama} (sudah diproses)` : p.approver_mgr_nama);
 
     addPRItemBlock(p);
   }
@@ -4784,7 +4824,7 @@ function renderMasterLists() {
 const LOG_MODULE_LABELS = {
   pr_items: 'Purchase Request (PR)', work_orders: 'Work Order (WO)', seal_items: 'Seal CNC', transport_items: 'Transportasi',
   account_receivable: 'AR (Piutang)', account_payable: 'AP (Hutang)', dana_talangan: 'Dana Talangan', manual_cashflow: 'Cash Flow',
-  surat_jalan: 'Surat Jalan', customers: 'Customer', suppliers: 'Supplier', inventory_items: 'Stok Material',
+  surat_jalan: 'Surat Jalan', pr_approval_rules: 'Approver PR', customers: 'Customer', suppliers: 'Supplier', inventory_items: 'Stok Material',
   inventory_movements: 'Pergerakan Stok', production_orders: 'Produksi & BOM', mtc_divisi_records: 'MTC Divisi Produksi',
   mtc_divisi_items: 'MTC Pekerjaan', mtc_master_mesin: 'MTC Master Mesin', mtc_master_mp: 'MTC Tarif Manpower',
   master_products: 'Master Product', master_buyers: 'Master Buyer', master_karyawan: 'Master Karyawan', master_users: 'User',
@@ -4874,8 +4914,65 @@ async function exportActivityLog() {
   } catch (err) { showApiError(err); }
 }
 
+// ===================== ADMIN: APPROVER PR =====================
+let prApproverAdmin = null; // {rules, users, divisi} dari api/pr_approvers.php (versi admin)
+
+function prApproverUserOptions(selected) {
+  const users = (prApproverAdmin && prApproverAdmin.users) || [];
+  return '<option value="">-- Ikut Default / izin role --</option>' + users.map(u =>
+    `<option value="${u.id}" ${Number(selected) === Number(u.id) ? 'selected' : ''}>${esc(u.full_name)} (${esc(u.divisi || '-')} &middot; ${esc(u.role_label || '')})</option>`).join('');
+}
+
+function prApproverRowHtml(r, isDefault) {
+  const divCell = isDefault
+    ? '<span class="font-bold text-amber-800">DEFAULT</span><div class="text-[10px] text-slate-400">semua divisi</div><input type="hidden" class="pra-divisi" value="">'
+    : `<input list="pra-divisi-list" class="pra-divisi w-full p-1.5 border border-slate-300 rounded-lg bg-white uppercase" value="${esc(r.divisi || '')}" placeholder="Nama divisi">`;
+  return `<tr class="border-b border-slate-100">
+    <td class="py-1.5 pr-2 align-top">${divCell}</td>
+    <td class="py-1.5 pr-2"><select class="pra-spv w-full p-1.5 border border-slate-300 rounded-lg bg-white">${prApproverUserOptions(r.spv_user_id)}</select></td>
+    <td class="py-1.5 pr-2"><select class="pra-mgr w-full p-1.5 border border-slate-300 rounded-lg bg-white">${prApproverUserOptions(r.mgr_user_id)}</select></td>
+    <td class="text-center">${isDefault ? '' : '<button type="button" onclick="this.closest(\'tr\').remove()" class="text-slate-400 hover:text-rose-600 p-1" title="Hapus baris (divisi ini ikut Default)"><i class="fa-solid fa-xmark"></i></button>'}</td>
+  </tr>`;
+}
+
+async function renderPRApproverPanel() {
+  const body = document.getElementById('pr-approver-rows');
+  if (!body) return;
+  try {
+    prApproverAdmin = await api('api/pr_approvers.php');
+  } catch (err) { showApiError(err); return; }
+  const rules = prApproverAdmin.rules || [];
+  const def = rules.find(r => r.divisi === '') || { divisi: '' };
+  body.innerHTML = prApproverRowHtml(def, true) + rules.filter(r => r.divisi !== '').map(r => prApproverRowHtml(r, false)).join('');
+  let dl = document.getElementById('pra-divisi-list');
+  if (!dl) { dl = document.createElement('datalist'); dl.id = 'pra-divisi-list'; document.body.appendChild(dl); }
+  dl.innerHTML = (prApproverAdmin.divisi || []).map(d => `<option value="${esc(d)}">`).join('');
+}
+
+function addPRApproverRow() {
+  document.getElementById('pr-approver-rows').insertAdjacentHTML('beforeend', prApproverRowHtml({ divisi: '' }, false));
+}
+
+async function savePRApprovers() {
+  const rows = [...document.querySelectorAll('#pr-approver-rows tr')].map(tr => ({
+    divisi: tr.querySelector('.pra-divisi').value.trim().toUpperCase(),
+    spv_user_id: tr.querySelector('.pra-spv').value || null,
+    mgr_user_id: tr.querySelector('.pra-mgr').value || null,
+  }));
+  const divs = rows.slice(1).map(r => r.divisi);
+  if (divs.some(d => !d)) { showToast('Nama divisi wajib diisi (atau hapus barisnya).', 'error'); return; }
+  if (new Set(divs).size !== divs.length) { showToast('Ada divisi yang ditulis lebih dari sekali.', 'error'); return; }
+  try {
+    await api('api/pr_approvers.php', 'PUT', { rules: rows });
+    showToast('Pengaturan Approver PR tersimpan.');
+    await refresh('prApprovalData', 'prItems');
+    renderPRApproverPanel();
+  } catch (err) { showApiError(err); }
+}
+
 function renderAdminSection() {
   loadActivityLog(logState.page || 1);
+  renderPRApproverPanel();
   document.getElementById('master-user-count').textContent = masterUsers.length;
   document.getElementById('master-role-count').textContent = roles.length;
 

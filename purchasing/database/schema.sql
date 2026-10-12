@@ -417,6 +417,17 @@ CREATE TABLE `activity_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
+-- Approver PR yang ditetapkan Admin per divisi pembuat PR ('' = default semua divisi).
+-- (Tabel ini juga dibuat otomatis oleh aplikasi bila belum ada.)
+CREATE TABLE IF NOT EXISTS `pr_approval_rules` (
+  `divisi`      VARCHAR(100) NOT NULL PRIMARY KEY COMMENT '"" = default semua divisi',
+  `spv_user_id` INT UNSIGNED NULL COMMENT 'Approver tahap 1 (Supervisor)',
+  `mgr_user_id` INT UNSIGNED NULL COMMENT 'Approver tahap 2 (Manager)',
+  `updated_by`  INT UNSIGNED NULL,
+  `updated_at`  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 -- =========================================================
 --  SEED DATA (sama persis dengan contoh data di aplikasi asli)
 -- =========================================================
