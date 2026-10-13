@@ -542,6 +542,22 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - Kolom `pr_items.buyer_user_id` ditambahkan otomatis oleh aplikasi — tidak perlu import SQL.
   Nama buyer lama (Master Buyer) tetap tampil bila Buyer belum diisi.
 
+## 8i. Update Log — Report & Pivot Table
+
+- Menu baru **REPORT** di navigasi atas: pivot table + grafik dari data **PR, MTC (biaya per divisi & ringkasan per WO),
+  AR, AP dan Cash Flow**.
+- Atur sendiri: Sumber Data, Periode (Bulan ini / Bulan lalu / Tahun ini / Semua / tanggal bebas), Filter (centang nilai),
+  Baris, Sub-Baris, Kolom, Nilai (Jumlah / Rata-rata / Terkecil / Terbesar), jenis grafik & urutan.
+- **16 report bawaan** (PR per Kategori × Status, Nilai PR per Bulan, Pembelian per Supplier, Kinerja Buyer, Biaya per Divisi,
+  Margin per Customer, Penjualan AR per Bulan, Aging Piutang, Hutang per Supplier, Cash Flow Masuk vs Keluar, dll.).
+- Klik angka mana pun di tabel / batang grafik → rincian datanya (bisa di-export).
+- **Export Excel** (sheet Pivot + Data) dan **Print** (A4 landscape, lengkap dengan grafik).
+- **Report Favorit**: simpan pengaturan sendiri; role dengan akses *Ubah* menu Report bisa membagikannya ke pengguna lain.
+- **Hak akses**: Role Management → modul **Report → Report & Pivot Table** (Lihat / Ubah). Admin otomatis; Manager Purchasing
+  otomatis diberi akses saat pertama kali update ini dipakai. Data di report tetap mengikuti hak akses menu masing-masing user,
+  dan nilai sensitif (Nilai PO / Margin) hanya untuk role berizin.
+- Tabel `report_presets` dibuat otomatis oleh aplikasi — tidak perlu import SQL.
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

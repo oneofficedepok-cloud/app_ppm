@@ -156,6 +156,11 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <i class="fa-solid fa-gears"></i> MTC PRODUKSI
         </button>
         <?php endif; ?>
+        <?php if ($can('report')): ?>
+        <button id="section-btn-report" onclick="switchSection('report')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
+          <i class="fa-solid fa-chart-pie"></i> REPORT
+        </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -1066,6 +1071,105 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           </div>
           <div class="max-h-80 overflow-y-auto custom-scrollbar"><ul id="mtc-mp-list" class="divide-y divide-slate-200 text-xs"></ul></div>
         </div>
+      </div>
+    </div>
+
+    <!-- REPORT & PIVOT TABLE -->
+    <div id="tab-content-report" class="hidden space-y-4">
+      <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-chart-pie text-indigo-600"></i> Report &amp; Pivot Table</h3>
+          <p class="text-xs text-slate-400">Pilih report favorit atau atur sendiri: sumber data, periode, filter, baris, kolom &amp; nilai. Klik angka di tabel untuk melihat rinciannya.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" onclick="exportReportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5"><i class="fa-solid fa-file-excel"></i> Export Excel</button>
+          <button type="button" onclick="printReport()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold px-3 py-2 rounded-xl flex items-center gap-1.5"><i class="fa-solid fa-print"></i> Print</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
+        <!-- Panel pengaturan -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 text-xs xl:sticky xl:top-[120px]">
+          <div>
+            <label class="block font-bold text-slate-600 mb-1"><i class="fa-solid fa-star text-amber-500 mr-1"></i>Report Favorit</label>
+            <select id="rpt-preset" onchange="applyReportPreset(this.value)" class="w-full p-2 bg-amber-50 border border-amber-200 rounded-lg font-semibold"></select>
+            <div class="flex gap-1.5 mt-1.5">
+              <button type="button" onclick="saveReportPreset()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 rounded-lg"><i class="fa-solid fa-floppy-disk mr-1"></i>Simpan sbg Favorit</button>
+              <button type="button" id="rpt-preset-del" onclick="removeReportPreset()" class="hidden px-3 bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 font-bold py-1.5 rounded-lg" title="Hapus report favorit ini"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+          </div>
+          <div class="border-t border-slate-100 pt-3">
+            <label class="block font-bold text-slate-600 mb-1">Sumber Data</label>
+            <select id="rpt-source" onchange="onReportSourceChange()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-semibold"></select>
+            <p id="rpt-source-note" class="text-[10px] text-slate-400 mt-1"></p>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-600 mb-1">Periode <span id="rpt-date-label" class="font-normal text-slate-400"></span></label>
+            <div class="grid grid-cols-2 gap-1.5">
+              <input type="date" id="rpt-from" onchange="runReport()" class="p-2 bg-white border border-slate-300 rounded-lg">
+              <input type="date" id="rpt-to" onchange="runReport()" class="p-2 bg-white border border-slate-300 rounded-lg">
+            </div>
+            <div class="flex flex-wrap gap-1 mt-1.5">
+              <button type="button" onclick="setReportPeriod('month')" class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 font-semibold">Bulan ini</button>
+              <button type="button" onclick="setReportPeriod('lastmonth')" class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 font-semibold">Bulan lalu</button>
+              <button type="button" onclick="setReportPeriod('year')" class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 font-semibold">Tahun ini</button>
+              <button type="button" onclick="setReportPeriod('all')" class="px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 font-semibold">Semua</button>
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-600 mb-1">Filter</label>
+            <div id="rpt-filters" class="space-y-1.5"></div>
+          </div>
+          <div class="border-t border-slate-100 pt-3 grid grid-cols-1 gap-2">
+            <div><label class="block font-bold text-slate-600 mb-1"><i class="fa-solid fa-grip-lines mr-1 text-indigo-500"></i>Baris</label><select id="rpt-row1" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
+            <div><label class="block font-bold text-slate-600 mb-1">Sub-Baris (opsional)</label><select id="rpt-row2" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
+            <div><label class="block font-bold text-slate-600 mb-1"><i class="fa-solid fa-grip-lines-vertical mr-1 text-indigo-500"></i>Kolom (opsional)</label><select id="rpt-col" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
+            <div class="grid grid-cols-[1fr_110px] gap-1.5">
+              <div><label class="block font-bold text-slate-600 mb-1"><i class="fa-solid fa-calculator mr-1 text-indigo-500"></i>Nilai</label><select id="rpt-measure" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
+              <div><label class="block font-bold text-slate-600 mb-1">Hitung</label><select id="rpt-agg" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg">
+                <option value="sum">Jumlah</option><option value="avg">Rata-rata</option><option value="min">Terkecil</option><option value="max">Terbesar</option>
+              </select></div>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <div><label class="block font-bold text-slate-600 mb-1">Grafik</label><select id="rpt-chart-type" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg">
+                <option value="bar">Batang</option><option value="stacked">Batang bertumpuk</option><option value="hbar">Batang horizontal</option><option value="line">Garis</option><option value="doughnut">Donat</option><option value="none">Tanpa grafik</option>
+              </select></div>
+              <div><label class="block font-bold text-slate-600 mb-1">Urutkan</label><select id="rpt-sort" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg">
+                <option value="label">Nama / Waktu</option><option value="desc">Nilai terbesar</option><option value="asc">Nilai terkecil</option>
+              </select></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hasil -->
+        <div class="space-y-4 min-w-0">
+          <div id="rpt-kpi" class="grid grid-cols-2 lg:grid-cols-4 gap-3"></div>
+          <div id="rpt-chart-card" class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div class="flex items-center justify-between mb-2"><h4 id="rpt-chart-title" class="font-bold text-slate-700 text-sm"></h4><span id="rpt-chart-note" class="text-[10px] text-slate-400"></span></div>
+            <div class="relative h-[340px]"><canvas id="rpt-chart"></canvas></div>
+          </div>
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+              <h4 id="rpt-table-title" class="font-bold text-slate-700 text-sm"></h4>
+              <span id="rpt-table-note" class="text-[10px] text-slate-400"></span>
+            </div>
+            <div id="rpt-table" class="overflow-auto max-h-[70vh] custom-scrollbar"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Rincian data (klik angka di pivot) -->
+    <div id="rpt-drill-modal" class="hidden fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="if (event.target === this) this.classList.add('hidden')">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+        <div class="px-5 py-3 bg-slate-900 text-white rounded-t-2xl flex items-center justify-between gap-3">
+          <div><h3 id="rpt-drill-title" class="font-bold"></h3><p id="rpt-drill-sub" class="text-[11px] text-slate-300"></p></div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="exportReportDrill()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg"><i class="fa-solid fa-file-excel mr-1"></i>Export</button>
+            <button type="button" onclick="document.getElementById('rpt-drill-modal').classList.add('hidden')" class="text-slate-300 hover:text-white text-xl px-2">&times;</button>
+          </div>
+        </div>
+        <div id="rpt-drill-body" class="overflow-auto custom-scrollbar p-0 text-xs"></div>
       </div>
     </div>
 
@@ -2607,6 +2711,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
     window.CURRENT_USER = <?= json_encode($user, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
   </script>
   <script src="assets/js/app.js"></script>
+  <script src="assets/js/report.js"></script>
   <script src="assets/js/table-tools.js"></script>
 </body>
 </html>

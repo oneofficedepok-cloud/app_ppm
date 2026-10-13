@@ -154,6 +154,10 @@ function attempt_login(string $username, string $password): ?array
         throw new RuntimeException('Terlalu banyak percobaan login gagal. Coba lagi dalam ' . LOGIN_LOCK_MINUTES . ' menit.');
     }
 
+    // Setup awal fitur Report (tabel favorit + akses Manager Purchasing) - sekali saja.
+    require_once __DIR__ . '/report_setup.php';
+    report_setup(db());
+
     $user = load_user('u.username = :u', [':u' => $username], true);
 
     // password_verify tetap dijalankan walau user tidak ada, supaya waktu respons

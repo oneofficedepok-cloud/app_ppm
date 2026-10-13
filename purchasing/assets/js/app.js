@@ -86,7 +86,7 @@ function canEdit(...menus) {
 function can(section) {
   return (SECTION_TABS[section] || []).some(t => canView(t));
 }
-const ALL_MODULE_KEYS = ['purchasing', 'produksi', 'masterdata', 'gudang', 'finance', 'mtc'];
+const ALL_MODULE_KEYS = ['purchasing', 'produksi', 'masterdata', 'gudang', 'finance', 'mtc', 'report'];
 // Aturan baca data per endpoint - harus sama dengan aturan require_perm() di server.
 const READ_RULES = {
   workOrders: () => IS_ADMIN || Object.keys(USER_ACCESS).length > 0,
@@ -610,6 +610,7 @@ const TAB_LOADERS = {
   mtcdivisi: () => renderMTCDivisiTab(),
   mtcmaster: () => renderMTCMasterLists(),
   admin: () => renderAdminSection(),
+  report: () => renderReportTab(),
 };
 
 // Modul level-1: tab mana termasuk section apa, dan urutan tab per-section.
@@ -621,6 +622,7 @@ const TAB_SECTION = {
   stok: 'gudang', produksi: 'gudang', riwayat: 'gudang', incoming: 'gudang', receiving: 'gudang',
   findash: 'finance', cashflow: 'finance', ar: 'finance', sj: 'finance', ap: 'finance', talangan: 'finance',
   mtcdash: 'mtc', mtcdivisi: 'mtc', mtcmaster: 'mtc',
+  report: 'report',
   admin: 'admin',
 };
 const SECTION_TABS = {
@@ -630,9 +632,10 @@ const SECTION_TABS = {
   gudang: ['stok', 'incoming', 'receiving', 'produksi', 'riwayat'],
   finance: ['findash', 'cashflow', 'ar', 'sj', 'ap', 'talangan'],
   mtc: ['mtcdash', 'mtcdivisi', 'mtcmaster'],
+  report: ['report'],
 };
 // Ingat tab terakhir yang dibuka per-section, supaya balik ke section yang sama tidak selalu reset ke tab pertama.
-const lastTabForSection = { purchasing: 'dashboard', produksi: 'tracking', masterdata: 'customers', gudang: 'stok', finance: 'findash', mtc: 'mtcdash' };
+const lastTabForSection = { purchasing: 'dashboard', produksi: 'tracking', masterdata: 'customers', gudang: 'stok', finance: 'findash', mtc: 'mtcdash', report: 'report' };
 
 function switchTab(tab) {
   // Pengaman sisi client: non-admin tidak boleh masuk tab admin (biar tidak bisa
@@ -658,7 +661,7 @@ function switchTab(tab) {
   const section = TAB_SECTION[tab] || 'overview';
 
   // Update tombol level-1 (Dashboard / Purchasing / Gudang / Finance) di nav gelap.
-  ['overview', 'purchasing', 'produksi', 'masterdata', 'gudang', 'finance', 'mtc'].forEach(s => {
+  ['overview', 'purchasing', 'produksi', 'masterdata', 'gudang', 'finance', 'mtc', 'report'].forEach(s => {
     const btn = document.getElementById(`section-btn-${s}`);
     if (!btn) return;
     btn.className = 'px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap ' +

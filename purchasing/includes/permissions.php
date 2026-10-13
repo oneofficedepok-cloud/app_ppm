@@ -49,6 +49,11 @@ const APP_MODULES = [
         'mtcdivisi' => 'Modul Divisi Produksi',
         'mtcmaster' => 'Master Data MTC (Mesin & Tarif)',
     ]],
+    // Lihat = boleh membuka Report & Pivot + simpan report favorit sendiri.
+    // Ubah  = juga boleh membagikan report favorit ke semua pengguna Report.
+    'report' => ['label' => 'Report', 'menus' => [
+        'report' => 'Report & Pivot Table',
+    ]],
 ];
 
 /**

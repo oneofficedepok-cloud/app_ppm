@@ -30,7 +30,7 @@ CREATE TABLE `roles` (
 
 INSERT INTO `roles` (`role_key`,`label`,`is_admin`,`is_system`,`modules`) VALUES
 ('admin', 'Admin', 1, 1, NULL),
-('manager_purchasing', 'Manager Purchasing', 0, 0, 'purchasing,produksi,masterdata,gudang,finance,mtc,cap_nilai_po:view,cap_pr_proses:view'),
+('manager_purchasing', 'Manager Purchasing', 0, 0, 'purchasing,produksi,masterdata,gudang,finance,mtc,cap_nilai_po:view,cap_pr_proses:view,report:edit'),
 ('staff_purchasing', 'Staff Purchasing', 0, 0, 'purchasing,gudang,cap_pr_proses:view'),
 ('staff_gudang', 'Staff Gudang', 0, 0, 'stok:edit,incoming:edit,receiving:edit,produksi:edit,riwayat:edit,tracking:view,seal:view,dashboard:view'),
 ('leader', 'Leader', 0, 0, 'purchasing,gudang'),
@@ -441,6 +441,20 @@ CREATE TABLE IF NOT EXISTS `pr_approval_rules` (
   `mgr_user_id` INT UNSIGNED NULL COMMENT 'Approver tahap 2 (Manager)',
   `updated_by`  INT UNSIGNED NULL,
   `updated_at`  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+-- Report favorit (menu Report & Pivot Table). Juga dibuat otomatis oleh aplikasi.
+CREATE TABLE IF NOT EXISTS `report_presets` (
+  `id`         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id`    INT UNSIGNED NOT NULL,
+  `name`       VARCHAR(120) NOT NULL,
+  `source`     VARCHAR(40) NOT NULL,
+  `config`     TEXT NOT NULL,
+  `is_shared`  TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_rp_user (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 
