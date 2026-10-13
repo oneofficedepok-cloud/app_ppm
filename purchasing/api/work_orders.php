@@ -7,6 +7,7 @@ require_perm(array_keys(all_menus()), ['tracking']);
 
 $method = http_method();
 $pdo = db();
+ensure_seal_transport_columns($pdo); // kolom status Seal dipakai rekap biaya
 $action = $_GET['action'] ?? '';
 
 /** Kolom nilai jual / PO / profit yang hanya boleh dilihat role berizin "Lihat Nilai PO". */
@@ -72,7 +73,7 @@ switch ($method) {
             SELECT wo.*, c.nama AS customer_nama,
                    kr.nama AS requester_nama, ka.nama AS atasan_nama, km.nama AS manager_nama,
                    COALESCE((SELECT SUM(pr.dpp) FROM pr_items pr WHERE pr.wo_id = wo.id AND pr.status != 'CANCEL'), 0) AS aktual_pem,
-                   COALESCE((SELECT SUM(si.total) FROM seal_items si WHERE si.wo_id = wo.id), 0) AS total_seal,
+                   COALESCE((SELECT SUM(si.total) FROM seal_items si WHERE si.wo_id = wo.id AND si.status <> 'CANCEL'), 0) AS total_seal,
                    COALESCE((SELECT SUM(ti.total) FROM transport_items ti WHERE ti.wo_id = wo.id), 0) AS total_transport,
                    (SELECT COUNT(*) FROM pr_items pr WHERE pr.wo_id = wo.id) AS pr_count,
                    (SELECT COUNT(*) FROM pr_items pr WHERE pr.wo_id = wo.id AND pr.status IN ('ON PROSES','PO ISSUED')) AS pr_on_proses_count,

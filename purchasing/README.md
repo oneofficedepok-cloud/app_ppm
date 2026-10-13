@@ -566,6 +566,14 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
   terlihat oleh role yang punya akses jenis report tsb. Nilai sensitif (Nilai PO / Margin) tetap hanya untuk role berizin.
 - Tabel `report_presets` dibuat otomatis oleh aplikasi — tidak perlu import SQL.
 
+## 8j. Update Log — Seal CNC & Transportasi
+
+- **Seal CNC**: form & tabel ditambah **Tanggal Permintaan**, **Tanggal Proses** dan **Status** (ON PROSES / DONE / CANCEL),
+  berlaku untuk semua item di satu form. Filter Status di tabel. Tanggal Proses tidak boleh sebelum Tanggal Permintaan.
+  Seal berstatus **CANCEL tidak dihitung** sebagai biaya WO (WO & Budget, Dashboard MTC).
+- **Transportasi**: form & tabel ditambah **Tanggal** dan **No. Invoice** (bisa dicari di kotak pencarian).
+- Kolom baru ditambahkan otomatis oleh aplikasi — tidak perlu import SQL. Data lama: status = ON PROSES, tanggal kosong.
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

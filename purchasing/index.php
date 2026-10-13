@@ -634,8 +634,9 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <thead>
             <tr class="bg-amber-50 text-amber-900 uppercase font-bold border-b border-amber-200 text-[10px]">
               <th class="py-3.5 px-4 text-center sticky left-0 z-20 bg-amber-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]"><label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="bulk-all-seal" onchange="toggleBulkAll('seal', this.checked)" class="w-4 h-4 accent-rose-600 cursor-pointer" title="Pilih semua yang tampil"> Aksi</label></th>
-              <th class="py-3.5 px-4">No. WO</th><th class="py-3.5 px-4">Nama Project</th><th class="py-3.5 px-4">Customer</th>
-              <th class="py-3.5 px-4">Product Part</th><th class="py-3.5 px-4">Type</th><th class="py-3.5 px-4">Dimensi</th><th class="py-3.5 px-4">Brand</th>
+              <th class="py-3.5 px-4">No. WO</th><th class="py-3.5 px-4">Tgl Permintaan</th><th class="py-3.5 px-4">Tgl Proses</th><th class="py-3.5 px-4 text-center">Status</th>
+              <th class="py-3.5 px-4">Nama Project</th><th class="py-3.5 px-4">Customer</th>
+              <th class="py-3.5 px-4">Product Part</th><th class="py-3.5 px-4">Type</th><th class="py-3.5 px-4">Dimensi</th><th class="py-3.5 px-4">Material</th>
               <th class="py-3.5 px-4 text-center">Qty</th><th class="py-3.5 px-4 text-right">Harga Satuan (Rp)</th><th class="py-3.5 px-4 text-right">Total (Rp)</th>
             </tr>
           </thead>
@@ -668,7 +669,8 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <thead>
             <tr class="bg-blue-50 text-blue-900 uppercase font-bold border-b border-blue-200 text-[10px]">
               <th class="py-3.5 px-4 text-center sticky left-0 z-20 bg-blue-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]"><label class="inline-flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="bulk-all-transport" onchange="toggleBulkAll('transport', this.checked)" class="w-4 h-4 accent-rose-600 cursor-pointer" title="Pilih semua yang tampil"> Aksi</label></th>
-              <th class="py-3.5 px-4">No. WO</th><th class="py-3.5 px-4">Nama Project</th><th class="py-3.5 px-4">Customer</th>
+              <th class="py-3.5 px-4">No. WO</th><th class="py-3.5 px-4">Tanggal</th><th class="py-3.5 px-4">No. Invoice</th>
+              <th class="py-3.5 px-4">Nama Project</th><th class="py-3.5 px-4">Customer</th>
               <th class="py-3.5 px-4">Deskripsi Armada/Jasa</th><th class="py-3.5 px-4">Destinasi Awal</th><th class="py-3.5 px-4">Destinasi Tujuan</th>
               <th class="py-3.5 px-4 text-center">Qty</th><th class="py-3.5 px-4 text-right">Harga Satuan (Rp)</th><th class="py-3.5 px-4 text-right">Total (Rp)</th>
             </tr>
@@ -1903,6 +1905,14 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
             <div><label class="block font-semibold text-slate-700 mb-1">Nama Project (Auto)</label><input type="text" id="seal-project-input" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg font-semibold"></div>
             <div><label class="block font-semibold text-slate-700 mb-1">Nama Customer (Auto)</label><input type="text" id="seal-customer-input" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg font-semibold"></div>
           </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div><label class="block font-semibold text-slate-700 mb-1">Tanggal Permintaan *</label><input type="date" id="seal-tgl-permintaan" required class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+            <div><label class="block font-semibold text-slate-700 mb-1">Tanggal Proses</label><input type="date" id="seal-tgl-proses" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+            <div><label class="block font-semibold text-slate-700 mb-1">Status</label><select id="seal-status" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
+              <option value="ON PROSES">ON PROSES</option><option value="DONE">DONE</option><option value="CANCEL">CANCEL</option>
+            </select></div>
+          </div>
+          <p class="text-[10px] text-amber-800/70 -mt-1">Tanggal & status ini berlaku untuk semua item seal di form ini. Seal berstatus CANCEL tidak dihitung sebagai biaya WO.</p>
         </div>
         <div class="flex items-center justify-between">
           <h4 class="font-bold text-slate-700 uppercase text-[10px] tracking-wider">Data Product Seal CNC</h4>
@@ -1936,6 +1946,10 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         </div>
         <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-3">
           <h4 class="font-bold text-slate-700 uppercase text-[10px] tracking-wider">Data Transportasi & Logistik</h4>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div><label class="block font-semibold text-slate-600 mb-1">Tanggal *</label><input type="date" id="transport-tanggal" required class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+            <div><label class="block font-semibold text-slate-600 mb-1">No. Invoice</label><input type="text" id="transport-invoice" placeholder="INV-LALA-001" class="w-full p-2 bg-white border border-slate-300 rounded-lg uppercase"></div>
+          </div>
           <div><label class="block font-semibold text-slate-600 mb-1">Deskripsi Armada/Jasa</label><input type="text" id="transport-deskripsi" placeholder="Sewa Truck Engkel Box" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div><label class="block font-semibold text-slate-600 mb-1">Destinasi Awal</label><input type="text" id="transport-asal" placeholder="Jakarta" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>

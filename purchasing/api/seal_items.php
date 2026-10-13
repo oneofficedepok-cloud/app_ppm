@@ -6,6 +6,18 @@ require_perm(['seal', 'tracking', 'findash'], ['seal']);
 
 $method = http_method();
 $pdo = db();
+ensure_seal_transport_columns($pdo);
+
+/** Tanggal permintaan / proses & status dari form. */
+function seal_extra_fields(array $b): array
+{
+    $status = strtoupper(trim((string) arr_val($b, 'status', 'ON PROSES')));
+    if (!in_array($status, SEAL_STATUSES, true)) json_error('Status Seal harus ON PROSES, DONE atau CANCEL.', 422);
+    $permintaan = arr_val($b, 'tgl_permintaan') ?: null;
+    $proses = arr_val($b, 'tgl_proses') ?: null;
+    if ($permintaan && $proses && $proses < $permintaan) json_error('Tanggal Proses tidak boleh sebelum Tanggal Permintaan.', 422);
+    return [':tglminta' => $permintaan, ':tglproses' => $proses, ':status' => $status];
+}
 
 switch ($method) {
 
@@ -30,10 +42,10 @@ switch ($method) {
         $total = $qty * $harga;
 
         $stmt = $pdo->prepare(
-            'INSERT INTO seal_items (wo_id, project, customer_id, product, type, dimensi, brand, qty, harga, total)
-             VALUES (:wo, :proj, :cust, :prod, :type, :dim, :brand, :qty, :harga, :total)'
+            'INSERT INTO seal_items (wo_id, project, customer_id, tgl_permintaan, tgl_proses, status, product, type, dimensi, brand, qty, harga, total)
+             VALUES (:wo, :proj, :cust, :tglminta, :tglproses, :status, :prod, :type, :dim, :brand, :qty, :harga, :total)'
         );
-        $stmt->execute([
+        $stmt->execute(seal_extra_fields($b) + [
             ':wo'    => $woId,
             ':proj'  => arr_val($b, 'project', ''),
             ':cust'  => to_int_or_null(arr_val($b, 'customer_id')),
@@ -61,11 +73,12 @@ switch ($method) {
         $total = $qty * $harga;
 
         $stmt = $pdo->prepare(
-            'UPDATE seal_items SET wo_id=:wo, project=:proj, customer_id=:cust, product=:prod,
+            'UPDATE seal_items SET wo_id=:wo, project=:proj, customer_id=:cust,
+                tgl_permintaan=:tglminta, tgl_proses=:tglproses, status=:status, product=:prod,
                 type=:type, dimensi=:dim, brand=:brand, qty=:qty, harga=:harga, total=:total
              WHERE id = :id'
         );
-        $stmt->execute([
+        $stmt->execute(seal_extra_fields($b) + [
             ':wo'    => to_int_or_null(arr_val($b, 'wo_id')),
             ':proj'  => arr_val($b, 'project', ''),
             ':cust'  => to_int_or_null(arr_val($b, 'customer_id')),

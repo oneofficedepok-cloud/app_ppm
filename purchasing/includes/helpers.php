@@ -212,3 +212,36 @@ function parse_id_list(): array
     $ids = array_values(array_unique(array_filter(array_map('intval', $raw), fn($v) => $v > 0)));
     return array_slice($ids, 0, 1000);
 }
+
+/**
+ * Tambah kolom yang belum ada di tabel (dipakai untuk fitur baru, supaya tidak perlu import SQL manual).
+ * $cols = ['nama_kolom' => 'DEFINISI SQL', ...]. Dicek sekali per request per tabel.
+ */
+function db_ensure_columns(PDO $pdo, string $table, array $cols): void
+{
+    static $done = [];
+    if (isset($done[$table])) return;
+    $done[$table] = true;
+    $have = array_column($pdo->query("SHOW COLUMNS FROM `$table`")->fetchAll(), 'Field');
+    foreach ($cols as $name => $ddl) {
+        if (!in_array($name, $have, true)) $pdo->exec("ALTER TABLE `$table` ADD COLUMN `$name` $ddl");
+    }
+}
+
+/** Status Seal CNC yang valid. CANCEL tidak dihitung sebagai biaya WO. */
+const SEAL_STATUSES = ['ON PROSES', 'DONE', 'CANCEL'];
+
+/** Kolom baru Seal CNC (tanggal permintaan/proses + status) & Transportasi (tanggal + invoice). */
+function ensure_seal_transport_columns(PDO $pdo): void
+{
+    db_ensure_columns($pdo, 'seal_items', [
+        'tgl_permintaan' => "DATE NULL COMMENT 'Tanggal permintaan seal' AFTER `customer_id`",
+        'tgl_proses'     => "DATE NULL COMMENT 'Tanggal seal diproses' AFTER `tgl_permintaan`",
+        'status'         => "VARCHAR(20) NOT NULL DEFAULT 'ON PROSES' COMMENT 'ON PROSES / DONE / CANCEL' AFTER `tgl_proses`",
+    ]);
+    db_ensure_columns($pdo, 'transport_items', [
+        'tanggal'    => "DATE NULL COMMENT 'Tanggal transportasi' AFTER `customer_id`",
+        'invoice_no' => "VARCHAR(100) NULL COMMENT 'No. invoice vendor transportasi' AFTER `tanggal`",
+    ]);
+}
+

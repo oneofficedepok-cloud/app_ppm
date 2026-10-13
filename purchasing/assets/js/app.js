@@ -2751,8 +2751,8 @@ const TABLE_FILTERS = {
   },
   transport: {
     color: 'blue', data: () => transportItems, render: () => renderTransportTable(),
-    placeholder: 'Cari WO, project, customer, deskripsi, asal, tujuan...',
-    search: ['wo_number', 'project', 'customer_nama', 'deskripsi', 'asal', 'tujuan'],
+    placeholder: 'Cari WO, invoice, project, customer, deskripsi, asal, tujuan...',
+    search: ['wo_number', 'invoice_no', 'project', 'customer_nama', 'deskripsi', 'asal', 'tujuan'],
     selects: [
       { key: 'customer', label: 'Customer', all: 'Semua Customer', get: r => r.customer_nama },
       { key: 'wo', label: 'No WO', all: 'Semua WO', get: r => r.wo_number },
@@ -2761,12 +2761,13 @@ const TABLE_FILTERS = {
   },
   seal: {
     color: 'amber', data: () => sealItems, render: () => renderSealTable(),
-    placeholder: 'Cari WO, project, customer, product, type, dimensi, brand...',
-    search: ['wo_number', 'project', 'customer_nama', 'product', 'type', 'dimensi', 'brand'],
+    placeholder: 'Cari WO, project, customer, product, type, dimensi, material...',
+    search: ['wo_number', 'project', 'customer_nama', 'product', 'type', 'dimensi', 'brand', 'status'],
     selects: [
+      { key: 'status', label: 'Status', all: 'Semua Status', get: r => r.status || 'ON PROSES' },
       { key: 'customer', label: 'Customer', all: 'Semua Customer', get: r => r.customer_nama },
       { key: 'wo', label: 'No WO', all: 'Semua WO', get: r => r.wo_number },
-      { key: 'brand', label: 'Brand', all: 'Semua Brand', get: r => r.brand },
+      { key: 'brand', label: 'Material', all: 'Semua Material', get: r => r.brand },
     ],
     total: r => Number(r.total) || 0,
   },
@@ -3002,16 +3003,19 @@ function printSealByFilter() {
   printSealWO(item ? item.wo_id : null);
 }
 
+const SEAL_STATUS_CLS = {
+  'ON PROSES': 'bg-amber-100 text-amber-800', DONE: 'bg-emerald-100 text-emerald-700', CANCEL: 'bg-rose-100 text-rose-700',
+};
 function renderSealTable() {
   const tbody = document.getElementById('seal-table-tbody');
   const rows = tfApply('seal');
   if (sealItems.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="11" class="text-center py-8 text-slate-400 font-semibold">Belum ada data Seal CNC.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="14" class="text-center py-8 text-slate-400 font-semibold">Belum ada data Seal CNC.</td></tr>`;
     syncBulkBar('seal');
     return;
   }
   if (rows.length === 0) {
-    tbody.innerHTML = tfNoMatchRow(11);
+    tbody.innerHTML = tfNoMatchRow(14);
     syncBulkBar('seal');
     return;
   }
@@ -3026,6 +3030,9 @@ function renderSealTable() {
         </div>
       </td>
       <td class="py-2.5 px-4 font-bold text-amber-900">${esc(s.wo_number || '-')}</td>
+      <td class="py-2.5 px-4 whitespace-nowrap">${formatDateID(s.tgl_permintaan)}</td>
+      <td class="py-2.5 px-4 whitespace-nowrap">${formatDateID(s.tgl_proses)}</td>
+      <td class="py-2.5 px-4 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${SEAL_STATUS_CLS[s.status] || SEAL_STATUS_CLS['ON PROSES']}">${esc(s.status || 'ON PROSES')}</span></td>
       <td class="py-2.5 px-4">${esc(s.project || '-')}</td>
       <td class="py-2.5 px-4">${esc(s.customer_nama || '-')}</td>
       <td class="py-2.5 px-4 font-semibold">${esc(s.product || '-')}</td>
@@ -3140,6 +3147,8 @@ function openSealModal(mode, id = null) {
   const title = document.getElementById('seal-modal-title');
   if (mode === 'add') {
     title.textContent = 'Form Produksi & Pesanan SEAL CNC - Tambah Baru';
+    document.getElementById('seal-tgl-permintaan').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('seal-status').value = 'ON PROSES';
     addSealItemBlock();
   } else {
     const s = sealItems.find(x => x.id === id);
@@ -3149,6 +3158,9 @@ function openSealModal(mode, id = null) {
     document.getElementById('seal-wo-select').value = s.wo_id || '';
     document.getElementById('seal-project-input').value = s.project || '';
     document.getElementById('seal-customer-input').value = s.customer_nama || '';
+    document.getElementById('seal-tgl-permintaan').value = s.tgl_permintaan || '';
+    document.getElementById('seal-tgl-proses').value = s.tgl_proses || '';
+    document.getElementById('seal-status').value = s.status || 'ON PROSES';
     addSealItemBlock(s);
   }
   document.getElementById('seal-modal').classList.remove('hidden');
@@ -3168,7 +3180,14 @@ async function handleSealSubmit(e) {
     wo_id: woId,
     project: w ? w.project : document.getElementById('seal-project-input').value,
     customer_id: w ? w.customer_id : null,
+    tgl_permintaan: document.getElementById('seal-tgl-permintaan').value || null,
+    tgl_proses: document.getElementById('seal-tgl-proses').value || null,
+    status: document.getElementById('seal-status').value,
   };
+  if (sharedFields.tgl_permintaan && sharedFields.tgl_proses && sharedFields.tgl_proses < sharedFields.tgl_permintaan) {
+    showToast('Tanggal Proses tidak boleh sebelum Tanggal Permintaan.', 'error');
+    return;
+  }
 
   const blocks = Array.from(document.querySelectorAll('#seal-items-container .seali-block'));
 
@@ -4449,12 +4468,12 @@ function renderTransportTable() {
   const tbody = document.getElementById('transport-table-tbody');
   const rows = tfApply('transport');
   if (transportItems.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-slate-400 font-semibold">Belum ada data Transportasi.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center py-8 text-slate-400 font-semibold">Belum ada data Transportasi.</td></tr>`;
     syncBulkBar('transport');
     return;
   }
   if (rows.length === 0) {
-    tbody.innerHTML = tfNoMatchRow(10);
+    tbody.innerHTML = tfNoMatchRow(12);
     syncBulkBar('transport');
     return;
   }
@@ -4468,6 +4487,8 @@ function renderTransportTable() {
         </div>
       </td>
       <td class="py-2.5 px-4 font-bold text-blue-900">${esc(t.wo_number || '-')}</td>
+      <td class="py-2.5 px-4 whitespace-nowrap">${formatDateID(t.tanggal)}</td>
+      <td class="py-2.5 px-4 font-semibold whitespace-nowrap">${esc(t.invoice_no || '-')}</td>
       <td class="py-2.5 px-4">${esc(t.project || '-')}</td>
       <td class="py-2.5 px-4">${esc(t.customer_nama || '-')}</td>
       <td class="py-2.5 px-4 font-semibold">${esc(t.deskripsi || '-')}</td>
@@ -4502,6 +4523,7 @@ function openTransportModal(mode, id = null) {
   const title = document.getElementById('transport-modal-title');
   if (mode === 'add') {
     title.textContent = 'Form Logistik & Transportasi - Tambah Baru';
+    document.getElementById('transport-tanggal').value = new Date().toISOString().slice(0, 10);
     calcTransportTotal();
   } else {
     const t = transportItems.find(x => x.id === id);
@@ -4511,6 +4533,8 @@ function openTransportModal(mode, id = null) {
     document.getElementById('transport-wo-select').value = t.wo_id || '';
     document.getElementById('transport-project-input').value = t.project || '';
     document.getElementById('transport-customer-input').value = t.customer_nama || '';
+    document.getElementById('transport-tanggal').value = t.tanggal || '';
+    document.getElementById('transport-invoice').value = t.invoice_no || '';
     document.getElementById('transport-deskripsi').value = t.deskripsi || '';
     document.getElementById('transport-asal').value = t.asal || '';
     document.getElementById('transport-tujuan').value = t.tujuan || '';
@@ -4536,6 +4560,8 @@ async function handleTransportSubmit(e) {
     wo_id: woId,
     project: w ? w.project : document.getElementById('transport-project-input').value,
     customer_id: w ? w.customer_id : null,
+    tanggal: document.getElementById('transport-tanggal').value || null,
+    invoice_no: document.getElementById('transport-invoice').value.trim().toUpperCase(),
     deskripsi: document.getElementById('transport-deskripsi').value,
     asal: document.getElementById('transport-asal').value,
     tujuan: document.getElementById('transport-tujuan').value,

@@ -6,6 +6,7 @@ require_perm(['transport', 'tracking', 'findash'], ['transport']);
 
 $method = http_method();
 $pdo = db();
+ensure_seal_transport_columns($pdo);
 
 switch ($method) {
 
@@ -30,10 +31,12 @@ switch ($method) {
         $total = $qty * $harga;
 
         $stmt = $pdo->prepare(
-            'INSERT INTO transport_items (wo_id, project, customer_id, deskripsi, asal, tujuan, qty, harga, total)
-             VALUES (:wo, :proj, :cust, :desk, :asal, :tuju, :qty, :harga, :total)'
+            'INSERT INTO transport_items (wo_id, project, customer_id, tanggal, invoice_no, deskripsi, asal, tujuan, qty, harga, total)
+             VALUES (:wo, :proj, :cust, :tgl, :inv, :desk, :asal, :tuju, :qty, :harga, :total)'
         );
         $stmt->execute([
+            ':tgl'   => arr_val($b, 'tanggal') ?: null,
+            ':inv'   => strtoupper(clean_str(arr_val($b, 'invoice_no', ''))),
             ':wo'    => $woId,
             ':proj'  => arr_val($b, 'project', ''),
             ':cust'  => to_int_or_null(arr_val($b, 'customer_id')),
@@ -60,11 +63,13 @@ switch ($method) {
         $total = $qty * $harga;
 
         $stmt = $pdo->prepare(
-            'UPDATE transport_items SET wo_id=:wo, project=:proj, customer_id=:cust, deskripsi=:desk,
+            'UPDATE transport_items SET wo_id=:wo, project=:proj, customer_id=:cust, tanggal=:tgl, invoice_no=:inv, deskripsi=:desk,
                 asal=:asal, tujuan=:tuju, qty=:qty, harga=:harga, total=:total
              WHERE id = :id'
         );
         $stmt->execute([
+            ':tgl'   => arr_val($b, 'tanggal') ?: null,
+            ':inv'   => strtoupper(clean_str(arr_val($b, 'invoice_no', ''))),
             ':wo'    => to_int_or_null(arr_val($b, 'wo_id')),
             ':proj'  => arr_val($b, 'project', ''),
             ':cust'  => to_int_or_null(arr_val($b, 'customer_id')),

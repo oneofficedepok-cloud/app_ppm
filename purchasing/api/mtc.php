@@ -18,6 +18,7 @@ switch ($_GET['resource'] ?? 'dashboard') {
 }
 
 $pdo = db();
+ensure_seal_transport_columns($pdo); // kolom status Seal dipakai biaya otomatis
 $method = http_method();
 $resource = $_GET['resource'] ?? 'dashboard';
 
@@ -72,7 +73,7 @@ function mtc_auto_costs(PDO $pdo): array
         ['CNC Seal', 'Seal CNC', "
             SELECT wo_id, product AS pekerjaan, TRIM(CONCAT_WS(' ', type, dimensi, brand)) AS deskripsi,
                    qty, 'Pcs' AS satuan, harga, total, '' AS status, '' AS pic
-            FROM seal_items WHERE wo_id IS NOT NULL ORDER BY id"],
+            FROM seal_items WHERE wo_id IS NOT NULL AND status <> 'CANCEL' ORDER BY id"],
         ['Transportasi', 'Transportasi', "
             SELECT wo_id, deskripsi AS pekerjaan, TRIM(CONCAT_WS(' -> ', NULLIF(asal, ''), NULLIF(tujuan, ''))) AS deskripsi,
                    qty, 'Trip' AS satuan, harga, total, '' AS status, '' AS pic
