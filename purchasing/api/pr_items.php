@@ -97,7 +97,7 @@ if ($method === 'POST' && $action === 'receive') {
 } else {
     // Baca: menu PR + menu yang memakai data PR (Incoming/Receiving Gudang,
     // biaya aktual WO, Finance Dashboard). Ubah & approval: menu PR.
-    require_perm(['dashboard', 'incoming', 'receiving', 'tracking', 'findash'], ['dashboard']);
+    require_perm(['dashboard', 'incoming', 'receiving', 'tracking', 'findash', 'rpt_pr'], ['dashboard']);
 }
 
 // ---------------------------------------------------------

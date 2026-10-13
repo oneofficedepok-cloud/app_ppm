@@ -558,9 +558,12 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
   di-approve Manager tidak ikut dihitung.
 - **Export Excel** (sheet Pivot + Data) dan **Print** (A4 landscape, lengkap dengan grafik).
 - **Report Favorit**: simpan pengaturan sendiri; role dengan akses *Ubah* menu Report bisa membagikannya ke pengguna lain.
-- **Hak akses**: Role Management → modul **Report → Report & Pivot Table** (Lihat / Ubah). Admin otomatis; Manager Purchasing
-  otomatis diberi akses saat pertama kali update ini dipakai. Data di report tetap mengikuti hak akses menu masing-masing user,
-  dan nilai sensitif (Nilai PO / Margin) hanya untuk role berizin.
+- **Hak akses per jenis report** (Role Management → modul **Report**): Report Purchasing (PR), Report MTC Produksi,
+  Report AR, Report AP, Report Cash Flow — masing-masing *Lihat* (lihat & export) / *Ubah* (juga bagikan favorit).
+  Role hanya melihat report yang dicentang Admin; menu REPORT tidak muncul bila tidak ada satu pun. Izin report memberi
+  akses baca data report tsb walau role tidak punya menu modulnya. Admin otomatis semua; Manager Purchasing otomatis
+  hanya Report Purchasing (izin lama "Report & Pivot Table" dialihkan ke Report Purchasing). Favorit yang dibagikan hanya
+  terlihat oleh role yang punya akses jenis report tsb. Nilai sensitif (Nilai PO / Margin) tetap hanya untuk role berizin.
 - Tabel `report_presets` dibuat otomatis oleh aplikasi — tidak perlu import SQL.
 
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri

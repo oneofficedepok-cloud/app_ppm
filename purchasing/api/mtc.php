@@ -14,7 +14,7 @@ switch ($_GET['resource'] ?? 'dashboard') {
         require_perm(['mtcdivisi', 'mtcdash'], ['mtcdivisi', 'mtcdash']);
         break;
     default: // dashboard
-        require_view(['mtcdash', 'mtcdivisi']);
+        require_view(['mtcdash', 'mtcdivisi', 'rpt_mtc']); // Report MTC: baca saja
 }
 
 $pdo = db();

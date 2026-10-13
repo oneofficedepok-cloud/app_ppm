@@ -3,7 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/cashflow.php';
 
 // Baca: Cash Flow + Finance Dashboard & Dana Talangan (rekonsiliasi). Ubah: menu Cash Flow.
-require_perm(['cashflow', 'findash', 'talangan'], ['cashflow']);
+require_perm(['cashflow', 'findash', 'talangan', 'rpt_cashflow'], ['cashflow']);
 
 $method = http_method();
 $pdo = db();

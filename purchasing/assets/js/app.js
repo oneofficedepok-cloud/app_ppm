@@ -56,8 +56,11 @@ let appModules = {}; // katalog modul -> menu (dari api/roles.php), dipakai form
 const USER_ACCESS = (currentUser && currentUser.access) || {};
 const IS_ADMIN = !!(currentUser && currentUser.is_admin);
 /** Boleh melihat minimal salah satu menu. */
+// Tab "report" = menu Report & Pivot; terbuka kalau role boleh melihat minimal 1 jenis report.
+const REPORT_MENUS = ['rpt_pr', 'rpt_mtc', 'rpt_ar', 'rpt_ap', 'rpt_cashflow'];
+const expandReportMenu = menus => menus.flatMap(m => (m === 'report' ? REPORT_MENUS : [m]));
 function canView(...menus) {
-  return IS_ADMIN || menus.some(m => !!USER_ACCESS[m]);
+  return IS_ADMIN || expandReportMenu(menus).some(m => !!USER_ACCESS[m]);
 }
 /**
  * Izin khusus data sensitif: Nilai PO / harga jual WO, Profit & Loss, Margin.
@@ -80,7 +83,7 @@ function sjStatusBadge(status, extra = '') {
 }
 /** Boleh tambah/ubah/hapus di minimal salah satu menu. */
 function canEdit(...menus) {
-  return IS_ADMIN || menus.some(m => USER_ACCESS[m] === 'edit');
+  return IS_ADMIN || expandReportMenu(menus).some(m => USER_ACCESS[m] === 'edit');
 }
 /** Modul level-1 (Purchasing/Gudang/...) tampil kalau minimal 1 menunya boleh dilihat. */
 function can(section) {
@@ -90,13 +93,13 @@ const ALL_MODULE_KEYS = ['purchasing', 'produksi', 'masterdata', 'gudang', 'fina
 // Aturan baca data per endpoint - harus sama dengan aturan require_perm() di server.
 const READ_RULES = {
   workOrders: () => IS_ADMIN || Object.keys(USER_ACCESS).length > 0,
-  prItems: () => canView('dashboard', 'incoming', 'receiving', 'tracking', 'findash'),
+  prItems: () => canView('dashboard', 'incoming', 'receiving', 'tracking', 'findash', 'rpt_pr'),
   sealItems: () => canView('seal', 'tracking', 'findash'),
   transportItems: () => canView('transport', 'tracking', 'findash'),
   masterUsers: () => IS_ADMIN,
-  ar: () => canView('ar', 'findash', 'cashflow'),
-  ap: () => canView('ap', 'findash', 'cashflow'),
-  cashflow: () => canView('cashflow', 'findash', 'talangan'),
+  ar: () => canView('ar', 'findash', 'cashflow', 'rpt_ar'),
+  ap: () => canView('ap', 'findash', 'cashflow', 'rpt_ap'),
+  cashflow: () => canView('cashflow', 'findash', 'talangan', 'rpt_cashflow'),
   talangan: () => canView('talangan', 'findash', 'cashflow'),
   sj: () => canView('sj'),
   inventoryItems: () => canView('stok', 'receiving', 'produksi', 'riwayat', 'tracking'),
@@ -5095,6 +5098,7 @@ function renderRolePermissionMatrix(access = {}) {
           <label class="flex items-center gap-1 cursor-pointer"><input type="checkbox" class="perm-group-cb w-3.5 h-3.5 accent-rose-600" data-level="edit" onchange="toggleRolePermGroup('${esc(modKey)}', 'edit', this.checked)"> Ubah semua</label>
         </div>
       </div>
+      ${modKey === 'report' ? `<div class="px-4 pl-7 pt-1.5 text-[10px] text-indigo-700 bg-indigo-50/60">Pilih report yang boleh dibuka role ini. <b>Lihat</b> = lihat &amp; export report (datanya read-only, walau role tidak punya menu modulnya). <b>Ubah</b> = juga boleh membagikan report favorit. Nilai PO / Margin tetap butuh izin Nilai PO.</div>` : ''}
       ${Object.entries(mod.menus).map(([menuKey, label]) => `
         <div class="flex items-center justify-between px-4 py-1.5 pl-7 hover:bg-slate-50">
           <span class="text-slate-700">${esc(label)}</span>

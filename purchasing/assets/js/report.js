@@ -81,8 +81,7 @@ const rptMoney = (label, get) => ({ label, get, money: true });
 
 const REPORT_SOURCES = {
   pr: {
-    group: 'Purchasing', label: 'Purchase Request (PR)', menuNote: 'menu Purchase Request',
-    available: () => READ_RULES.prItems(),
+    group: 'Purchasing', label: 'Purchase Request (PR)', menu: 'rpt_pr',
     rows: () => prItems || [],
     date: r => r.tanggal, dateLabel: 'Tanggal PR',
     dims: {
@@ -126,8 +125,7 @@ const REPORT_SOURCES = {
     ],
   },
   mtc_cost: {
-    group: 'MTC Produksi', label: 'MTC - Biaya Produksi per Divisi', menuNote: 'menu Dashboard MTC / Modul Divisi',
-    available: () => canView('mtcdash', 'mtcdivisi'),
+    group: 'MTC Produksi', label: 'MTC - Biaya Produksi per Divisi', menu: 'rpt_mtc',
     rows: rptMtcCostRows,
     date: r => r.tanggal, dateLabel: 'Tanggal input (biaya otomatis PR/Seal/Transport tanpa tanggal)',
     dims: {
@@ -155,8 +153,7 @@ const REPORT_SOURCES = {
     ],
   },
   mtc_wo: {
-    group: 'MTC Produksi', label: 'MTC - Ringkasan per WO (Nilai PO vs Biaya)', menuNote: 'menu Dashboard MTC / Modul Divisi',
-    available: () => canView('mtcdash', 'mtcdivisi'),
+    group: 'MTC Produksi', label: 'MTC - Ringkasan per WO (Nilai PO vs Biaya)', menu: 'rpt_mtc',
     rows: rptMtcWoRows,
     date: r => r.tanggal, dateLabel: 'Tanggal WO dibuat',
     dims: {
@@ -178,8 +175,7 @@ const REPORT_SOURCES = {
     ],
   },
   ar: {
-    group: 'Finance', label: 'AR - Piutang Customer', menuNote: 'menu AR',
-    available: () => READ_RULES.ar(),
+    group: 'Finance', label: 'AR - Piutang Customer', menu: 'rpt_ar',
     rows: () => arData || [],
     date: r => r.tgl_invoice, dateLabel: 'Tanggal Invoice',
     dims: {
@@ -208,8 +204,7 @@ const REPORT_SOURCES = {
     ],
   },
   ap: {
-    group: 'Finance', label: 'AP - Hutang Supplier', menuNote: 'menu AP',
-    available: () => READ_RULES.ap(),
+    group: 'Finance', label: 'AP - Hutang Supplier', menu: 'rpt_ap',
     rows: () => apData || [],
     date: r => r.tgl_invoice, dateLabel: 'Tanggal Invoice',
     dims: {
@@ -234,8 +229,7 @@ const REPORT_SOURCES = {
     ],
   },
   cashflow: {
-    group: 'Finance', label: 'Cash Flow (Kas Masuk & Keluar)', menuNote: 'menu Cash Flow',
-    available: () => READ_RULES.cashflow(),
+    group: 'Finance', label: 'Cash Flow (Kas Masuk & Keluar)', menu: 'rpt_cashflow',
     rows: () => cashflowCombined || [],
     date: r => r.tanggal, dateLabel: 'Tanggal Transaksi',
     dims: {
@@ -260,6 +254,9 @@ const REPORT_SOURCES = {
     ],
   },
 };
+
+// Jenis report yang boleh dibuka ditentukan Admin per role (Role Management -> modul Report).
+Object.values(REPORT_SOURCES).forEach(src => { src.available = () => canView(src.menu); });
 
 /** Report bawaan (siap pakai). period: 'year' | 'month' | 'all'. */
 const RPT_BUILTIN = [
@@ -337,7 +334,8 @@ function rptPeriodRange(kind) {
 }
 
 function rptNormalize(cfg) {
-  const src = rptSource(cfg.source) ? cfg.source : Object.keys(REPORT_SOURCES).find(k => REPORT_SOURCES[k].available()) || 'pr';
+  const src = REPORT_SOURCES[cfg.source] && REPORT_SOURCES[cfg.source].available()
+    ? cfg.source : Object.keys(REPORT_SOURCES).find(k => REPORT_SOURCES[k].available()) || 'pr';
   const S = REPORT_SOURCES[src];
   const dims = rptDims(S);
   const meas = rptMeasures(S);
@@ -367,7 +365,7 @@ function rptRestore() {
 
 // ---------------- render tab ----------------
 async function renderReportTab() {
-  if (!rpt) rpt = rptNormalize(rptRestore() || RPT_BUILTIN[0].cfg);
+  if (!rpt) rpt = rptNormalize(rptRestore() || (RPT_BUILTIN.find(b => REPORT_SOURCES[b.cfg.source].available()) || RPT_BUILTIN[0]).cfg);
   await rptEnsureData(rpt.source);
   if (!rptPresetsLoaded) {
     rptPresetsLoaded = true;
@@ -379,7 +377,7 @@ async function renderReportTab() {
 }
 
 async function rptEnsureData(sourceKey) {
-  if (String(sourceKey).startsWith('mtc') && !rptMtcLoaded && canView('mtcdash', 'mtcdivisi')) {
+  if (String(sourceKey).startsWith('mtc') && !rptMtcLoaded && canView('mtcdash', 'mtcdivisi', 'rpt_mtc')) {
     try {
       mtcDashboardData = await api('api/mtc.php?resource=dashboard');
       rptMtcLoaded = true;
@@ -428,14 +426,16 @@ async function applyReportPreset(value) {
 function rptRenderControls() {
   const srcSel = document.getElementById('rpt-source');
   const byGroup = {};
-  Object.entries(REPORT_SOURCES).forEach(([k, s]) => {
-    (byGroup[s.group] ||= []).push(`<option value="${k}" ${s.available() ? '' : 'disabled'}>${esc(s.label)}${s.available() ? '' : ' (tidak ada akses)'}</option>`);
+  // Hanya jenis report yang diizinkan Admin untuk role ini yang muncul.
+  Object.entries(REPORT_SOURCES).filter(([, s]) => s.available()).forEach(([k, s]) => {
+    (byGroup[s.group] ||= []).push(`<option value="${k}">${esc(s.label)}</option>`);
   });
   srcSel.innerHTML = Object.entries(byGroup).map(([g, o]) => `<optgroup label="${esc(g)}">${o.join('')}</optgroup>`).join('');
   srcSel.value = rpt.source;
 
   const S = rptSource();
-  document.getElementById('rpt-source-note').textContent = `Data mengikuti hak akses Anda di ${S.menuNote}.`;
+  const allowed = Object.values(REPORT_SOURCES).filter(x => x.available()).map(x => x.label);
+  document.getElementById('rpt-source-note').textContent = `Report yang diizinkan untuk role Anda: ${allowed.join(', ')}. Butuh report lain? Hubungi Admin.`;
   document.getElementById('rpt-date-label').textContent = S.dateLabel ? `(${S.dateLabel})` : '';
   document.getElementById('rpt-from').value = rpt.from;
   document.getElementById('rpt-to').value = rpt.to;
@@ -941,7 +941,7 @@ async function saveReportPreset() {
     if (!name) return;
   }
   let shared = current && id ? !!current.is_shared : false;
-  if (canEdit('report')) {
+  if (canEdit(rptSource().menu)) {
     shared = await showConfirm('Bagikan report ini ke semua pengguna menu Report? (Mereka hanya melihat data sesuai hak aksesnya masing-masing.)',
       { title: 'Bagikan Report?', yesText: 'BAGIKAN', noText: 'HANYA SAYA', danger: false });
   }

@@ -49,10 +49,15 @@ const APP_MODULES = [
         'mtcdivisi' => 'Modul Divisi Produksi',
         'mtcmaster' => 'Master Data MTC (Mesin & Tarif)',
     ]],
-    // Lihat = boleh membuka Report & Pivot + simpan report favorit sendiri.
-    // Ubah  = juga boleh membagikan report favorit ke semua pengguna Report.
+    // Report & Pivot Table dibagi per jenis report - Admin memilih report mana yang boleh dibuka tiap role.
+    // Lihat = boleh melihat & export report tsb (termasuk datanya, read-only) + simpan favorit sendiri.
+    // Ubah  = juga boleh membagikan report favorit jenis tsb ke pengguna lain.
     'report' => ['label' => 'Report', 'menus' => [
-        'report' => 'Report & Pivot Table',
+        'rpt_pr'       => 'Report Purchasing (PR)',
+        'rpt_mtc'      => 'Report MTC Produksi',
+        'rpt_ar'       => 'Report AR (Piutang)',
+        'rpt_ap'       => 'Report AP (Hutang)',
+        'rpt_cashflow' => 'Report Cash Flow',
     ]],
 ];
 
@@ -193,3 +198,9 @@ function visible_modules(array $perms): array
     }
     return $mods;
 }
+
+/** Sumber data Report -> izin menu Report yang dibutuhkan. */
+const REPORT_SOURCE_MENU = [
+    'pr' => 'rpt_pr', 'mtc_cost' => 'rpt_mtc', 'mtc_wo' => 'rpt_mtc',
+    'ar' => 'rpt_ar', 'ap' => 'rpt_ap', 'cashflow' => 'rpt_cashflow',
+];

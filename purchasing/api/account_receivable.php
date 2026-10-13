@@ -5,7 +5,7 @@ require_once __DIR__ . '/../includes/finance_calc.php';
 require_once __DIR__ . '/../includes/ar_payments.php';
 
 // Baca: menu AR + Finance Dashboard & Cash Flow (rekap). Ubah: menu AR.
-require_perm(['ar', 'findash', 'cashflow'], ['ar']);
+require_perm(['ar', 'findash', 'cashflow', 'rpt_ar'], ['ar']);
 
 $method = http_method();
 $pdo = db();

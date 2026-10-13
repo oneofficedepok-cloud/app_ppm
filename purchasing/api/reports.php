@@ -10,7 +10,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/report_setup.php';
 
-$user = require_view(['report']);
+$user = require_view(array_values(array_unique(REPORT_SOURCE_MENU)));
 $pdo = db();
 report_setup($pdo);
 
@@ -26,7 +26,9 @@ if ($method === 'GET') {
          ORDER BY p.is_shared DESC, p.name'
     );
     $stmt->execute([':me' => $uid]);
-    $rows = $stmt->fetchAll();
+    // Hanya report yang jenisnya boleh dibuka user ini.
+    $rows = array_values(array_filter($stmt->fetchAll(), fn($r) => isset(REPORT_SOURCE_MENU[$r['source']])
+        && can_view($user, [REPORT_SOURCE_MENU[$r['source']]])));
     foreach ($rows as &$r) {
         $r['config'] = json_decode($r['config'], true) ?: [];
         $r['is_shared'] = (int) $r['is_shared'];
@@ -44,13 +46,15 @@ if ($action === 'save') {
     $name = mb_substr(clean_str(arr_val($b, 'name', '')), 0, 120);
     $source = (string) arr_val($b, 'source', '');
     $config = arr_val($b, 'config', []);
-    if ($name === '' || !preg_match('/^[a-z_]{2,40}$/', $source) || !is_array($config)) {
+    if ($name === '' || !isset(REPORT_SOURCE_MENU[$source]) || !is_array($config)) {
         json_error('Nama report dan sumber data wajib diisi.', 422);
     }
+    $menu = REPORT_SOURCE_MENU[$source];
+    if (!can_view($user, [$menu])) json_error('Anda tidak punya akses ke jenis report ini.', 403);
     $json = json_encode($config, JSON_UNESCAPED_UNICODE);
     if (strlen($json) > 20000) json_error('Pengaturan report terlalu besar.', 422);
     $shared = (bool) arr_val($b, 'shared', false);
-    if ($shared && !can_edit($user, ['report'])) json_error('Membagikan report butuh akses Ubah pada menu Report.', 403);
+    if ($shared && !can_edit($user, [$menu])) json_error('Membagikan report butuh akses Ubah pada jenis report ini.', 403);
 
     $id = to_int_or_null(arr_val($b, 'id'));
     if ($id) {

@@ -30,7 +30,7 @@ CREATE TABLE `roles` (
 
 INSERT INTO `roles` (`role_key`,`label`,`is_admin`,`is_system`,`modules`) VALUES
 ('admin', 'Admin', 1, 1, NULL),
-('manager_purchasing', 'Manager Purchasing', 0, 0, 'purchasing,produksi,masterdata,gudang,finance,mtc,cap_nilai_po:view,cap_pr_proses:view,report:edit'),
+('manager_purchasing', 'Manager Purchasing', 0, 0, 'purchasing,produksi,masterdata,gudang,finance,mtc,cap_nilai_po:view,cap_pr_proses:view,rpt_pr:edit'),
 ('staff_purchasing', 'Staff Purchasing', 0, 0, 'purchasing,gudang,cap_pr_proses:view'),
 ('staff_gudang', 'Staff Gudang', 0, 0, 'stok:edit,incoming:edit,receiving:edit,produksi:edit,riwayat:edit,tracking:view,seal:view,dashboard:view'),
 ('leader', 'Leader', 0, 0, 'purchasing,gudang'),

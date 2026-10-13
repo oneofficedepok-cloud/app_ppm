@@ -6,7 +6,8 @@
 
 /**
  * Buat tabel report_presets bila belum ada. Saat tabel BARU dibuat (pertama kali fitur
- * ini dipasang), role Manager Purchasing otomatis diberi akses menu Report (Ubah).
+ * ini dipasang), role Manager Purchasing otomatis diberi akses Report Purchasing (Ubah).
+ * Report lain (MTC, AR, AP, Cash Flow) hanya untuk role yang dipilih Admin di Role Management.
  * Setelah itu pengaturan akses sepenuhnya lewat Role Management (tidak ditimpa lagi).
  */
 function report_setup(PDO $pdo): void
@@ -15,6 +16,10 @@ function report_setup(PDO $pdo): void
     if ($done) return;
     $done = true;
     try {
+        // Versi awal memakai 1 izin 'report' untuk semua report. Sekarang dibagi per jenis report;
+        // izin lama dialihkan ke Report Purchasing saja (report lain diberikan Admin sesuai kebutuhan).
+        $pdo->exec("UPDATE roles SET modules = REPLACE(REPLACE(modules, 'report:edit', 'rpt_pr:edit'), 'report:view', 'rpt_pr:view')
+                    WHERE modules LIKE '%report:%'");
         if ($pdo->query("SHOW TABLES LIKE 'report_presets'")->fetch()) return;
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS `report_presets` (
@@ -30,8 +35,8 @@ function report_setup(PDO $pdo): void
              ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
         );
         $pdo->exec(
-            "UPDATE roles SET modules = CONCAT(COALESCE(NULLIF(modules, ''), 'dashboard:view'), ',report:edit')
-             WHERE role_key = 'manager_purchasing' AND COALESCE(modules, '') NOT LIKE '%report:%'"
+            "UPDATE roles SET modules = CONCAT(COALESCE(NULLIF(modules, ''), 'dashboard:view'), ',rpt_pr:edit')
+             WHERE role_key = 'manager_purchasing' AND COALESCE(modules, '') NOT LIKE '%rpt_%'"
         );
     } catch (PDOException $e) {
         // Kolom roles.modules belum ada (migrasi lama belum jalan) - abaikan, login tetap jalan.

@@ -3,7 +3,7 @@ require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/finance_calc.php';
 
 // Baca: menu AP + Finance Dashboard & Cash Flow (rekap). Ubah: menu AP.
-require_perm(['ap', 'findash', 'cashflow'], ['ap']);
+require_perm(['ap', 'findash', 'cashflow', 'rpt_ap'], ['ap']);
 
 $method = http_method();
 $pdo = db();
