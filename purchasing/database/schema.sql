@@ -346,6 +346,7 @@ CREATE TABLE `pr_items` (
   `po_number`      VARCHAR(100) NULL,
   `invoice_number` VARCHAR(100) NULL,
   `buyer_id`       INT UNSIGNED NULL,
+  `buyer_user_id`  INT UNSIGNED NULL COMMENT 'Buyer (user Staff Purchasing) yang memproses PR',
   `user_id`        INT UNSIGNED NULL,
   `divisi`         VARCHAR(100) NULL,
   `status`         ENUM('RECEIVED','PO ISSUED','ON PROSES','STORE ROOM','CANCEL') NOT NULL DEFAULT 'ON PROSES',

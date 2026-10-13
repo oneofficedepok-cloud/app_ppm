@@ -5,13 +5,14 @@ require_once __DIR__ . '/../includes/pr_approval.php';
 
 $method = http_method();
 $pdo = db();
+pr_buyer_column_ensure($pdo);
 
 /** Kolom PR yang diisi PEMBUAT PR (user peminta). Hanya pembuat PR (atau Admin) yang boleh mengubah. */
 const PR_REQUESTER_FIELDS = ['sheet', 'tanggal', 'pr_number', 'item_no', 'wo_id', 'project', 'product', 'type', 'dimensi',
     'brand', 'qty', 'uom', 'karyawan_id', 'atasan_karyawan_id', 'manager_karyawan_id', 'divisi'];
 /** Kolom PR yang diisi STAFF PURCHASING (izin "Proses PR"). Pembuat PR tidak bisa mengisi bagian ini. */
 const PR_PURCHASING_FIELDS = ['harga', 'is_ppn', 'ppn_rate', 'po_number', 'invoice_number', 'supplier_id', 'tgl_beli',
-    'tgl_datang', 'penerima_barang', 'status', 'buyer_id', 'lampiran', 'keterangan'];
+    'tgl_datang', 'penerima_barang', 'status', 'buyer_id', 'buyer_user_id', 'lampiran', 'keterangan'];
 
 function can_proses_pr(array $user): bool
 {
@@ -176,13 +177,16 @@ switch ($method) {
             $sheet = in_array($_GET['sheet'] ?? '', PR_SHEET_VALUES, true) ? $_GET['sheet'] : 'PROJECT';
             json_success(['pr_number' => generate_pr_number($pdo, $sheet)]);
         }
+        if (($_GET['action'] ?? '') === 'buyer_users') {
+            json_success(pr_buyer_users($pdo));
+        }
 
         $sql = "
             SELECT pr.*,
                    COALESCE(cw.nama, c.nama) AS customer_nama,
                    s.nama  AS supplier_nama,
                    wo.wo_number AS wo_number,
-                   b.nama  AS buyer_nama,
+                   COALESCE(ub.full_name, b.nama) AS buyer_nama,
                    u.full_name AS user_nama, u.divisi AS user_divisi,
                    ul.full_name AS leader_nama,
                    um.full_name AS manager_nama,
@@ -195,6 +199,7 @@ switch ($method) {
             LEFT JOIN work_orders wo ON wo.id = pr.wo_id
             LEFT JOIN customers cw ON cw.id = wo.customer_id
             LEFT JOIN master_buyers b ON b.id = pr.buyer_id
+            LEFT JOIN users ub ON ub.id = pr.buyer_user_id
             LEFT JOIN users u ON u.id = pr.user_id
             LEFT JOIN users ul ON ul.id = pr.leader_id
             LEFT JOIN users um ON um.id = pr.manager_id
@@ -365,12 +370,12 @@ switch ($method) {
             'INSERT INTO pr_items
              (sheet, tanggal, pr_number, item_no, customer_id, project, wo_id, product, type, dimensi, brand,
               qty, uom, harga, is_ppn, ppn_rate, ppn_amount, dpp, total, supplier_id, tgl_beli, tgl_datang, penerima_barang,
-              po_number, invoice_number, buyer_id, user_id, karyawan_id, atasan_karyawan_id, manager_karyawan_id,
+              po_number, invoice_number, buyer_id, buyer_user_id, user_id, karyawan_id, atasan_karyawan_id, manager_karyawan_id,
               divisi, status, lampiran, keterangan, approval_status)
              VALUES
              (:sheet, :tanggal, :pr_number, :item_no, :customer_id, :project, :wo_id, :product, :type, :dimensi, :brand,
               :qty, :uom, :harga, :is_ppn, :ppn_rate, :ppn_amount, :dpp, :total, :supplier_id, :tgl_beli, :tgl_datang, :penerima,
-              :po_number, :invoice_number, :buyer_id, :user_id, :karyawan_id, :atasan_karyawan_id, :manager_karyawan_id,
+              :po_number, :invoice_number, :buyer_id, :buyer_user_id, :user_id, :karyawan_id, :atasan_karyawan_id, :manager_karyawan_id,
               :divisi, :status, :lampiran, :keterangan, :approval_status)'
         );
 
@@ -402,6 +407,7 @@ switch ($method) {
                 ':po_number'      => arr_val($b, 'po_number', ''),
                 ':invoice_number' => arr_val($b, 'invoice_number', ''),
                 ':buyer_id'       => to_int_or_null(arr_val($b, 'buyer_id')),
+                ':buyer_user_id'  => pr_valid_buyer_user($pdo, arr_val($b, 'buyer_user_id')),
                 ':user_id'        => to_int_or_null(arr_val($b, 'user_id')),
                 ':karyawan_id'    => to_int_or_null(arr_val($b, 'karyawan_id')),
                 ':atasan_karyawan_id'  => to_int_or_null(arr_val($b, 'atasan_karyawan_id')),
@@ -458,7 +464,7 @@ switch ($method) {
                 type = :type, dimensi = :dimensi, brand = :brand, qty = :qty, uom = :uom, harga = :harga,
                 is_ppn = :is_ppn, ppn_rate = :ppn_rate, ppn_amount = :ppn_amount, dpp = :dpp, total = :total,
                 supplier_id = :supplier_id, tgl_beli = :tgl_beli, tgl_datang = :tgl_datang, penerima_barang = :penerima,
-                po_number = :po_number, invoice_number = :invoice_number, buyer_id = :buyer_id,
+                po_number = :po_number, invoice_number = :invoice_number, buyer_id = :buyer_id, buyer_user_id = :buyer_user_id,
                 user_id = :user_id, karyawan_id = :karyawan_id, atasan_karyawan_id = :atasan_karyawan_id,
                 manager_karyawan_id = :manager_karyawan_id,
                 divisi = :divisi, status = :status, lampiran = :lampiran, keterangan = :keterangan';
@@ -497,6 +503,7 @@ switch ($method) {
             ':po_number'      => arr_val($b, 'po_number', ''),
             ':invoice_number' => arr_val($b, 'invoice_number', ''),
             ':buyer_id'       => to_int_or_null(arr_val($b, 'buyer_id')),
+            ':buyer_user_id'  => pr_valid_buyer_user($pdo, arr_val($b, 'buyer_user_id'), to_int_or_null($curRow['buyer_user_id'] ?? null)),
             ':user_id'        => to_int_or_null(arr_val($b, 'user_id')),
             ':karyawan_id'    => to_int_or_null(arr_val($b, 'karyawan_id')),
             ':atasan_karyawan_id'  => to_int_or_null(arr_val($b, 'atasan_karyawan_id')),

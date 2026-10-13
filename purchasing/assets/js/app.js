@@ -717,7 +717,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadAllData() {
   try {
-    const [cust, supp, wo, pr, seal, trans, prod, buyers, users, rolesData, ar, ap, talangan, cashflow, invItems, prodOrders, invMoves, karyawanData, mesinData, mpData, divisiListData, prApproval] = await Promise.all([
+    const [cust, supp, wo, pr, seal, trans, prod, buyers, users, rolesData, ar, ap, talangan, cashflow, invItems, prodOrders, invMoves, karyawanData, mesinData, mpData, divisiListData, prApproval, buyerUsers] = await Promise.all([
       api('api/customers.php'),
       api('api/suppliers.php'),
       apiIf(READ_RULES.workOrders(), 'api/work_orders.php'),
@@ -740,6 +740,7 @@ async function loadAllData() {
       apiIf(READ_RULES.mtcMaster(), 'api/mtc.php?resource=mp'),
       api('api/mtc.php?resource=divisi_list'),
       api('api/pr_approvers.php').catch(() => ({ rules: [] })),
+      apiIf(READ_RULES.prItems(), 'api/pr_items.php?action=buyer_users').catch(() => []),
     ]);
     customers = cust; suppliers = supp; workOrders = wo; prItems = pr;
     sealItems = seal; transportItems = trans;
@@ -750,6 +751,7 @@ async function loadAllData() {
     karyawanList = karyawanData;
     mtcMesinList = mesinData; mtcMpList = mpData; mtcDivisiList = divisiListData;
     prApprovalData = prApproval || { rules: [] };
+    prBuyerUsers = buyerUsers || [];
 
     updateDropdownOptions();
   } catch (err) {
@@ -1010,6 +1012,7 @@ const CAN_APPROVE_SPV = IS_ADMIN || !!USER_ACCESS.cap_pr_approve_spv;
 const CAN_APPROVE_MGR = IS_ADMIN || !!USER_ACCESS.cap_pr_approve_mgr;
 // Approver PR yang ditetapkan Admin per divisi pembuat PR (api/pr_approvers.php). divisi '' = default.
 let prApprovalData = { rules: [] };
+let prBuyerUsers = []; // pilihan Buyer di form PR = user aktif ber-role Staff Purchasing
 function prApproversFor(divisi) {
   const key = String(divisi || '').trim().toUpperCase();
   const own = prApprovalData.rules.find(r => r.divisi === key && key !== '') || {};
@@ -1390,13 +1393,14 @@ function buildPRItemBlockHTML() {
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Tanggal Datang / Received</label><input type="date" class="pri-tgl-datang w-full p-2 bg-white border border-slate-300 rounded-lg text-xs"></div>
       <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Penerima Barang</label><input type="text" class="pri-penerima w-full p-2 bg-white border border-slate-300 rounded-lg text-xs" placeholder="Nama penerima"></div>
     </div>
-    <div class="grid grid-cols-1 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
         <label class="block font-semibold text-slate-600 mb-1 text-[11px]">Status PR</label>
         <select class="pri-status w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs">
           <option value="ON PROSES">ON PROSES</option><option value="PO ISSUED">PO ISSUED</option><option value="RECEIVED">RECEIVED</option><option value="STORE ROOM">STORE ROOM</option><option value="CANCEL">CANCEL</option>
         </select>
       </div>
+      <div><label class="block font-semibold text-slate-600 mb-1 text-[11px]">Buyer (Staff Purchasing)</label><select class="pri-buyer-user w-full p-2 bg-white border border-slate-300 rounded-lg font-medium text-xs"></select></div>
       <div class="hidden"><select class="pri-buyer"></select></div>
     </div>
     <div>
@@ -1419,6 +1423,15 @@ function populateItemBlockDropdowns(block) {
     const cur = suppSel.value;
     suppSel.innerHTML = '<option value="">-- Pilih Supplier --</option>' + suppliers.map(s => opt(s.id, s.nama)).join('');
     if (cur) suppSel.value = cur;
+  }
+  const buyerUserSel = block.querySelector('.pri-buyer-user');
+  if (buyerUserSel) {
+    const cur = buyerUserSel.value || buyerUserSel.dataset.cur || '';
+    let opts = prBuyerUsers.map(u => opt(u.id, u.full_name));
+    // Buyer lama yang sudah tidak berstatus Staff Purchasing tetap tampil namanya.
+    if (cur && !prBuyerUsers.some(u => String(u.id) === String(cur))) opts.unshift(opt(cur, buyerUserSel.dataset.curName || `User #${cur}`));
+    buyerUserSel.innerHTML = '<option value="">-- Pilih Buyer --</option>' + opts.join('');
+    if (cur) buyerUserSel.value = cur;
   }
   const buyerSel = block.querySelector('.pri-buyer');
   if (buyerSel) {
@@ -1460,6 +1473,13 @@ function addPRItemBlock(data = null) {
     block.querySelector('.pri-penerima').value = data.penerima_barang || '';
     block.querySelector('.pri-status').value = data.status;
     block.querySelector('.pri-buyer').value = data.buyer_id || '';
+    const bu = block.querySelector('.pri-buyer-user');
+    bu.dataset.cur = data.buyer_user_id || '';
+    bu.dataset.curName = data.buyer_user_id ? (data.buyer_nama || '') : '';
+    if (data.buyer_user_id && ![...bu.options].some(o => o.value === String(data.buyer_user_id))) {
+      bu.insertAdjacentHTML('beforeend', opt(data.buyer_user_id, data.buyer_nama || `User #${data.buyer_user_id}`));
+    }
+    bu.value = data.buyer_user_id || '';
     block.querySelector('.pri-lampiran').value = data.lampiran || '';
     block.querySelector('.pri-keterangan').value = data.keterangan || '';
   } else {
@@ -1518,7 +1538,7 @@ function calcPRItemBlockTotal(el) {
 // dan selain pembuat PR tidak ada yang bisa mengubah data barang (kecuali Admin). Server menegakkan hal yang sama.
 const CAN_PROSES_PR = IS_ADMIN || !!USER_ACCESS.cap_pr_proses;
 const PR_REQ_SEL = '.pri-item-no, .pri-product, .pri-type, .pri-dimensi, .pri-brand, .pri-qty, .pri-uom';
-const PR_PUR_SEL = '.pri-harga, .pri-is-ppn, .pri-ppn-rate, .pri-po, .pri-invoice, .pri-supplier, .pri-tgl-beli, .pri-tgl-datang, .pri-penerima, .pri-status, .pri-buyer, .pri-lampiran, .pri-keterangan';
+const PR_PUR_SEL = '.pri-harga, .pri-is-ppn, .pri-ppn-rate, .pri-po, .pri-invoice, .pri-supplier, .pri-tgl-beli, .pri-tgl-datang, .pri-penerima, .pri-status, .pri-buyer, .pri-buyer-user, .pri-lampiran, .pri-keterangan';
 const PR_REQ_HEADER_IDS = ['form-sheet', 'form-pr', 'form-tanggal', 'form-wo-select'];
 let prFormLock = { req: true, pur: true };
 
@@ -1693,6 +1713,7 @@ async function handleFormSubmit(e) {
       penerima_barang: block.querySelector('.pri-penerima').value,
       status: block.querySelector('.pri-status').value,
       buyer_id: block.querySelector('.pri-buyer').value || document.getElementById('form-buyer-header-select').value || null,
+      buyer_user_id: block.querySelector('.pri-buyer-user').value || null,
       lampiran: block.querySelector('.pri-lampiran').value,
       keterangan: block.querySelector('.pri-keterangan').value,
     };

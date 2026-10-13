@@ -532,6 +532,16 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - Data AR lama / hasil import (kolom Terbayar) otomatis dibaca sebagai pembayaran ke-1.
 - Tabel `ar_payments` dibuat otomatis oleh aplikasi — tidak perlu import SQL.
 
+## 8h. Update Log — Buyer PR = User Staff Purchasing
+
+- Form PR, blok yang diisi Purchasing: pilihan **Buyer (Staff Purchasing)** berisi user aktif dengan role
+  Staff Purchasing (atau Buyer). Diisi Staff Purchasing yang memproses PR — boleh dirinya sendiri atau rekan lain.
+- Staff Purchasing bisa memproses PR (harga, PO, supplier, buyer) **sambil approval berjalan**; proses ini tidak
+  mereset approval. Setelah Final Approval, buyer tinggal melakukan pembayaran.
+- Pembuat PR tidak bisa mengisi Buyer; server menolak buyer yang bukan Staff Purchasing aktif.
+- Kolom `pr_items.buyer_user_id` ditambahkan otomatis oleh aplikasi — tidak perlu import SQL.
+  Nama buyer lama (Master Buyer) tetap tampil bila Buyer belum diisi.
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

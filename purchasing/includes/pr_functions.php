@@ -44,3 +44,40 @@ function generate_pr_number(PDO $pdo, string $sheet): string
 }
 
 const PR_SHEET_VALUES = ['PROJECT', 'GENERAL', 'CONSUMABLE', 'MAINTENANCE', 'INVENTARIS'];
+
+/** Kolom pr_items.buyer_user_id (Buyer = user Staff Purchasing) - ditambahkan otomatis bila belum ada. */
+function pr_buyer_column_ensure(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) return;
+    $has = $pdo->query("SHOW COLUMNS FROM pr_items LIKE 'buyer_user_id'")->fetch();
+    if (!$has) {
+        $pdo->exec("ALTER TABLE pr_items ADD COLUMN buyer_user_id INT UNSIGNED NULL COMMENT 'Buyer (user Staff Purchasing) yang memproses PR' AFTER buyer_id, ADD INDEX idx_pr_buyer_user (buyer_user_id)");
+    }
+    $done = true;
+}
+
+/** Pilihan Buyer di form PR: user aktif dengan role Staff Purchasing (atau Buyer). */
+function pr_buyer_users(PDO $pdo): array
+{
+    return $pdo->query(
+        "SELECT u.id, u.full_name, u.username, COALESCE(r.label, u.role) AS role_label
+         FROM users u LEFT JOIN roles r ON r.role_key = u.role
+         WHERE u.status = 'AKTIF'
+           AND (u.role = 'staff_purchasing' OR r.label LIKE '%staff purchasing%'
+                OR u.role LIKE '%buyer%' OR r.label LIKE '%buyer%')
+         ORDER BY u.full_name"
+    )->fetchAll();
+}
+
+/** Validasi Buyer yang dipilih: harus user Staff Purchasing aktif (atau kosong). */
+function pr_valid_buyer_user(PDO $pdo, $value, ?int $current = null): ?int
+{
+    $id = to_int_or_null($value);
+    if (!$id) return null;
+    if ($current !== null && $id === $current) return $id; // buyer lama tetap boleh walau role-nya sudah pindah
+    if (!in_array($id, array_map('intval', array_column(pr_buyer_users($pdo), 'id')), true)) {
+        json_error('Buyer yang dipilih harus user aktif dengan role Staff Purchasing.', 422);
+    }
+    return $id;
+}
