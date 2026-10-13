@@ -1125,7 +1125,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
             <div><label class="block font-bold text-slate-600 mb-1">Sub-Baris (opsional)</label><select id="rpt-row2" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
             <div><label class="block font-bold text-slate-600 mb-1"><i class="fa-solid fa-grip-lines-vertical mr-1 text-indigo-500"></i>Kolom (opsional)</label><select id="rpt-col" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
             <div class="grid grid-cols-[1fr_110px] gap-1.5">
-              <div><label class="block font-bold text-slate-600 mb-1"><i class="fa-solid fa-calculator mr-1 text-indigo-500"></i>Nilai</label><select id="rpt-measure" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
+              <div><label class="block font-bold text-slate-600 mb-1"><i class="fa-solid fa-calculator mr-1 text-indigo-500"></i>Nilai</label><select id="rpt-measure" onchange="onReportMeasureChange()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></select></div>
               <div><label class="block font-bold text-slate-600 mb-1">Hitung</label><select id="rpt-agg" onchange="runReport()" class="w-full p-2 bg-white border border-slate-300 rounded-lg">
                 <option value="sum">Jumlah</option><option value="avg">Rata-rata</option><option value="min">Terkecil</option><option value="max">Terbesar</option>
               </select></div>
@@ -1165,10 +1165,12 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         <div class="px-5 py-3 bg-slate-900 text-white rounded-t-2xl flex items-center justify-between gap-3">
           <div><h3 id="rpt-drill-title" class="font-bold"></h3><p id="rpt-drill-sub" class="text-[11px] text-slate-300"></p></div>
           <div class="flex items-center gap-2">
+            <button type="button" onclick="toggleReportDrillCols()" class="bg-white/10 hover:bg-white/20 text-white text-xs font-bold px-3 py-1.5 rounded-lg"><i class="fa-solid fa-table-columns mr-1"></i>Atur Kolom</button>
             <button type="button" onclick="exportReportDrill()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg"><i class="fa-solid fa-file-excel mr-1"></i>Export</button>
             <button type="button" onclick="document.getElementById('rpt-drill-modal').classList.add('hidden')" class="text-slate-300 hover:text-white text-xl px-2">&times;</button>
           </div>
         </div>
+        <div id="rpt-drill-cols" class="hidden px-5 py-2.5 bg-indigo-50 border-b border-indigo-100 text-xs"></div>
         <div id="rpt-drill-body" class="overflow-auto custom-scrollbar p-0 text-xs"></div>
       </div>
     </div>

@@ -31,6 +31,13 @@ function rptDateDims(getDate) {
   };
 }
 
+/** Lead Time PR (hari) = Tanggal Datang - Tanggal Approve Manager. null bila salah satu belum ada. */
+function rptLeadTime(r) {
+  const a = rptDay(r.manager_approved_at), d = rptDay(r.tgl_datang);
+  if (!a || !d) return null;
+  return Math.round((new Date(d + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+}
+
 /** Umur piutang / hutang dari due date (hanya yang masih ada sisa). */
 function rptAging(due, sisa) {
   if (!(Number(sisa) > 0.5)) return 'Lunas';
@@ -89,6 +96,7 @@ const REPORT_SOURCES = {
       customer: { label: 'Customer', get: r => r.customer_nama },
       wo: { label: 'No. WO', get: r => r.wo_number },
       produk: { label: 'Produk', get: r => r.product },
+      lead_grp: { label: 'Kelompok Lead Time', get: r => { const d = rptLeadTime(r); return d === null ? null : d <= 3 ? '0-3 hari' : d <= 7 ? '4-7 hari' : d <= 14 ? '8-14 hari' : d <= 30 ? '15-30 hari' : '> 30 hari'; }, order: ['0-3 hari', '4-7 hari', '8-14 hari', '15-30 hari', '> 30 hari'] },
     },
     measures: {
       items: { label: 'Jumlah Item PR', count: true },
@@ -97,13 +105,24 @@ const REPORT_SOURCES = {
       dpp: rptMoney('DPP (Rp)', r => Number(r.dpp)),
       ppn: rptMoney('PPN (Rp)', r => Number(r.ppn_amount)),
       total: rptMoney('Total Nilai PR (Rp)', r => Number(r.total)),
+      lead: { label: 'Lead Time (hari) - Approve MGR s/d Datang', get: r => rptLeadTime(r), optional: true, defaultAgg: 'avg' },
     },
     filters: ['sheet', 'status', 'approval', 'divisi', 'buyer', 'supplier'],
+    // [judul, nilai, angka Rupiah?, tampil default?] - kolom lain bisa dimunculkan lewat "Atur Kolom".
     detail: [
       ['Tanggal', r => formatDateID(r.tanggal)], ['No PR', r => r.pr_number], ['Item', r => r.item_no], ['Kategori', r => r.sheet],
-      ['Produk', r => r.product], ['Qty', r => `${formatQty(r.qty)} ${r.uom || ''}`], ['Supplier', r => r.supplier_nama],
-      ['Buyer', r => r.buyer_nama], ['Peminta', r => r.user_nama || r.karyawan_nama], ['Status', r => r.status],
-      ['Approval', r => approvalLabel(r.approval_status)], ['Total', r => Number(r.total), true],
+      ['No WO', r => r.wo_number || '-'], ['Customer', r => r.customer_nama || '-'],
+      ['Produk', r => r.product], ['Type', r => r.type || '-', false, false], ['Dimensi', r => r.dimensi || '-', false, false],
+      ['Material', r => r.brand || '-', false, false], ['Qty', r => `${formatQty(r.qty)} ${r.uom || ''}`],
+      ['Harga Satuan', r => Number(r.harga), true, false], ['Supplier', r => r.supplier_nama], ['No PO', r => r.po_number || '-', false, false],
+      ['Buyer', r => r.buyer_nama], ['Peminta', r => r.user_nama || r.karyawan_nama], ['Divisi', r => r.divisi || '-', false, false],
+      ['Status', r => r.status], ['Approval', r => approvalLabel(r.approval_status)],
+      ['Tgl Approve SPV', r => formatDateID(rptDay(r.leader_checked_at)), false, false],
+      ['Tgl Approve MGR', r => formatDateID(rptDay(r.manager_approved_at))],
+      ['Tgl Beli', r => formatDateID(r.tgl_beli), false, false],
+      ['Tgl Datang', r => formatDateID(r.tgl_datang)],
+      ['Lead Time', r => { const d = rptLeadTime(r); return d === null ? '-' : `${d} hari`; }],
+      ['Total', r => Number(r.total), true],
     ],
   },
   mtc_cost: {
@@ -250,6 +269,8 @@ const RPT_BUILTIN = [
   { id: 'pr_divisi_approval', group: 'Purchasing', name: 'PR per Divisi × Status Approval', cfg: { source: 'pr', row1: 'divisi', col: 'approval', measure: 'items', chart: 'stacked', period: 'year' } },
   { id: 'pr_buyer', group: 'Purchasing', name: 'Kinerja Buyer (PR per Buyer × Status)', cfg: { source: 'pr', row1: 'buyer', col: 'status', measure: 'items', chart: 'stacked', sort: 'desc', period: 'year' } },
   { id: 'pr_kat_detail', group: 'Purchasing', name: 'Kategori → Status (sub-baris) - Nilai PR', cfg: { source: 'pr', row1: 'sheet', row2: 'status', measure: 'total', chart: 'doughnut', period: 'year' } },
+  { id: 'pr_lead_supplier', group: 'Purchasing', name: 'Lead Time rata-rata per Supplier (hari)', cfg: { source: 'pr', row1: 'supplier', measure: 'lead', agg: 'avg', chart: 'hbar', sort: 'desc', period: 'year' } },
+  { id: 'pr_lead_grp', group: 'Purchasing', name: 'Sebaran Lead Time PR per Kategori', cfg: { source: 'pr', row1: 'lead_grp', col: 'sheet', measure: 'items', chart: 'stacked', period: 'year' } },
   { id: 'mtc_divisi', group: 'MTC Produksi', name: 'Biaya Produksi per Divisi', cfg: { source: 'mtc_cost', row1: 'divisi', measure: 'total', chart: 'hbar', sort: 'desc', period: 'all' } },
   { id: 'mtc_wo_divisi', group: 'MTC Produksi', name: 'Biaya per WO × Sumber Biaya', cfg: { source: 'mtc_cost', row1: 'wo', col: 'sumber', measure: 'total', chart: 'stacked', sort: 'desc', period: 'all' } },
   { id: 'mtc_customer', group: 'MTC Produksi', name: 'Biaya Aktual per Customer', cfg: { source: 'mtc_wo', row1: 'customer', measure: 'total_biaya', chart: 'bar', sort: 'desc', period: 'all' } },
@@ -478,6 +499,12 @@ function rptFilterAll(fk, all) {
   rptFilterChange(fk);
 }
 
+async function onReportMeasureChange() {
+  const m = rptMeasures(rptSource())[document.getElementById('rpt-measure').value];
+  if (m && m.defaultAgg) document.getElementById('rpt-agg').value = m.defaultAgg;
+  runReport();
+}
+
 async function onReportSourceChange() {
   const src = document.getElementById('rpt-source').value;
   rpt = rptNormalize({ source: src, from: rpt.from, to: rpt.to });
@@ -530,6 +557,7 @@ function rptFilteredRows(cfg) {
 
 function rptNewCell() { return { n: 0, sum: 0, min: Infinity, max: -Infinity, set: null }; }
 function rptAdd(cell, m, r) {
+  if (m.optional) { const raw = m.get(r); if (raw === null || raw === undefined) return; } // mis. Lead Time yang belum lengkap
   cell.n++;
   if (m.distinct) { (cell.set ||= new Set()).add(m.distinct(r)); return; }
   const v = m.count ? 1 : Number(m.get(r)) || 0;
@@ -552,7 +580,9 @@ function rptCompute(cfg) {
   const dims = rptDims(S);
   const m = rptMeasures(S)[cfg.measure];
   const d1 = dims[cfg.row1], d2 = cfg.row2 ? dims[cfg.row2] : null, dc = cfg.col ? dims[cfg.col] : null;
-  const rows = rptFilteredRows(cfg);
+  let rows = rptFilteredRows(cfg);
+  // Ukuran opsional (mis. Lead Time): baris yang nilainya belum lengkap tidak ikut dihitung.
+  if (m.optional) rows = rows.filter(r => { const v = m.get(r); return v !== null && v !== undefined; });
   const groups = new Map();
   const colTotals = new Map();
   const grand = rptNewCell();
@@ -766,7 +796,45 @@ function rptDrill(i, j, k) {
   if (kc !== null) parts.push(`${res.dc.label}: ${rptLabel(res.dc, kc)}`);
   document.getElementById('rpt-drill-title').textContent = `Rincian ${res.S.label} (${rptDrillRows.length.toLocaleString('id-ID')} data)`;
   document.getElementById('rpt-drill-sub').textContent = `${parts.join(' · ') || 'Semua data'} · ${rptPeriodText(res.cfg)}`;
-  const cols = res.S.detail;
+  document.getElementById('rpt-drill-cols').classList.add('hidden');
+  rptRenderDrill();
+  document.getElementById('rpt-drill-modal').classList.remove('hidden');
+}
+
+// Kolom rincian yang tampil, per sumber data (disimpan di browser). Default = kolom bertanda tampil.
+function rptDrillColKey() { return `rpt_drill_cols_${rptLast.cfg.source}`; }
+function rptDrillVisible() {
+  const all = rptLast.S.detail;
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(rptDrillColKey()) || 'null'); } catch (e) { saved = null; }
+  return all.filter(c => (Array.isArray(saved) ? saved.includes(c[0]) : c[3] !== false));
+}
+
+function toggleReportDrillCols() {
+  const box = document.getElementById('rpt-drill-cols');
+  if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+  const vis = rptDrillVisible().map(c => c[0]);
+  box.innerHTML = `<div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+    ${rptLast.S.detail.map(c => `<label class="flex items-center gap-1.5 cursor-pointer whitespace-nowrap"><input type="checkbox" value="${esc(c[0])}" ${vis.includes(c[0]) ? 'checked' : ''} onchange="rptDrillColsChange()" class="accent-indigo-600">${esc(c[0])}</label>`).join('')}
+    <a href="javascript:void(0)" onclick="rptDrillColsReset()" class="text-rose-600 font-bold ml-auto">Kembalikan default</a></div>`;
+  box.classList.remove('hidden');
+}
+
+function rptDrillColsChange() {
+  const vals = [...document.querySelectorAll('#rpt-drill-cols input:checked')].map(i => i.value);
+  try { localStorage.setItem(rptDrillColKey(), JSON.stringify(vals.length ? vals : [rptLast.S.detail[0][0]])); } catch (e) { /* abaikan */ }
+  rptRenderDrill();
+}
+
+function rptDrillColsReset() {
+  try { localStorage.removeItem(rptDrillColKey()); } catch (e) { /* abaikan */ }
+  document.getElementById('rpt-drill-cols').classList.add('hidden');
+  rptRenderDrill();
+  toggleReportDrillCols();
+}
+
+function rptRenderDrill() {
+  const cols = rptDrillVisible();
   const MAX = 1000;
   const shown = rptDrillRows.slice(0, MAX);
   const sums = cols.map(([, get, num]) => (num ? rptDrillRows.reduce((t, r) => t + (Number(get(r)) || 0), 0) : null));
@@ -774,16 +842,15 @@ function rptDrill(i, j, k) {
     <thead class="sticky top-0"><tr class="bg-slate-100 text-slate-600 text-[11px] uppercase">${cols.map(([h, , num]) => `<th class="py-2 px-3 ${num ? 'text-right' : 'text-left'} whitespace-nowrap">${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${shown.map(r => `<tr class="border-b border-slate-100 hover:bg-slate-50">${cols.map(([, get, num]) => {
       const v = get(r);
-      return `<td class="py-1.5 px-3 ${num ? 'text-right font-semibold whitespace-nowrap' : ''}">${num && typeof v === 'number' ? formatRupiah(v) : esc(v ?? '-')}</td>`;
+      return `<td class="py-1.5 px-3 whitespace-nowrap ${num ? 'text-right font-semibold' : ''}">${num && typeof v === 'number' ? formatRupiah(v) : esc(v ?? '-')}</td>`;
     }).join('')}</tr>`).join('')}</tbody>
     <tfoot class="sticky bottom-0"><tr class="bg-slate-800 text-white font-bold">${cols.map(([, , num], idx) => `<td class="py-2 px-3 ${num ? 'text-right whitespace-nowrap' : ''}">${idx === 0 ? 'TOTAL' : (num ? formatRupiah(sums[idx]) : '')}</td>`).join('')}</tr></tfoot>
   </table>${rptDrillRows.length > MAX ? `<p class="p-3 text-[11px] text-amber-700">Ditampilkan ${MAX} dari ${rptDrillRows.length} data. Export untuk melihat semuanya.</p>` : ''}`;
-  document.getElementById('rpt-drill-modal').classList.remove('hidden');
 }
 
 function exportReportDrill() {
   if (!rptLast || typeof XLSX === 'undefined') return;
-  const cols = rptLast.S.detail;
+  const cols = rptDrillVisible();
   const aoa = [cols.map(c => c[0]), ...rptDrillRows.map(r => cols.map(([, get]) => { const v = get(r); return v ?? ''; }))];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const wb = XLSX.utils.book_new();

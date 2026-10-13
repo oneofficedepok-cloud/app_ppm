@@ -551,6 +551,11 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - **16 report bawaan** (PR per Kategori × Status, Nilai PR per Bulan, Pembelian per Supplier, Kinerja Buyer, Biaya per Divisi,
   Margin per Customer, Penjualan AR per Bulan, Aging Piutang, Hutang per Supplier, Cash Flow Masuk vs Keluar, dll.).
 - Klik angka mana pun di tabel / batang grafik → rincian datanya (bisa di-export).
+  Tombol **Atur Kolom** di rincian: pilih kolom yang tampil (PR: No WO, Customer, Tgl Approve SPV/MGR, Tgl Beli, Tgl Datang,
+  **Lead Time**, No PO, Harga, Type, Dimensi, Material, Divisi, dll.). Pilihan tersimpan per sumber data di browser.
+- **Lead Time PR** = Tanggal Datang − Tanggal Approve Manager (hari). Tersedia sebagai kolom rincian, ukuran pivot
+  (rata-rata / terkecil / terbesar) dan pengelompokan (0-3, 4-7, 8-14, 15-30, > 30 hari). PR yang belum datang / belum
+  di-approve Manager tidak ikut dihitung.
 - **Export Excel** (sheet Pivot + Data) dan **Print** (A4 landscape, lengkap dengan grafik).
 - **Report Favorit**: simpan pengaturan sendiri; role dengan akses *Ubah* menu Report bisa membagikannya ke pengguna lain.
 - **Hak akses**: Role Management → modul **Report → Report & Pivot Table** (Lihat / Ubah). Admin otomatis; Manager Purchasing
