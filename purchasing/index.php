@@ -15,10 +15,12 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   <meta name="csrf-token" content="<?= esc_html(csrf_token()) ?>">
   <title>Dashboard Purchasing Cloud</title>
 
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Semua library disimpan lokal (assets/vendor) - tidak perlu internet & jauh lebih cepat.
+       Tailwind sudah dikompilasi jadi CSS biasa (lihat README: cara build ulang bila menambah class baru). -->
+  <link rel="stylesheet" href="<?= asset_url('assets/vendor/tailwind.min.css') ?>">
+  <link rel="stylesheet" href="<?= asset_url('assets/vendor/fontawesome/css/all.min.css') ?>">
+  <script src="<?= asset_url('assets/vendor/chart.umd.min.js') ?>"></script>
+  <script src="<?= asset_url('assets/vendor/xlsx.full.min.js') ?>" defer></script>
 
   <style>
     /* Elemen ber-atribut hidden (mis. hasil pencarian daftar Master) harus benar-benar tersembunyi,
@@ -2741,8 +2743,8 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   <script>
     window.CURRENT_USER = <?= json_encode($user, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
   </script>
-  <script src="assets/js/app.js"></script>
-  <script src="assets/js/report.js"></script>
-  <script src="assets/js/table-tools.js"></script>
+  <script src="<?= asset_url('assets/js/app.js') ?>"></script>
+  <script src="<?= asset_url('assets/js/report.js') ?>"></script>
+  <script src="<?= asset_url('assets/js/table-tools.js') ?>"></script>
 </body>
 </html>

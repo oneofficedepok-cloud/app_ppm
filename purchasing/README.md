@@ -581,6 +581,18 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - **Perbaikan bug**: pencarian di daftar Master Product (dan daftar lain: Buyer, Karyawan, Mesin, Tarif, User, Role)
   tidak menyembunyikan item yang tidak cocok saat memakai Tailwind CDN. Sekarang hasil pencarian tampil benar.
 
+## 8l. Update Log — Optimasi Kecepatan
+
+- **Library lokal**: Tailwind (sudah dikompilasi jadi CSS ~50 KB), Font Awesome, Chart.js & SheetJS kini di `assets/vendor/`
+  — tidak lagi diunduh dari internet, dan browser tidak lagi mengompilasi CSS setiap kali tabel berubah (penyebab utama lambat).
+  Bila menambah class Tailwind baru, build ulang CSS: lihat `build/tailwind.config.js`.
+- **Data API dikompres (gzip)**: contoh 5.000 PR dari 5,7 MB menjadi ~160 KB.
+- **Request paralel**: kunci sesi PHP dilepas untuk request baca (GET api/*), sehingga ±20 request data saat halaman dibuka
+  diproses bersamaan, tidak antre satu per satu.
+- **Cache browser**: CSS/JS/font memakai versi `?v=<tanggal file>` + aturan cache di `.htaccess` (mod_expires/mod_headers/mod_deflate
+  bila aktif di Apache). Setelah update, file baru otomatis terambil.
+- Saran server XAMPP: aktifkan OPcache di php.ini, set `innodb_buffer_pool_size` MySQL ±1 GB, PC server pakai kabel LAN.
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

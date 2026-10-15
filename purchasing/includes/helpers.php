@@ -4,13 +4,35 @@
  */
 
 /**
+ * URL file statis + versi (tanggal ubah file), supaya browser boleh menyimpan file di cache
+ * lama-lama tapi tetap otomatis mengambil yang baru setelah file diganti / update.
+ */
+function asset_url(string $path): string
+{
+    $file = dirname(__DIR__) . '/' . $path;
+    return esc_html($path . (is_file($file) ? '?v=' . filemtime($file) : ''));
+}
+
+/**
  * Kirim response JSON standar lalu hentikan eksekusi.
  */
 function json_response(array $data, int $statusCode = 200): void
 {
     http_response_code($statusCode);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE);
+    // Kompres data besar (mis. ribuan PR: ~5 MB -> ~0,4 MB) supaya cepat terkirim lewat WiFi.
+    if (strlen($json) > 2048 && function_exists('gzencode') && !ini_get('zlib.output_compression')
+        && stripos($_SERVER['HTTP_ACCEPT_ENCODING'] ?? '', 'gzip') !== false && !headers_sent()) {
+        $gz = gzencode($json, 5);
+        if ($gz !== false) {
+            header('Content-Encoding: gzip');
+            header('Vary: Accept-Encoding');
+            $json = $gz;
+        }
+    }
+    header('Content-Length: ' . strlen($json));
+    echo $json;
     exit;
 }
 

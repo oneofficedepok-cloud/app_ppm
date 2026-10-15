@@ -95,6 +95,14 @@ function start_secure_session(): void
         session_regenerate_id(true);
     }
     $_SESSION['last_activity'] = $now;
+
+    // Request GET ke api/* hanya MEMBACA sesi. Lepas kunci file sesi lebih awal supaya
+    // puluhan request data saat halaman dibuka bisa diproses bersamaan (PHP mengunci file
+    // sesi per request, tanpa ini semua request antre satu per satu).
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+        && strpos(str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? ''), '/api/') !== false) {
+        session_write_close();
+    }
 }
 
 // ---------------------------------------------------------------------

@@ -11,6 +11,7 @@ RewriteEngine On
 RewriteRule ^config/ - [F,L]
 RewriteRule ^database/ - [F,L]
 RewriteRule ^includes/ - [F,L]
+RewriteRule ^build/ - [F,L]
 # Folder/berkas tersembunyi (.git, .env, dll).
 RewriteRule (^|/)\. - [F,L]
 
@@ -38,4 +39,29 @@ Options -Indexes
 <IfModule mod_php.c>
   php_flag expose_php Off
   php_flag display_errors Off
+</IfModule>
+
+# ---------------------------------------------------------
+# PERFORMA: kompres file teks & simpan file statis di cache browser.
+# File CSS/JS dipanggil dengan ?v=<tanggal file>, jadi aman di-cache lama:
+# setelah update, URL-nya berubah dan browser otomatis mengambil yang baru.
+# (Data API sudah dikompres langsung oleh PHP.)
+# ---------------------------------------------------------
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript image/svg+xml
+</IfModule>
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 30 days"
+  ExpiresByType application/javascript "access plus 30 days"
+  ExpiresByType text/javascript "access plus 30 days"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType font/ttf "access plus 1 year"
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/svg+xml "access plus 30 days"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.(css|js|woff2|ttf|png|svg)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
 </IfModule>
