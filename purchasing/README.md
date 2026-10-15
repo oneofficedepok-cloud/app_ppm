@@ -574,6 +574,13 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - **Transportasi**: form & tabel ditambah **Tanggal** dan **No. Invoice** (bisa dicari di kotak pencarian).
 - Kolom baru ditambahkan otomatis oleh aplikasi — tidak perlu import SQL. Data lama: status = ON PROSES, tanggal kosong.
 
+## 8k. Update Log — Filter Buyer & Kategori WO, perbaikan pencarian daftar Master
+
+- Tabel **PR**: filter **Buyer** (termasuk pilihan "(Belum ada buyer)"); nama buyer juga ikut pencarian multi-kolom.
+- Tabel **WO & Budget**: filter **Kategori WO** (PROJECT / MAINTENANCE / INVENTARIS).
+- **Perbaikan bug**: pencarian di daftar Master Product (dan daftar lain: Buyer, Karyawan, Mesin, Tarif, User, Role)
+  tidak menyembunyikan item yang tidak cocok saat memakai Tailwind CDN. Sekarang hasil pencarian tampil benar.
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

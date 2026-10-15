@@ -870,6 +870,17 @@ function updateDropdownOptions() {
     filterSupp.value = cur || 'ALL';
   }
 
+  // --- Filter dashboard: buyer (nama buyer yang ada di data PR) ---
+  const filterBuyer = document.getElementById('filter-buyer');
+  if (filterBuyer) {
+    const cur = filterBuyer.value;
+    const names = [...new Set([...prBuyerUsers.map(u => u.full_name), ...prItems.map(p => p.buyer_nama)].filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'id'));
+    filterBuyer.innerHTML = '<option value="ALL">Semua Buyer</option><option value="__NONE__">(Belum ada buyer)</option>' +
+      names.map(n => opt(n, n)).join('');
+    filterBuyer.value = [...filterBuyer.options].some(o => o.value === cur) ? cur : 'ALL';
+  }
+
   // --- WO Form: customer select ---
   const woCustSel = document.getElementById('wo-form-customer-select');
   if (woCustSel) {
@@ -954,6 +965,7 @@ function getFilteredPRData() {
   const status = document.getElementById('filter-status')?.value || 'ALL';
   const ppn = document.getElementById('filter-ppn')?.value || 'ALL';
   const supplier = document.getElementById('filter-supplier')?.value || 'ALL';
+  const buyer = document.getElementById('filter-buyer')?.value || 'ALL';
   const approval = document.getElementById('filter-approval')?.value || 'ALL';
 
   return prItems.filter(p => {
@@ -962,10 +974,11 @@ function getFilteredPRData() {
     if (ppn === 'PPN' && !Number(p.is_ppn)) return false;
     if (ppn === 'NON_PPN' && Number(p.is_ppn)) return false;
     if (supplier !== 'ALL' && p.supplier_nama !== supplier) return false;
+    if (buyer === '__NONE__' ? !!p.buyer_nama : (buyer !== 'ALL' && p.buyer_nama !== buyer)) return false;
     if (approval === 'MINE') { if (!isMyApproval(p)) return false; }
     else if (approval !== 'ALL' && p.approval_status !== approval) return false;
     if (search) {
-      const haystack = `${p.pr_number} ${p.keterangan || ''} ${p.wo_number || ''} ${p.po_number || ''} ${p.invoice_number || ''} ${p.customer_nama || ''} ${p.project || ''} ${p.product || ''} ${p.type || ''} ${p.dimensi || ''} ${p.brand || ''} ${p.supplier_nama || ''} ${p.user_nama || ''}`.toLowerCase();
+      const haystack = `${p.pr_number} ${p.keterangan || ''} ${p.wo_number || ''} ${p.po_number || ''} ${p.invoice_number || ''} ${p.customer_nama || ''} ${p.project || ''} ${p.product || ''} ${p.type || ''} ${p.dimensi || ''} ${p.brand || ''} ${p.supplier_nama || ''} ${p.user_nama || ''} ${p.buyer_nama || ''}`.toLowerCase();
       if (!haystack.includes(search)) return false;
     }
     return true;
@@ -1301,6 +1314,7 @@ function resetFilters() {
   document.getElementById('filter-status').value = 'ALL';
   document.getElementById('filter-ppn').value = 'ALL';
   document.getElementById('filter-supplier').value = 'ALL';
+  document.getElementById('filter-buyer').value = 'ALL';
   document.getElementById('filter-approval').value = 'ALL';
   renderDashboard();
 }
@@ -1963,9 +1977,11 @@ function renderWOTracking() {
   const search = (document.getElementById('filter-wo-search')?.value || '').toLowerCase().trim();
   const filterCust = document.getElementById('filter-wo-customer')?.value || 'ALL';
   const filterStatus = document.getElementById('filter-wo-status')?.value || 'ALL';
+  const filterCat = document.getElementById('filter-wo-category')?.value || 'ALL';
 
   const filtered = workOrders.filter(w => {
     if (filterCust !== 'ALL' && w.customer_nama !== filterCust) return false;
+    if (filterCat !== 'ALL' && (w.wo_category || 'PROJECT') !== filterCat) return false;
     if (filterStatus !== 'ALL' && w.computed_status !== filterStatus) return false;
     if (search) {
       const haystack = `${w.wo_number} ${w.project} ${w.customer_nama || ''} ${w.po_no || ''}`.toLowerCase();
@@ -2054,6 +2070,7 @@ function resetWOFilters() {
   document.getElementById('filter-wo-search').value = '';
   document.getElementById('filter-wo-customer').value = 'ALL';
   document.getElementById('filter-wo-status').value = 'ALL';
+  document.getElementById('filter-wo-category').value = 'ALL';
   renderWOTracking();
 }
 

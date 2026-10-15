@@ -21,6 +21,9 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
+    /* Elemen ber-atribut hidden (mis. hasil pencarian daftar Master) harus benar-benar tersembunyi,
+       walau punya class display seperti "flex" (Tailwind CDN tidak memakai !important untuk [hidden]). */
+    [hidden] { display: none !important; }
     .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -440,7 +443,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><i class="fa-solid fa-filter text-indigo-600"></i> Multi-Column Filter & Quick Search</h3>
           <button onclick="resetFilters()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"><i class="fa-solid fa-rotate-left"></i> Reset Filter</button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3 sm:gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-3 sm:gap-4">
           <div class="sm:col-span-2 lg:col-span-2">
             <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Pencarian Multi-Kolom</label>
             <div class="relative">
@@ -472,6 +475,12 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
             <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Supplier</label>
             <select id="filter-supplier" onchange="applyFilters()" class="w-full py-2 px-3 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500">
               <option value="ALL">Semua Supplier</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Buyer</label>
+            <select id="filter-buyer" onchange="applyFilters()" class="w-full py-2 px-3 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500">
+              <option value="ALL">Semua Buyer</option>
             </select>
           </div>
           <div>
@@ -541,7 +550,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         </div>
       </div>
 
-      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div>
           <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Pencarian WO / Project / Customer</label>
           <div class="relative">
@@ -552,6 +561,12 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         <div>
           <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Filter Customer</label>
           <select id="filter-wo-customer" onchange="renderWOTracking()" class="w-full py-1.5 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"><option value="ALL">Semua Customer</option></select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Kategori WO</label>
+          <select id="filter-wo-category" onchange="renderWOTracking()" class="w-full py-1.5 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+            <option value="ALL">Semua Kategori</option><option value="PROJECT">PROJECT</option><option value="MAINTENANCE">MAINTENANCE</option><option value="INVENTARIS">INVENTARIS</option>
+          </select>
         </div>
         <div>
           <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Status Track</label>
