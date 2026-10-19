@@ -39,6 +39,31 @@ function wo_category_prefix(string $category): string
 /** Generate No. WO otomatis & unik untuk kategori terkait (auto, tapi tetap boleh diedit manual di form). */
 function generate_wo_number(PDO $pdo, string $category): string
 {
+    // Lanjutkan pola nomor yang sudah dipakai di kategori ini (mis. M0058 -> M0059, 246950 -> 246951):
+    // ambil WO kategori tsb dengan angka di ujung nomor paling besar, lalu +1 (awalan & jumlah digit dipertahankan).
+    try {
+        $stmt = $pdo->prepare('SELECT wo_number FROM work_orders WHERE wo_category = :c');
+        $stmt->execute([':c' => $category]);
+        $best = null;
+        foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $no) {
+            if (!preg_match('/^(.*?)(\d+)$/', trim((string) $no), $m)) continue;
+            $num = (int) $m[2];
+            if ($best === null || $num > $best[1]) $best = [$m[1], $num, strlen($m[2])];
+        }
+        if ($best !== null) {
+            [$pre, $num, $width] = $best;
+            $check = $pdo->prepare('SELECT COUNT(*) FROM work_orders WHERE wo_number = :n');
+            do {
+                $num++;
+                $candidate = $pre . str_pad((string) $num, $width, '0', STR_PAD_LEFT);
+                $check->execute([':n' => $candidate]);
+            } while ((int) $check->fetchColumn() > 0);
+            return $candidate;
+        }
+    } catch (PDOException $e) {
+        // Kolom wo_category belum ada - pakai pola bawaan di bawah.
+    }
+
     $prefix = wo_category_prefix($category);
     $stmt = $pdo->prepare("SELECT wo_number FROM work_orders WHERE wo_number LIKE :like ORDER BY wo_number DESC LIMIT 1");
     $stmt->execute([':like' => $prefix . '%']);

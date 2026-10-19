@@ -593,6 +593,16 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
   bila aktif di Apache). Setelah update, file baru otomatis terambil.
 - Saran server XAMPP: aktifkan OPcache di php.ini, set `innodb_buffer_pool_size` MySQL ±1 GB, PC server pakai kabel LAN.
 
+## 8m. Update Log — Menu WO Maintenance
+
+- Menu baru **Produksi → WO MAINTENANCE**: tabel & form sama dengan WO & Budget, berisi WO kategori MAINTENANCE saja.
+  **WO & Budget** sekarang berisi WO selain Maintenance (PROJECT / INVENTARIS). Hak akses mengikuti menu WO & Budget.
+- Tambah WO dari menu WO Maintenance → kategori otomatis **MAINTENANCE**.
+- No. WO otomatis melanjutkan pola nomor kategori tsb (M0058 → M0059, 246950 → 246951).
+- Form PR: pilihan **No. WO Reference** mengikuti **Kategori PR** (PROJECT / MAINTENANCE / INVENTARIS → WO kategori yang sama;
+  GENERAL / CONSUMABLE → semua WO), diurutkan No. WO terbesar di atas.
+- Urutan tabel WO: opsi **No. WO Terbesar** (dan No. WO Terkecil).
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

@@ -196,6 +196,9 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
         <button id="tab-btn-tracking" onclick="switchTab('tracking')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
           <i class="fa-solid fa-diagram-project text-indigo-600"></i> WO & BUDGET
         </button>
+        <button id="tab-btn-womtc" onclick="switchTab('womtc')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
+          <i class="fa-solid fa-screwdriver-wrench text-amber-600"></i> WO MAINTENANCE
+        </button>
         <?php endif; ?>
         <?php if ($canView('seal')): ?>
         <button id="tab-btn-seal" onclick="switchTab('seal')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
@@ -543,11 +546,11 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
     <div id="tab-content-tracking" class="hidden space-y-6 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div>
-          <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-diagram-project text-indigo-600"></i> Menu Tracking WO & Budget Manajemen</h3>
+          <h3 id="wo-tab-title" class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-diagram-project text-indigo-600"></i> Menu Tracking WO & Budget Manajemen</h3>
           <p class="text-xs text-slate-400"><?= $canNilai ? 'Pemantauan progress Work Order, Nilai PO, Total Seal CNC, Transportasi, Total Produksi, dan Profit & Loss (P/L)' : 'Pemantauan progress Work Order, Budget, Total Seal CNC, Transportasi, dan Total Produksi' ?></p>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick="openWOModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-plus-circle"></i> + Tambah WO Baru</button>
+          <button onclick="openWOModal('add')" class="bg-amber-600 hover:bg-amber-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"><i class="fa-solid fa-plus-circle"></i> <span id="wo-add-btn-label">+ Tambah WO Baru</span></button>
           <button onclick="resetWOFilters()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"><i class="fa-solid fa-rotate-left"></i> Reset Filter</button>
         </div>
       </div>
@@ -564,10 +567,10 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Filter Customer</label>
           <select id="filter-wo-customer" onchange="renderWOTracking()" class="w-full py-1.5 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500"><option value="ALL">Semua Customer</option></select>
         </div>
-        <div>
+        <div id="filter-wo-category-wrap">
           <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Kategori WO</label>
           <select id="filter-wo-category" onchange="renderWOTracking()" class="w-full py-1.5 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
-            <option value="ALL">Semua Kategori</option><option value="PROJECT">PROJECT</option><option value="MAINTENANCE">MAINTENANCE</option><option value="INVENTARIS">INVENTARIS</option>
+            <option value="ALL">Semua Kategori</option><option value="PROJECT">PROJECT</option><option value="INVENTARIS">INVENTARIS</option>
           </select>
         </div>
         <div>
@@ -1686,7 +1689,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
             <div>
               <label class="block font-semibold text-slate-600 mb-1">Kategori (Sheet) *</label>
-              <select id="form-sheet" required onchange="autoGeneratePRNumber()" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+              <select id="form-sheet" required onchange="handlePRSheetChange()" class="w-full p-2 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                 <option value="PROJECT">PROJECT (P-)</option>
                 <option value="GENERAL">GENERAL (G-)</option>
                 <option value="CONSUMABLE">CONSUMABLE / GUDANG (STR-)</option>

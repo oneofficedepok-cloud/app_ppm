@@ -58,7 +58,9 @@ const IS_ADMIN = !!(currentUser && currentUser.is_admin);
 /** Boleh melihat minimal salah satu menu. */
 // Tab "report" = menu Report & Pivot; terbuka kalau role boleh melihat minimal 1 jenis report.
 const REPORT_MENUS = ['rpt_pr', 'rpt_mtc', 'rpt_ar', 'rpt_ap', 'rpt_cashflow'];
-const expandReportMenu = menus => menus.flatMap(m => (m === 'report' ? REPORT_MENUS : [m]));
+// Tab "womtc" (WO Maintenance) memakai izin yang sama dengan menu WO & Budget.
+const MENU_ALIASES = { report: REPORT_MENUS, womtc: ['tracking'] };
+const expandReportMenu = menus => menus.flatMap(m => MENU_ALIASES[m] || [m]);
 function canView(...menus) {
   return IS_ADMIN || expandReportMenu(menus).some(m => !!USER_ACCESS[m]);
 }
@@ -592,7 +594,8 @@ function isAdminRole(roleKey) {
 const TAB_LOADERS = {
   overview: () => renderOverviewDashboard(),
   dashboard: () => renderDashboard(),
-  tracking: () => renderWOTracking(),
+  tracking: () => { setWOViewMode('MAIN'); renderWOTracking(); },
+  womtc: () => { setWOViewMode('MTC'); renderWOTracking(); },
   seal: () => renderSealTable(),
   transport: () => renderTransportTable(),
   customers: () => renderCustomerDirectory(),
@@ -620,7 +623,7 @@ const TAB_LOADERS = {
 const TAB_SECTION = {
   overview: 'overview',
   dashboard: 'purchasing', transport: 'purchasing',
-  tracking: 'produksi', seal: 'produksi',
+  tracking: 'produksi', womtc: 'produksi', seal: 'produksi',
   customers: 'masterdata', suppliers: 'masterdata', master: 'masterdata',
   stok: 'gudang', produksi: 'gudang', riwayat: 'gudang', incoming: 'gudang', receiving: 'gudang',
   findash: 'finance', cashflow: 'finance', ar: 'finance', sj: 'finance', ap: 'finance', talangan: 'finance',
@@ -630,7 +633,7 @@ const TAB_SECTION = {
 };
 const SECTION_TABS = {
   purchasing: ['dashboard', 'transport'],
-  produksi: ['tracking', 'seal'],
+  produksi: ['tracking', 'womtc', 'seal'],
   masterdata: ['customers', 'suppliers', 'master'],
   gudang: ['stok', 'incoming', 'receiving', 'produksi', 'riwayat'],
   finance: ['findash', 'cashflow', 'ar', 'sj', 'ap', 'talangan'],
@@ -639,6 +642,21 @@ const SECTION_TABS = {
 };
 // Ingat tab terakhir yang dibuka per-section, supaya balik ke section yang sama tidak selalu reset ke tab pertama.
 const lastTabForSection = { purchasing: 'dashboard', produksi: 'tracking', masterdata: 'customers', gudang: 'stok', finance: 'findash', mtc: 'mtcdash', report: 'report' };
+
+const TAB_CONTENT_ALIAS = { womtc: 'tracking' };
+// Tampilan WO: 'MAIN' = WO & Budget (Project / Inventaris), 'MTC' = WO Maintenance saja.
+let woViewMode = 'MAIN';
+function setWOViewMode(mode) {
+  woViewMode = mode;
+  const mtc = mode === 'MTC';
+  document.getElementById('wo-tab-title').innerHTML = mtc
+    ? '<i class="fa-solid fa-screwdriver-wrench text-amber-600"></i> Menu WO Maintenance'
+    : '<i class="fa-solid fa-diagram-project text-indigo-600"></i> Menu Tracking WO & Budget Manajemen';
+  document.getElementById('wo-add-btn-label').textContent = mtc ? '+ Tambah WO Maintenance' : '+ Tambah WO Baru';
+  const catWrap = document.getElementById('filter-wo-category-wrap');
+  catWrap.classList.toggle('hidden', mtc);
+  if (mtc) document.getElementById('filter-wo-category').value = 'ALL';
+}
 
 function switchTab(tab) {
   // Pengaman sisi client: non-admin tidak boleh masuk tab admin (biar tidak bisa
@@ -654,10 +672,13 @@ function switchTab(tab) {
 
   // Tampilkan/sembunyikan konten tab. Menu yang hanya boleh DILIHAT diberi class
   // perm-readonly -> tombol tambah/edit/hapus di dalamnya disembunyikan (lihat CSS di index.php).
+  // Beberapa tab berbagi 1 konten (WO Maintenance memakai tabel & form WO & Budget).
+  const contentOf = t => TAB_CONTENT_ALIAS[t] || t;
   Object.keys(TAB_LOADERS).forEach(t => {
+    if (TAB_CONTENT_ALIAS[t]) return;
     const content = document.getElementById(`tab-content-${t}`);
     if (!content) return;
-    content.classList.toggle('hidden', t !== tab);
+    content.classList.toggle('hidden', t !== contentOf(tab));
     if (ALL_MODULE_KEYS.includes(TAB_SECTION[t])) content.classList.toggle('perm-readonly', !canEdit(t));
   });
 
@@ -841,11 +862,7 @@ function updateDropdownOptions() {
     if (cur) sel.value = cur;
   });
 
-  const woSelForm = document.getElementById('form-wo-select');
-  if (woSelForm) {
-    woSelForm.innerHTML = '<option value="">-- Tanpa WO --</option>' +
-      workOrders.map(w => opt(w.id, `${w.wo_number} - ${w.project}`)).join('');
-  }
+  filterPRWOOptions();
 
   // --- Dropdown product/supplier/buyer di SETIAP blok item PR yang sedang terbuka ---
   document.querySelectorAll('#pr-items-container .pri-block').forEach(populateItemBlockDropdowns);
@@ -1337,6 +1354,37 @@ function handleFormKaryawanChange() {
   document.getElementById('form-divisi').value = k ? k.divisi : '';
 }
 
+// Kategori PR -> kategori WO yang muncul di "No. WO Reference". GENERAL / CONSUMABLE: semua WO.
+const PR_SHEET_WO_CATEGORY = { PROJECT: 'PROJECT', MAINTENANCE: 'MAINTENANCE', INVENTARIS: 'INVENTARIS' };
+/** Bandingkan No. WO secara alami (angka besar dulu): 246950 > 246949, M0058 > M0052. */
+function compareWONumberDesc(a, b) {
+  return String(b.wo_number || '').localeCompare(String(a.wo_number || ''), 'id', { numeric: true, sensitivity: 'base' });
+}
+/** Isi pilihan No. WO Reference di form PR sesuai Kategori PR (WO terpilih tetap dipertahankan). */
+function filterPRWOOptions(keepId = null) {
+  const sel = document.getElementById('form-wo-select');
+  if (!sel) return;
+  const cur = keepId !== null ? String(keepId || '') : sel.value;
+  const cat = PR_SHEET_WO_CATEGORY[document.getElementById('form-sheet')?.value];
+  const list = workOrders.filter(w => !cat || (w.wo_category || 'PROJECT') === cat || String(w.id) === cur)
+    .sort(compareWONumberDesc);
+  sel.innerHTML = `<option value="">-- Tanpa WO${cat ? ` (${list.length} WO ${cat})` : ''} --</option>` +
+    list.map(w => opt(w.id, `${w.wo_number} - ${w.project}`)).join('');
+  sel.value = list.some(w => String(w.id) === cur) ? cur : '';
+}
+
+/** Kategori PR diganti: nomor PR baru + daftar WO ikut kategori; WO lama yang tidak cocok dikosongkan. */
+function handlePRSheetChange() {
+  autoGeneratePRNumber();
+  const before = document.getElementById('form-wo-select').value;
+  filterPRWOOptions();
+  const sel = document.getElementById('form-wo-select');
+  const cat = PR_SHEET_WO_CATEGORY[document.getElementById('form-sheet').value];
+  const w = workOrders.find(x => String(x.id) === before);
+  if (w && cat && (w.wo_category || 'PROJECT') !== cat) sel.value = '';
+  handleWOSelect();
+}
+
 function handleWOSelect() {
   const woId = document.getElementById('form-wo-select').value;
   const w = workOrders.find(x => String(x.id) === String(woId));
@@ -1668,7 +1716,7 @@ async function openModal(mode, id = null) {
     document.getElementById('form-atasan-select').value = p.atasan_karyawan_id || '';
     document.getElementById('form-manager-select').value = p.manager_karyawan_id || '';
     document.getElementById('form-divisi').value = p.divisi || '';
-    document.getElementById('form-wo-select').value = p.wo_id || '';
+    filterPRWOOptions(p.wo_id || '');
     // Customer mengikuti WO terpilih (data terbaru), bukan salinan lama di PR.
     const prWo = workOrders.find(x => String(x.id) === String(p.wo_id));
     document.getElementById('form-customer').value = (prWo && prWo.customer_nama) || p.customer_nama || '';
@@ -1980,6 +2028,8 @@ function renderWOTracking() {
   const filterCat = document.getElementById('filter-wo-category')?.value || 'ALL';
 
   const filtered = workOrders.filter(w => {
+    // WO Maintenance punya menu sendiri; WO & Budget berisi WO selain Maintenance.
+    if ((w.wo_category === 'MAINTENANCE') !== (woViewMode === 'MTC')) return false;
     if (filterCust !== 'ALL' && w.customer_nama !== filterCust) return false;
     if (filterCat !== 'ALL' && (w.wo_category || 'PROJECT') !== filterCat) return false;
     if (filterStatus !== 'ALL' && w.computed_status !== filterStatus) return false;
@@ -2204,8 +2254,10 @@ function openWOModal(mode, id = null) {
 
   const title = document.getElementById('wo-modal-title');
   if (mode === 'add') {
-    title.textContent = 'Form Work Order (WO) - Tambah Baru';
-    document.getElementById('wo-form-category').value = 'PROJECT';
+    // Dibuka dari menu WO Maintenance -> kategori otomatis MAINTENANCE.
+    const fromMtc = woViewMode === 'MTC' && !document.getElementById('tab-content-tracking').classList.contains('hidden');
+    title.textContent = fromMtc ? 'Form WO Maintenance - Tambah Baru' : 'Form Work Order (WO) - Tambah Baru';
+    document.getElementById('wo-form-category').value = fromMtc ? 'MAINTENANCE' : 'PROJECT';
     document.getElementById('wo-form-status').value = 'ON PROGRESS';
     document.getElementById('wo-form-aktual-pem').value = formatRupiah(0);
     autoGenerateWONumber();
@@ -2334,6 +2386,7 @@ const SORT_BY = {
   numDesc: (f, l) => ({ v: `${typeof f === 'string' ? f : l}:ndesc`, l, cmp: (a, b) => sortNum(b, f) - sortNum(a, f) }),
   numAsc: (f, l) => ({ v: `${typeof f === 'string' ? f : l}:nasc`, l, cmp: (a, b) => sortNum(a, f) - sortNum(b, f) }),
   text: (f, l) => ({ v: `${typeof f === 'string' ? f : l}:text`, l, cmp: (a, b) => sortText(a, f).localeCompare(sortText(b, f), 'id', { numeric: true, sensitivity: 'base' }) }),
+  textDesc: (f, l) => ({ v: `${typeof f === 'string' ? f : l}:tdesc`, l, cmp: (a, b) => (sortText(a, f) === '\uffff') - (sortText(b, f) === '\uffff') || sortText(b, f).localeCompare(sortText(a, f), 'id', { numeric: true, sensitivity: 'base' }) }),
 };
 function sortNum(r, f) { return Number(typeof f === 'function' ? f(r) : r[f]) || 0; }
 function sortText(r, f) {
@@ -2346,7 +2399,7 @@ const TABLE_SORTS = {
   pr: [SORT_BY.dateDesc('tanggal'), SORT_BY.dateAsc('tanggal'), SORT_BY.numDesc('total', 'Total Terbesar'), SORT_BY.numAsc('total', 'Total Terkecil'),
     SORT_BY.text('status', 'Status (dikelompokkan)'), SORT_BY.text('approval_status', 'Status Approval (dikelompokkan)'),
     SORT_BY.text('supplier_nama', 'Supplier A-Z'), SORT_BY.text('pr_number', 'No. PR')],
-  wo: [SORT_BY.text('wo_number', 'No. WO'), SORT_BY.dateDesc('est_kirim', 'Est. Kirim Terbaru'), SORT_BY.dateAsc('est_kirim', 'Est. Kirim Terdekat'),
+  wo: [SORT_BY.textDesc('wo_number', 'No. WO Terbesar'), SORT_BY.text('wo_number', 'No. WO Terkecil'), SORT_BY.dateDesc('est_kirim', 'Est. Kirim Terbaru'), SORT_BY.dateAsc('est_kirim', 'Est. Kirim Terdekat'),
     SORT_BY.text(r => r.computed_status || r.status, 'Status (dikelompokkan)'), SORT_BY.text('customer_nama', 'Customer A-Z'), SORT_BY.text('po_no', 'No. PO'),
     SORT_BY.text(r => r.sj_status || 'BELUM SJ', 'Status Surat Jalan (dikelompokkan)'), SORT_BY.text('invoice_status', 'Status Invoice (dikelompokkan)'),
     ...(CAN_NILAI ? [SORT_BY.numDesc('wo_total', 'Nilai WO Terbesar'), SORT_BY.numDesc('profit_loss', 'Profit Terbesar'), SORT_BY.numAsc('profit_loss', 'Profit Terkecil / Rugi')] : [])],
@@ -4206,7 +4259,8 @@ function toggleMTCDashDetail(woId) {
 }
 
 function jumpToEditWO(woId) {
-  switchTab('tracking');
+  const w = workOrders.find(x => Number(x.id) === Number(woId));
+  switchTab(w && w.wo_category === 'MAINTENANCE' ? 'womtc' : 'tracking');
   setTimeout(() => openWOModal('edit', woId), 150);
 }
 
