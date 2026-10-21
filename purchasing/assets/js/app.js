@@ -1389,46 +1389,46 @@ function handleWOSelect() {
   const woId = document.getElementById('form-wo-select').value;
   const w = workOrders.find(x => String(x.id) === String(woId));
   document.getElementById('form-project').value = w ? w.project : '';
-  // Pakai WO -> customer mengikuti WO (terkunci). Tanpa WO -> customer dipilih manual (kode / nama).
-  if (w) setPRCustomer(customers.find(c => Number(c.id) === Number(w.customer_id)) || { nama: w.customer_nama || '' });
-  else if (document.getElementById('form-customer').readOnly) setPRCustomer(null);
-  lockPRCustomerFields();
+  applyWOCustomerToItems();
 }
 
-// ---------- Customer di form PR: pilih berdasarkan KODE atau NAMA, yang lain terisi otomatis ----------
+// ---------- Kode Customer per item PR: pilih kode, customer tersimpan per item ----------
 function fillPRCustomerLists() {
-  const act = customers.filter(c => c.status !== 'NON AKTIF');
-  document.getElementById('dl-customer-kode').innerHTML = act.filter(c => c.kode)
+  document.getElementById('dl-customer-kode').innerHTML = customers.filter(c => c.status !== 'NON AKTIF' && c.kode)
     .map(c => `<option value="${esc(c.kode)}">${esc(c.nama)}</option>`).join('');
-  document.getElementById('dl-customer-nama').innerHTML = act
-    .map(c => `<option value="${esc(c.nama)}">${esc(c.kode || '')}</option>`).join('');
 }
-function setPRCustomer(c) {
-  document.getElementById('form-customer-id').value = c && c.id ? c.id : '';
-  document.getElementById('form-customer-kode').value = c ? (c.kode || '') : '';
-  document.getElementById('form-customer').value = c ? (c.nama || '') : '';
+function setItemCustomer(block, c) {
+  const el = block.querySelector('.pri-cust-kode');
+  block.querySelector('.pri-cust-id').value = c && c.id ? c.id : '';
+  el.value = c ? (c.kode || '') : '';
+  el.title = c && c.nama ? c.nama : '';
 }
-function lockPRCustomerFields() {
-  const hasWO = !!document.getElementById('form-wo-select').value;
-  const editable = !hasWO && prFormLock.req;
-  ['form-customer-kode', 'form-customer'].forEach(id => {
-    const el = document.getElementById(id);
+/** WO dipilih -> semua item memakai customer WO (terkunci). Tanpa WO -> kode customer diisi per item. */
+function applyWOCustomerToItems() {
+  const woId = document.getElementById('form-wo-select').value;
+  const w = workOrders.find(x => String(x.id) === String(woId));
+  const c = w ? (customers.find(x => Number(x.id) === Number(w.customer_id)) || { id: w.customer_id, nama: w.customer_nama }) : null;
+  document.querySelectorAll('#pr-items-container .pri-block').forEach(block => {
+    const el = block.querySelector('.pri-cust-kode');
+    if (c) setItemCustomer(block, c);
+    else if (el.dataset.fromWo === '1') setItemCustomer(block, null);
+    el.dataset.fromWo = c ? '1' : '';
+    const editable = !c && prFormLock.req;
     el.readOnly = !editable;
     el.classList.toggle('bg-slate-100', !editable);
     el.classList.toggle('bg-white', editable);
-    el.title = hasWO ? 'Customer mengikuti WO yang dipilih' : '';
+    if (c) el.title = `${c.nama || ''} (mengikuti WO)`;
   });
 }
-/** Ketik / pilih kode atau nama -> cari customer yang cocok persis, isi kolom pasangannya. */
-function handlePRCustomerInput(by, final = false) {
-  const kodeEl = document.getElementById('form-customer-kode');
-  const namaEl = document.getElementById('form-customer');
-  const val = (by === 'kode' ? kodeEl.value : namaEl.value).trim().toUpperCase();
-  const c = val ? customers.find(x => (by === 'kode' ? (x.kode || '') : (x.nama || '')).trim().toUpperCase() === val) : null;
-  if (c) setPRCustomer(c);
+/** Ketik / pilih kode di item -> cari customer dengan kode persis sama. */
+function handlePRItemCustomer(el, final = false) {
+  const block = el.closest('.pri-block');
+  const val = el.value.trim().toUpperCase();
+  const c = val ? customers.find(x => (x.kode || '').trim().toUpperCase() === val) : null;
+  if (c) setItemCustomer(block, c);
   else {
-    document.getElementById('form-customer-id').value = '';
-    if (final && val) (by === 'kode' ? namaEl : kodeEl).value = '';
+    block.querySelector('.pri-cust-id').value = '';
+    el.title = final && val ? 'Kode customer tidak ditemukan di Master Customer' : '';
   }
 }
 
@@ -1452,10 +1452,15 @@ function buildPRItemBlockHTML() {
       <button type="button" onclick="removePRItemBlock(this)" class="pri-remove-btn text-rose-500 hover:text-rose-700 text-[11px] font-bold flex items-center gap-1"><i class="fa-solid fa-trash-can"></i> Hapus Item</button>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
       <div>
         <label class="block font-semibold text-slate-600 mb-1 text-[11px]">No. Item *</label>
         <input type="number" class="pri-item-no w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs" min="1" value="1" required>
+      </div>
+      <div>
+        <label class="block font-semibold text-slate-600 mb-1 text-[11px]">Kode Customer</label>
+        <input type="text" class="pri-cust-kode w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs uppercase" list="dl-customer-kode" autocomplete="off" placeholder="Pilih kode" oninput="handlePRItemCustomer(this)" onchange="handlePRItemCustomer(this, true)">
+        <input type="hidden" class="pri-cust-id">
       </div>
       <div class="sm:col-span-3">
         <label class="block font-semibold text-slate-600 mb-1 text-[11px]">Nama Product / Part *</label>
@@ -1563,6 +1568,8 @@ function addPRItemBlock(data = null) {
   block.querySelector('.pri-item-no').value = container.querySelectorAll('.pri-block').length;
 
   if (data) {
+    setItemCustomer(block, customers.find(c => Number(c.id) === Number(data.customer_id))
+      || (data.customer_id ? { id: data.customer_id, kode: data.customer_kode || '', nama: data.customer_nama || '' } : null));
     block.querySelector('.pri-item-no').value = data.item_no;
     block.querySelector('.pri-product').value = data.product || '';
     block.querySelector('.pri-type').value = data.type || '';
@@ -1592,11 +1599,17 @@ function addPRItemBlock(data = null) {
     block.querySelector('.pri-keterangan').value = data.keterangan || '';
   } else {
     block.querySelector('.pri-status').value = 'ON PROSES';
+    // Item baru: ikut kode customer item pertama (tetap bisa diganti).
+    const first = container.querySelector('.pri-block');
+    if (first && first !== block && first.querySelector('.pri-cust-id').value) {
+      setItemCustomer(block, { id: first.querySelector('.pri-cust-id').value, kode: first.querySelector('.pri-cust-kode').value, nama: first.querySelector('.pri-cust-kode').title });
+    }
   }
 
   calcPRItemBlockTotal(block.querySelector('.pri-qty'));
   updatePRItemLabelsAndButtons();
   applyPRFormLocks();
+  applyWOCustomerToItems();
   return block;
 }
 
@@ -1645,7 +1658,7 @@ function calcPRItemBlockTotal(el) {
 // Pembuat tidak bisa mengisi bagian Purchasing, Purchasing tidak bisa mengubah data barang,
 // dan selain pembuat PR tidak ada yang bisa mengubah data barang (kecuali Admin). Server menegakkan hal yang sama.
 const CAN_PROSES_PR = IS_ADMIN || !!USER_ACCESS.cap_pr_proses;
-const PR_REQ_SEL = '.pri-item-no, .pri-product, .pri-type, .pri-dimensi, .pri-brand, .pri-qty, .pri-uom';
+const PR_REQ_SEL = '.pri-item-no, .pri-cust-kode, .pri-product, .pri-type, .pri-dimensi, .pri-brand, .pri-qty, .pri-uom';
 const PR_PUR_SEL = '.pri-harga, .pri-is-ppn, .pri-ppn-rate, .pri-po, .pri-invoice, .pri-supplier, .pri-tgl-beli, .pri-tgl-datang, .pri-penerima, .pri-status, .pri-buyer, .pri-buyer-user, .pri-lampiran, .pri-keterangan';
 const PR_REQ_HEADER_IDS = ['form-sheet', 'form-pr', 'form-tanggal', 'form-wo-select'];
 let prFormLock = { req: true, pur: true };
@@ -1728,8 +1741,8 @@ async function openModal(mode, id = null) {
   document.getElementById('form-id').value = '';
   document.getElementById('pr-items-container').innerHTML = '';
   headerDefaultBuyerId = '';
-  setPRCustomer(null);
   updateDropdownOptions();
+  fillPRCustomerLists();
 
   const title = document.getElementById('modal-title');
 
@@ -1758,11 +1771,7 @@ async function openModal(mode, id = null) {
     document.getElementById('form-manager-select').value = p.manager_karyawan_id || '';
     document.getElementById('form-divisi').value = p.divisi || '';
     filterPRWOOptions(p.wo_id || '');
-    // Customer mengikuti WO terpilih (data terbaru), bukan salinan lama di PR; tanpa WO -> customer PR.
-    const prWo = workOrders.find(x => String(x.id) === String(p.wo_id));
-    const custId = prWo ? prWo.customer_id : p.customer_id;
-    setPRCustomer(customers.find(c => Number(c.id) === Number(custId))
-      || { id: custId, kode: p.customer_kode || '', nama: (prWo && prWo.customer_nama) || p.customer_nama || '' });
+    // Kode customer ada di item (mengikuti WO bila PR memakai WO).
     document.getElementById('form-project').value = p.project || '';
     headerDefaultBuyerId = p.buyer_id || '';
     document.getElementById('form-buyer-header-select').value = headerDefaultBuyerId;
@@ -1775,8 +1784,7 @@ async function openModal(mode, id = null) {
   }
 
   applyPRFormLocks();
-  fillPRCustomerLists();
-  lockPRCustomerFields();
+  applyWOCustomerToItems();
   document.getElementById('pr-modal').classList.remove('hidden');
 }
 
@@ -1798,13 +1806,13 @@ async function handleFormSubmit(e) {
     manager_karyawan_id: document.getElementById('form-manager-select').value || null,
     divisi: document.getElementById('form-divisi').value,
     wo_id: document.getElementById('form-wo-select').value || null,
-    customer_id: document.getElementById('form-customer-id').value || null,
     project: document.getElementById('form-project').value,
   };
-  // Customer diketik tapi tidak ada di Master Customer -> minta pilih dari daftar.
-  if (!sharedFields.wo_id && !sharedFields.customer_id
-      && (document.getElementById('form-customer').value.trim() || document.getElementById('form-customer-kode').value.trim())) {
-    showToast('Customer tidak ditemukan. Pilih Kode / Nama Customer dari daftar (Master Customer).', 'error');
+  // Kode customer diketik tapi tidak ada di Master Customer -> minta pilih dari daftar.
+  const badCust = [...document.querySelectorAll('#pr-items-container .pri-block')]
+    .find(b => b.querySelector('.pri-cust-kode').value.trim() && !b.querySelector('.pri-cust-id').value);
+  if (!sharedFields.wo_id && badCust) {
+    showToast(`Kode Customer "${badCust.querySelector('.pri-cust-kode').value.trim()}" tidak ditemukan. Pilih dari daftar (Master Customer).`, 'error');
     return;
   }
 
@@ -1815,6 +1823,7 @@ async function handleFormSubmit(e) {
     const ppnRate = parseFloat(block.querySelector('.pri-ppn-rate').value) || 11;
     return {
       ...sharedFields,
+      customer_id: block.querySelector('.pri-cust-id').value || null,
       item_no: block.querySelector('.pri-item-no').value,
       product: block.querySelector('.pri-product').value,
       type: block.querySelector('.pri-type').value,
