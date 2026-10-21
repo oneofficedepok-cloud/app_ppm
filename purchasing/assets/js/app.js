@@ -1369,7 +1369,7 @@ function filterPRWOOptions(keepId = null) {
   const list = workOrders.filter(w => !cat || (w.wo_category || 'PROJECT') === cat || String(w.id) === cur)
     .sort(compareWONumberDesc);
   sel.innerHTML = `<option value="">-- Tanpa WO${cat ? ` (${list.length} WO ${cat})` : ''} --</option>` +
-    list.map(w => opt(w.id, `${w.wo_number} - ${w.project}`)).join('');
+    list.map(w => opt(w.id, w.wo_number)).join('');
   sel.value = list.some(w => String(w.id) === cur) ? cur : '';
 }
 
@@ -1403,10 +1403,9 @@ function setPRCustomer(c) {
   document.getElementById('form-customer').dataset.kode = c ? (c.kode || '') : '';
   syncItemCustomerKode();
 }
-/** Kode Customer di semua item = kode customer yang dipilih di bagian WO & Customer. */
+/** Kode Customer (Auto) = kode customer yang dipilih / mengikuti WO. */
 function syncItemCustomerKode() {
-  const kode = document.getElementById('form-customer').dataset.kode || '';
-  document.querySelectorAll('#pr-items-container .pri-cust-kode').forEach(el => { el.value = kode; });
+  document.getElementById('form-customer-kode').value = document.getElementById('form-customer').dataset.kode || '';
 }
 /** WO dipilih -> customer mengikuti WO (terkunci). Tanpa WO -> Nama Customer dipilih manual. */
 function applyWOCustomerToItems() {
@@ -1455,14 +1454,10 @@ function buildPRItemBlockHTML() {
       <button type="button" onclick="removePRItemBlock(this)" class="pri-remove-btn text-rose-500 hover:text-rose-700 text-[11px] font-bold flex items-center gap-1"><i class="fa-solid fa-trash-can"></i> Hapus Item</button>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
       <div>
         <label class="block font-semibold text-slate-600 mb-1 text-[11px]">No. Item *</label>
         <input type="number" class="pri-item-no w-full p-2 bg-white border border-slate-300 rounded-lg font-bold text-xs" min="1" value="1" required>
-      </div>
-      <div>
-        <label class="block font-semibold text-slate-600 mb-1 text-[11px]">Kode Customer (Auto)</label>
-        <input type="text" class="pri-cust-kode w-full p-2 bg-slate-100 border border-slate-300 rounded-lg font-bold text-xs text-slate-700" readonly tabindex="-1" placeholder="Auto" title="Otomatis dari Nama Customer">
       </div>
       <div class="sm:col-span-3">
         <label class="block font-semibold text-slate-600 mb-1 text-[11px]">Nama Product / Part *</label>

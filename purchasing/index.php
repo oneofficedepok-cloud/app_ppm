@@ -1737,22 +1737,27 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
         <div class="bg-indigo-50/60 p-4 rounded-xl border border-indigo-100 space-y-3">
           <h4 class="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-2 border-b border-indigo-200/80 pb-1.5"><i class="fa-solid fa-diagram-project text-indigo-600"></i> 2. Work Order (WO) & Customer</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- Urutan: No. WO - Project - Kode Customer - Nama Customer. Pilih No. WO -> 3 kolom lain terisi otomatis. -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,0.8fr)_minmax(0,1.6fr)] gap-3">
             <div>
-              <label class="block font-semibold text-slate-600 mb-1">No. WO Reference</label>
+              <label class="block font-semibold text-slate-600 mb-1 whitespace-nowrap">No. WO</label>
               <select id="form-wo-select" onchange="handleWOSelect()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
                 <option value="">-- Tanpa WO --</option>
               </select>
             </div>
             <div>
-              <label class="block font-semibold text-slate-600 mb-1">Nama Customer</label>
+              <label class="block font-semibold text-slate-600 mb-1 whitespace-nowrap">Project</label>
+              <input type="text" id="form-project" placeholder="Nama project" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1 whitespace-nowrap truncate" title="Otomatis dari customer">Kode Customer</label>
+              <input type="text" id="form-customer-kode" readonly tabindex="-1" placeholder="Auto" class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg font-bold text-slate-700">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1 whitespace-nowrap">Nama Customer</label>
               <input type="text" id="form-customer" list="dl-customer-nama" autocomplete="off" placeholder="PT AMNT" oninput="handlePRCustomerName()" onchange="handlePRCustomerName(true)" class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg">
               <input type="hidden" id="form-customer-id">
               <datalist id="dl-customer-nama"></datalist>
-            </div>
-            <div>
-              <label class="block font-semibold text-slate-600 mb-1">Nama Project (Auto)</label>
-              <input type="text" id="form-project" placeholder="PR Jack Cyl Front CS" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg">
             </div>
           </div>
         </div>

@@ -607,9 +607,9 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 
 - **Master Customer**: kolom baru **Kode Customer** (huruf besar, unik — kode yang sama ditolak). Tampil di kartu customer
   & bisa dicari. Import Excel customer: tambahkan kolom berjudul `Kode Customer` (opsional).
-- **Form PR**: **Nama Customer** tetap di bagian WO & Customer — otomatis dari WO (terkunci) bila No. WO dipilih, dan bisa
-  dipilih dari daftar Master Customer bila PR tanpa WO. **Kode Customer (Auto)** tampil di tiap item (setelah No. Item),
-  terisi otomatis dari Nama Customer dan tidak bisa diedit.
+- **Form PR** bagian WO & Customer, urutan: **No. WO – Project – Kode Customer – Nama Customer**. Dropdown No. WO hanya
+  menampilkan nomor WO. Pilih No. WO → Project, Kode & Nama Customer terisi otomatis (terkunci). PR tanpa WO: Nama Customer
+  dipilih dari daftar Master Customer, Kode Customer ikut terisi otomatis (tidak bisa diedit).
 - Kode customer tampil di tabel PR (di bawah WO / Project), ikut pencarian, dan ikut export Excel PR.
 - Kolom `customers.kode` ditambahkan otomatis oleh aplikasi — tidak perlu import SQL.
 
