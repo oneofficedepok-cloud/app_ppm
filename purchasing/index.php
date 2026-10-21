@@ -1737,7 +1737,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
         <div class="bg-indigo-50/60 p-4 rounded-xl border border-indigo-100 space-y-3">
           <h4 class="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-2 border-b border-indigo-200/80 pb-1.5"><i class="fa-solid fa-diagram-project text-indigo-600"></i> 2. Work Order (WO) & Customer</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <label class="block font-semibold text-slate-600 mb-1">No. WO Reference</label>
               <select id="form-wo-select" onchange="handleWOSelect()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
@@ -1745,8 +1745,14 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
               </select>
             </div>
             <div>
-              <label class="block font-semibold text-slate-600 mb-1">Nama Customer (Auto)</label>
-              <input type="text" id="form-customer" placeholder="PT AMNT" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg">
+              <label class="block font-semibold text-slate-600 mb-1">Kode Customer</label>
+              <input type="text" id="form-customer-kode" list="dl-customer-kode" autocomplete="off" placeholder="Ketik / pilih kode" oninput="handlePRCustomerInput('kode')" onchange="handlePRCustomerInput('kode', true)" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold uppercase">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">Nama Customer</label>
+              <input type="text" id="form-customer" list="dl-customer-nama" autocomplete="off" placeholder="Ketik / pilih nama customer" oninput="handlePRCustomerInput('nama')" onchange="handlePRCustomerInput('nama', true)" class="w-full p-2 bg-white border border-slate-300 rounded-lg">
+              <input type="hidden" id="form-customer-id">
+              <datalist id="dl-customer-kode"></datalist><datalist id="dl-customer-nama"></datalist>
             </div>
             <div>
               <label class="block font-semibold text-slate-600 mb-1">Nama Project (Auto)</label>
@@ -2118,7 +2124,10 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
       </div>
       <form id="customer-form" onsubmit="handleCustomerSubmit(event)" class="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-grow text-xs">
         <input type="hidden" id="cust-form-id">
-        <div><label class="block font-semibold text-slate-700 mb-1">Nama Customer / Perusahaan *</label><input type="text" id="cust-nama" placeholder="PT AMNT" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div><label class="block font-semibold text-slate-700 mb-1">Kode Customer</label><input type="text" id="cust-kode" placeholder="AMNT" maxlength="30" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold uppercase"></div>
+          <div class="sm:col-span-2"><label class="block font-semibold text-slate-700 mb-1">Nama Customer / Perusahaan *</label><input type="text" id="cust-nama" placeholder="PT AMNT" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></div>
+        </div>
         <div><label class="block font-semibold text-slate-700 mb-1">Alamat Lengkap</label><textarea id="cust-alamat" rows="2" placeholder="Jl. Raya Industri No. 8..." class="w-full p-2 bg-white border border-slate-300 rounded-lg"></textarea></div>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div><label class="block font-semibold text-slate-700 mb-1">Kelurahan</label><input type="text" id="cust-kelurahan" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>

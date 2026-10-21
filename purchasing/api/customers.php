@@ -6,6 +6,7 @@ require_perm(null, ['customers']);
 
 $method = http_method();
 $pdo = db();
+ensure_customer_kode($pdo);
 
 switch ($method) {
 
@@ -23,10 +24,11 @@ switch ($method) {
 
         $stmt = $pdo->prepare(
             'INSERT INTO customers
-             (nama, alamat, kelurahan, kecamatan, kota, provinsi, kodepos, negara, pic, cp, telepon, npwp, status)
-             VALUES (:nama, :alamat, :kelurahan, :kecamatan, :kota, :provinsi, :kodepos, :negara, :pic, :cp, :telepon, :npwp, :status)'
+             (kode, nama, alamat, kelurahan, kecamatan, kota, provinsi, kodepos, negara, pic, cp, telepon, npwp, status)
+             VALUES (:kode, :nama, :alamat, :kelurahan, :kecamatan, :kota, :provinsi, :kodepos, :negara, :pic, :cp, :telepon, :npwp, :status)'
         );
         $stmt->execute([
+            ':kode'      => customer_kode_input($pdo, $b),
             ':nama'      => $nama,
             ':alamat'    => arr_val($b, 'alamat', ''),
             ':kelurahan' => arr_val($b, 'kelurahan', ''),
@@ -57,12 +59,13 @@ switch ($method) {
 
         $stmt = $pdo->prepare(
             'UPDATE customers SET
-                nama = :nama, alamat = :alamat, kelurahan = :kelurahan, kecamatan = :kecamatan,
+                kode = :kode, nama = :nama, alamat = :alamat, kelurahan = :kelurahan, kecamatan = :kecamatan,
                 kota = :kota, provinsi = :provinsi, kodepos = :kodepos, negara = :negara,
                 pic = :pic, cp = :cp, telepon = :telepon, npwp = :npwp, status = :status
              WHERE id = :id'
         );
         $stmt->execute([
+            ':kode'      => customer_kode_input($pdo, $b, $id),
             ':nama'      => $nama,
             ':alamat'    => arr_val($b, 'alamat', ''),
             ':kelurahan' => arr_val($b, 'kelurahan', ''),

@@ -267,3 +267,24 @@ function ensure_seal_transport_columns(PDO $pdo): void
     ]);
 }
 
+/** Kolom Kode Customer (customers.kode) - ditambahkan otomatis bila belum ada. */
+function ensure_customer_kode(PDO $pdo): void
+{
+    db_ensure_columns($pdo, 'customers', [
+        'kode' => "VARCHAR(30) NULL COMMENT 'Kode customer (unik)' AFTER `id`",
+    ]);
+}
+
+/** Validasi Kode Customer: huruf besar, unik (kosong boleh). */
+function customer_kode_input(PDO $pdo, array $b, ?int $id = null): ?string
+{
+    $kode = strtoupper(clean_str(arr_val($b, 'kode', '')));
+    if ($kode === '') return null;
+    if (mb_strlen($kode) > 30) json_error('Kode Customer maksimal 30 karakter.', 422);
+    $q = $pdo->prepare('SELECT nama FROM customers WHERE UPPER(kode) = :k AND id <> :id LIMIT 1');
+    $q->execute([':k' => $kode, ':id' => $id ?? 0]);
+    $dup = $q->fetchColumn();
+    if ($dup !== false) json_error("Kode Customer $kode sudah dipakai customer $dup.", 409);
+    return $kode;
+}
+

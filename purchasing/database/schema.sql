@@ -90,6 +90,7 @@ CREATE TABLE `master_products` (
 -- =========================================================
 CREATE TABLE `customers` (
   `id`         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `kode`       VARCHAR(30) NULL COMMENT 'Kode customer (unik)',
   `nama`       VARCHAR(200) NOT NULL,
   `alamat`     TEXT NULL,
   `kelurahan`  VARCHAR(100) NULL,

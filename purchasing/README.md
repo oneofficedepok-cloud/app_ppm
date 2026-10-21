@@ -603,6 +603,15 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
   GENERAL / CONSUMABLE → semua WO), diurutkan No. WO terbesar di atas.
 - Urutan tabel WO: opsi **No. WO Terbesar** (dan No. WO Terkecil).
 
+## 8n. Update Log — Kode Customer
+
+- **Master Customer**: kolom baru **Kode Customer** (huruf besar, unik — kode yang sama ditolak). Tampil di kartu customer
+  & bisa dicari. Import Excel customer: tambahkan kolom berjudul `Kode Customer` (opsional).
+- **Form PR** (bagian WO & Customer): kolom **Kode Customer** + **Nama Customer**. Pilih / ketik salah satu, pasangannya terisi
+  otomatis. Bila memilih No. WO, customer mengikuti WO (terkunci). PR tanpa WO (mis. GENERAL) customer dipilih manual.
+- Kode customer tampil di tabel PR (di bawah WO / Project), ikut pencarian, dan ikut export Excel PR.
+- Kolom `customers.kode` ditambahkan otomatis oleh aplikasi — tidak perlu import SQL.
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

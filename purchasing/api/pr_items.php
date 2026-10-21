@@ -6,9 +6,10 @@ require_once __DIR__ . '/../includes/pr_approval.php';
 $method = http_method();
 $pdo = db();
 pr_buyer_column_ensure($pdo);
+ensure_customer_kode($pdo);
 
 /** Kolom PR yang diisi PEMBUAT PR (user peminta). Hanya pembuat PR (atau Admin) yang boleh mengubah. */
-const PR_REQUESTER_FIELDS = ['sheet', 'tanggal', 'pr_number', 'item_no', 'wo_id', 'project', 'product', 'type', 'dimensi',
+const PR_REQUESTER_FIELDS = ['sheet', 'tanggal', 'pr_number', 'item_no', 'wo_id', 'customer_id', 'project', 'product', 'type', 'dimensi',
     'brand', 'qty', 'uom', 'karyawan_id', 'atasan_karyawan_id', 'manager_karyawan_id', 'divisi'];
 /** Kolom PR yang diisi STAFF PURCHASING (izin "Proses PR"). Pembuat PR tidak bisa mengisi bagian ini. */
 const PR_PURCHASING_FIELDS = ['harga', 'is_ppn', 'ppn_rate', 'po_number', 'invoice_number', 'supplier_id', 'tgl_beli',
@@ -184,6 +185,7 @@ switch ($method) {
         $sql = "
             SELECT pr.*,
                    COALESCE(cw.nama, c.nama) AS customer_nama,
+                   IF(cw.id IS NOT NULL, cw.kode, c.kode) AS customer_kode,
                    s.nama  AS supplier_nama,
                    wo.wo_number AS wo_number,
                    COALESCE(ub.full_name, b.nama) AS buyer_nama,

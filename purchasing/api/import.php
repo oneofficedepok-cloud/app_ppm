@@ -50,7 +50,7 @@ $MASTER_ALAMAT_COLS = [
     'status' => ['Status', false],
 ];
 $COLUMNS = [
-    'customers' => $MASTER_ALAMAT_COLS,
+    'customers' => ['kode' => ['Kode Customer', false]] + $MASTER_ALAMAT_COLS,
     'suppliers' => $MASTER_ALAMAT_COLS,
     'karyawan'  => ['nama' => ['Nama', true], 'divisi' => ['Divisi', false], 'jabatan' => ['Jabatan', false], 'status' => ['Status', false]],
     'buyers'    => ['nama' => ['Nama', true]],
@@ -390,6 +390,15 @@ $handlers['customers'] = $handlers['suppliers'] = function (array $r) use ($pdo,
     $chk->execute([':n' => norm_key($nama)]);
     if ($chk->fetch()) return 'skip';
 
+    // Kode Customer (kolom opsional di file Excel) harus unik.
+    $kode = $table === 'customers' ? strtoupper(cell_str($r['kode'] ?? '')) : '';
+    if ($kode !== '') {
+        ensure_customer_kode($pdo);
+        $dup = $pdo->prepare('SELECT nama FROM customers WHERE UPPER(kode) = :k LIMIT 1');
+        $dup->execute([':k' => $kode]);
+        if (($dupName = $dup->fetchColumn()) !== false) throw new ImportRowError("Kode Customer $kode sudah dipakai $dupName.");
+    }
+
     $pdo->prepare(
         "INSERT INTO $table (nama, alamat, kelurahan, kecamatan, kota, provinsi, kodepos, negara, pic, cp, telepon, npwp, status)
          VALUES (:nama, :alamat, :kel, :kec, :kota, :prov, :kodepos, :negara, :pic, :cp, :telepon, :npwp, :status)"
@@ -400,7 +409,9 @@ $handlers['customers'] = $handlers['suppliers'] = function (array $r) use ($pdo,
         ':pic' => cell_str($r['pic']), ':cp' => cell_str($r['cp']), ':telepon' => cell_str($r['telepon']),
         ':npwp' => cell_str($r['npwp']), ':status' => cell_enum($r['status'], 'Status', ['AKTIF', 'NON AKTIF'], 'AKTIF'),
     ]);
-    log_activity('import', $table, (int) $pdo->lastInsertId(), $nama);
+    $newId = (int) $pdo->lastInsertId();
+    if ($kode !== '') $pdo->prepare('UPDATE customers SET kode = :k WHERE id = :id')->execute([':k' => $kode, ':id' => $newId]);
+    log_activity('import', $table, $newId, $nama);
     return 'ok';
 };
 

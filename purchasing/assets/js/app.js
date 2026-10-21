@@ -995,7 +995,7 @@ function getFilteredPRData() {
     if (approval === 'MINE') { if (!isMyApproval(p)) return false; }
     else if (approval !== 'ALL' && p.approval_status !== approval) return false;
     if (search) {
-      const haystack = `${p.pr_number} ${p.keterangan || ''} ${p.wo_number || ''} ${p.po_number || ''} ${p.invoice_number || ''} ${p.customer_nama || ''} ${p.project || ''} ${p.product || ''} ${p.type || ''} ${p.dimensi || ''} ${p.brand || ''} ${p.supplier_nama || ''} ${p.user_nama || ''} ${p.buyer_nama || ''}`.toLowerCase();
+      const haystack = `${p.pr_number} ${p.keterangan || ''} ${p.wo_number || ''} ${p.po_number || ''} ${p.invoice_number || ''} ${p.customer_nama || ''} ${p.customer_kode || ''} ${p.project || ''} ${p.product || ''} ${p.type || ''} ${p.dimensi || ''} ${p.brand || ''} ${p.supplier_nama || ''} ${p.user_nama || ''} ${p.buyer_nama || ''}`.toLowerCase();
       if (!haystack.includes(search)) return false;
     }
     return true;
@@ -1236,7 +1236,7 @@ function renderPRTable() {
       <td class="py-2.5 px-3 min-w-[220px]">
         <div class="font-bold text-slate-800">${esc(p.wo_number || '-')}</div>
         <div class="text-[11px] text-slate-600">${esc(p.project || '-')}</div>
-        <div class="text-[10px] text-slate-400 font-semibold">${esc(p.customer_nama || '-')}</div>
+        <div class="text-[10px] text-slate-400 font-semibold">${p.customer_kode ? `<span class="text-indigo-500">${esc(p.customer_kode)}</span> &middot; ` : ''}${esc(p.customer_nama || '-')}</div>
       </td>
       <td class="py-2.5 px-3 min-w-[200px]">
         <div class="font-semibold text-slate-800">${esc(p.product || '-')}</div>
@@ -1388,8 +1388,48 @@ function handlePRSheetChange() {
 function handleWOSelect() {
   const woId = document.getElementById('form-wo-select').value;
   const w = workOrders.find(x => String(x.id) === String(woId));
-  document.getElementById('form-customer').value = w ? (w.customer_nama || '') : '';
   document.getElementById('form-project').value = w ? w.project : '';
+  // Pakai WO -> customer mengikuti WO (terkunci). Tanpa WO -> customer dipilih manual (kode / nama).
+  if (w) setPRCustomer(customers.find(c => Number(c.id) === Number(w.customer_id)) || { nama: w.customer_nama || '' });
+  else if (document.getElementById('form-customer').readOnly) setPRCustomer(null);
+  lockPRCustomerFields();
+}
+
+// ---------- Customer di form PR: pilih berdasarkan KODE atau NAMA, yang lain terisi otomatis ----------
+function fillPRCustomerLists() {
+  const act = customers.filter(c => c.status !== 'NON AKTIF');
+  document.getElementById('dl-customer-kode').innerHTML = act.filter(c => c.kode)
+    .map(c => `<option value="${esc(c.kode)}">${esc(c.nama)}</option>`).join('');
+  document.getElementById('dl-customer-nama').innerHTML = act
+    .map(c => `<option value="${esc(c.nama)}">${esc(c.kode || '')}</option>`).join('');
+}
+function setPRCustomer(c) {
+  document.getElementById('form-customer-id').value = c && c.id ? c.id : '';
+  document.getElementById('form-customer-kode').value = c ? (c.kode || '') : '';
+  document.getElementById('form-customer').value = c ? (c.nama || '') : '';
+}
+function lockPRCustomerFields() {
+  const hasWO = !!document.getElementById('form-wo-select').value;
+  const editable = !hasWO && prFormLock.req;
+  ['form-customer-kode', 'form-customer'].forEach(id => {
+    const el = document.getElementById(id);
+    el.readOnly = !editable;
+    el.classList.toggle('bg-slate-100', !editable);
+    el.classList.toggle('bg-white', editable);
+    el.title = hasWO ? 'Customer mengikuti WO yang dipilih' : '';
+  });
+}
+/** Ketik / pilih kode atau nama -> cari customer yang cocok persis, isi kolom pasangannya. */
+function handlePRCustomerInput(by, final = false) {
+  const kodeEl = document.getElementById('form-customer-kode');
+  const namaEl = document.getElementById('form-customer');
+  const val = (by === 'kode' ? kodeEl.value : namaEl.value).trim().toUpperCase();
+  const c = val ? customers.find(x => (by === 'kode' ? (x.kode || '') : (x.nama || '')).trim().toUpperCase() === val) : null;
+  if (c) setPRCustomer(c);
+  else {
+    document.getElementById('form-customer-id').value = '';
+    if (final && val) (by === 'kode' ? namaEl : kodeEl).value = '';
+  }
 }
 
 function handleHeaderBuyerChange() {
@@ -1688,6 +1728,7 @@ async function openModal(mode, id = null) {
   document.getElementById('form-id').value = '';
   document.getElementById('pr-items-container').innerHTML = '';
   headerDefaultBuyerId = '';
+  setPRCustomer(null);
   updateDropdownOptions();
 
   const title = document.getElementById('modal-title');
@@ -1717,9 +1758,11 @@ async function openModal(mode, id = null) {
     document.getElementById('form-manager-select').value = p.manager_karyawan_id || '';
     document.getElementById('form-divisi').value = p.divisi || '';
     filterPRWOOptions(p.wo_id || '');
-    // Customer mengikuti WO terpilih (data terbaru), bukan salinan lama di PR.
+    // Customer mengikuti WO terpilih (data terbaru), bukan salinan lama di PR; tanpa WO -> customer PR.
     const prWo = workOrders.find(x => String(x.id) === String(p.wo_id));
-    document.getElementById('form-customer').value = (prWo && prWo.customer_nama) || p.customer_nama || '';
+    const custId = prWo ? prWo.customer_id : p.customer_id;
+    setPRCustomer(customers.find(c => Number(c.id) === Number(custId))
+      || { id: custId, kode: p.customer_kode || '', nama: (prWo && prWo.customer_nama) || p.customer_nama || '' });
     document.getElementById('form-project').value = p.project || '';
     headerDefaultBuyerId = p.buyer_id || '';
     document.getElementById('form-buyer-header-select').value = headerDefaultBuyerId;
@@ -1732,6 +1775,8 @@ async function openModal(mode, id = null) {
   }
 
   applyPRFormLocks();
+  fillPRCustomerLists();
+  lockPRCustomerFields();
   document.getElementById('pr-modal').classList.remove('hidden');
 }
 
@@ -1753,8 +1798,15 @@ async function handleFormSubmit(e) {
     manager_karyawan_id: document.getElementById('form-manager-select').value || null,
     divisi: document.getElementById('form-divisi').value,
     wo_id: document.getElementById('form-wo-select').value || null,
+    customer_id: document.getElementById('form-customer-id').value || null,
     project: document.getElementById('form-project').value,
   };
+  // Customer diketik tapi tidak ada di Master Customer -> minta pilih dari daftar.
+  if (!sharedFields.wo_id && !sharedFields.customer_id
+      && (document.getElementById('form-customer').value.trim() || document.getElementById('form-customer-kode').value.trim())) {
+    showToast('Customer tidak ditemukan. Pilih Kode / Nama Customer dari daftar (Master Customer).', 'error');
+    return;
+  }
 
   function readBlockPayload(block) {
     const qty = parseFloat(block.querySelector('.pri-qty').value) || 0;
@@ -4678,7 +4730,7 @@ function renderCustomerDirectory() {
   const filtered = customers.filter(c => {
     if (status !== 'ALL' && c.status !== status) return false;
     if (search) {
-      const haystack = `${c.nama} ${c.kota || ''} ${c.pic || ''}`.toLowerCase();
+      const haystack = `${c.kode || ''} ${c.nama} ${c.kota || ''} ${c.pic || ''}`.toLowerCase();
       if (!haystack.includes(search)) return false;
     }
     return true;
@@ -4695,7 +4747,7 @@ function renderCustomerDirectory() {
     <div class="bg-white border border-slate-200/80 rounded-2xl shadow-sm overflow-hidden flex flex-col">
       <div class="p-4 bg-blue-600 text-white flex items-start justify-between">
         <div>
-          <h4 class="font-extrabold text-sm">${esc(c.nama)}</h4>
+          <h4 class="font-extrabold text-sm">${c.kode ? `<span class="inline-block mr-1 px-1.5 py-0.5 rounded bg-white/20 text-[10px] tracking-wider">${esc(c.kode)}</span>` : ''}${esc(c.nama)}</h4>
           <p class="text-[10px] text-blue-100">${esc(c.kota || '-')}, ${esc(c.provinsi || '-')}</p>
         </div>
         <span class="text-[9px] font-bold uppercase px-2 py-0.5 rounded-full ${c.status === 'AKTIF' ? 'bg-emerald-400/30 text-emerald-100' : 'bg-rose-400/30 text-rose-100'}">${esc(c.status)}</span>
@@ -4732,6 +4784,7 @@ function openAddCustomerModal(mode, id = null) {
     if (!c) return;
     title.textContent = `Edit Customer - ${c.nama}`;
     document.getElementById('cust-form-id').value = c.id;
+    document.getElementById('cust-kode').value = c.kode || '';
     document.getElementById('cust-nama').value = c.nama;
     document.getElementById('cust-alamat').value = c.alamat || '';
     document.getElementById('cust-kelurahan').value = c.kelurahan || '';
@@ -4758,6 +4811,7 @@ async function handleCustomerSubmit(e) {
   const id = document.getElementById('cust-form-id').value;
   const payload = {
     id: id || undefined,
+    kode: document.getElementById('cust-kode').value.trim().toUpperCase(),
     nama: document.getElementById('cust-nama').value.trim().toUpperCase(),
     alamat: document.getElementById('cust-alamat').value,
     kelurahan: document.getElementById('cust-kelurahan').value,
@@ -5753,6 +5807,7 @@ function exportToExcel() {
     'Tanggal PR': p.tanggal,
     'No PR': p.pr_number,
     'No Item': p.item_no,
+    'Kode Customer': p.customer_kode || '',
     'Customer': p.customer_nama || '',
     'Project': p.project || '',
     'No WO': p.wo_number || '',
