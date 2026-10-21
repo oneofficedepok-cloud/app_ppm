@@ -1737,15 +1737,19 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
         <div class="bg-indigo-50/60 p-4 rounded-xl border border-indigo-100 space-y-3">
           <h4 class="text-xs font-bold text-indigo-800 uppercase tracking-wider flex items-center gap-2 border-b border-indigo-200/80 pb-1.5"><i class="fa-solid fa-diagram-project text-indigo-600"></i> 2. Work Order (WO) & Customer</h4>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label class="block font-semibold text-slate-600 mb-1">No. WO Reference</label>
               <select id="form-wo-select" onchange="handleWOSelect()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold">
                 <option value="">-- Tanpa WO --</option>
               </select>
             </div>
-            <!-- Pilihan Kode Customer untuk kolom "Kode Customer" di tiap item barang. -->
-            <datalist id="dl-customer-kode"></datalist>
+            <div>
+              <label class="block font-semibold text-slate-600 mb-1">Nama Customer</label>
+              <input type="text" id="form-customer" list="dl-customer-nama" autocomplete="off" placeholder="PT AMNT" oninput="handlePRCustomerName()" onchange="handlePRCustomerName(true)" class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg">
+              <input type="hidden" id="form-customer-id">
+              <datalist id="dl-customer-nama"></datalist>
+            </div>
             <div>
               <label class="block font-semibold text-slate-600 mb-1">Nama Project (Auto)</label>
               <input type="text" id="form-project" placeholder="PR Jack Cyl Front CS" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg">
