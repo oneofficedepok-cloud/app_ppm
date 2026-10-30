@@ -448,7 +448,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <h3 class="font-bold text-slate-800 text-sm flex items-center gap-2"><i class="fa-solid fa-filter text-indigo-600"></i> Multi-Column Filter & Quick Search</h3>
           <button onclick="resetFilters()" class="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1"><i class="fa-solid fa-rotate-left"></i> Reset Filter</button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-9 gap-3 sm:gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 xl:grid-cols-10 gap-3 sm:gap-4">
           <div class="sm:col-span-2 lg:col-span-2">
             <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Pencarian Multi-Kolom</label>
             <div class="relative">
@@ -474,6 +474,12 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
             <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Filter Pajak PPN</label>
             <select id="filter-ppn" onchange="applyFilters()" class="w-full py-2 px-3 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500">
               <option value="ALL">Semua Transaksi</option><option value="PPN">Kena PPN</option><option value="NON_PPN">Non-PPN</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-bold uppercase text-slate-400 tracking-wider mb-1">Customer</label>
+            <select id="filter-pr-customer" onchange="applyFilters()" class="w-full py-2 px-3 text-xs sm:text-sm bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500">
+              <option value="ALL">Semua Customer</option>
             </select>
           </div>
           <div>

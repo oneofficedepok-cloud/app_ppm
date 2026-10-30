@@ -887,6 +887,18 @@ function updateDropdownOptions() {
     filterSupp.value = cur || 'ALL';
   }
 
+  // --- Filter dashboard: customer (customer yang ada di data PR, tampil dengan kodenya) ---
+  const filterCust = document.getElementById('filter-pr-customer');
+  if (filterCust) {
+    const cur = filterCust.value;
+    const kodeOf = {};
+    prItems.forEach(p => { if (p.customer_nama && p.customer_kode) kodeOf[p.customer_nama] = p.customer_kode; });
+    const names = [...new Set(prItems.map(p => p.customer_nama).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id'));
+    filterCust.innerHTML = '<option value="ALL">Semua Customer</option><option value="__NONE__">(Tanpa customer)</option>' +
+      names.map(n => opt(n, kodeOf[n] ? `${kodeOf[n]} - ${n}` : n)).join('');
+    filterCust.value = [...filterCust.options].some(o => o.value === cur) ? cur : 'ALL';
+  }
+
   // --- Filter dashboard: buyer (nama buyer yang ada di data PR) ---
   const filterBuyer = document.getElementById('filter-buyer');
   if (filterBuyer) {
@@ -983,6 +995,7 @@ function getFilteredPRData() {
   const ppn = document.getElementById('filter-ppn')?.value || 'ALL';
   const supplier = document.getElementById('filter-supplier')?.value || 'ALL';
   const buyer = document.getElementById('filter-buyer')?.value || 'ALL';
+  const customer = document.getElementById('filter-pr-customer')?.value || 'ALL';
   const approval = document.getElementById('filter-approval')?.value || 'ALL';
 
   return prItems.filter(p => {
@@ -991,6 +1004,7 @@ function getFilteredPRData() {
     if (ppn === 'PPN' && !Number(p.is_ppn)) return false;
     if (ppn === 'NON_PPN' && Number(p.is_ppn)) return false;
     if (supplier !== 'ALL' && p.supplier_nama !== supplier) return false;
+    if (customer === '__NONE__' ? !!p.customer_nama : (customer !== 'ALL' && p.customer_nama !== customer)) return false;
     if (buyer === '__NONE__' ? !!p.buyer_nama : (buyer !== 'ALL' && p.buyer_nama !== buyer)) return false;
     if (approval === 'MINE') { if (!isMyApproval(p)) return false; }
     else if (approval !== 'ALL' && p.approval_status !== approval) return false;
@@ -1332,6 +1346,7 @@ function resetFilters() {
   document.getElementById('filter-ppn').value = 'ALL';
   document.getElementById('filter-supplier').value = 'ALL';
   document.getElementById('filter-buyer').value = 'ALL';
+  document.getElementById('filter-pr-customer').value = 'ALL';
   document.getElementById('filter-approval').value = 'ALL';
   renderDashboard();
 }

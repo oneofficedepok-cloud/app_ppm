@@ -577,6 +577,7 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 ## 8k. Update Log — Filter Buyer & Kategori WO, perbaikan pencarian daftar Master
 
 - Tabel **PR**: filter **Buyer** (termasuk pilihan "(Belum ada buyer)"); nama buyer juga ikut pencarian multi-kolom.
+- Tabel **PR**: filter **Customer** (tampil "KODE - Nama", termasuk pilihan "(Tanpa customer)").
 - Tabel **WO & Budget**: filter **Kategori WO** (PROJECT / MAINTENANCE / INVENTARIS).
 - **Perbaikan bug**: pencarian di daftar Master Product (dan daftar lain: Buyer, Karyawan, Mesin, Tarif, User, Role)
   tidak menyembunyikan item yang tidak cocok saat memakai Tailwind CDN. Sekarang hasil pencarian tampil benar.
