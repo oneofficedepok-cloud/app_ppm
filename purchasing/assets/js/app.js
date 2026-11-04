@@ -465,6 +465,7 @@ const WO_MANPOWER_DIVISI = [
   ['BRASS PLATING', 'Brass Plating'], ['HONING', 'Honing'], ['CHROME', 'Chrome'], ['WELDING', 'Welding'],
   ['PAINTING', 'Painting'], ['QC', 'QC'], ['ASSEMBLING', 'Assy'], ['HPU TEST', 'HPU Test (Assy)'],
 ];
+/** Tabel rincian biaya print WO. Return {mp, other, total} (HTML) - nilai dari data MTC WO tsb. */
 function woExpTables(w) {
   const md = w.mtc_divisi || {};
   const other = [
@@ -475,20 +476,26 @@ function woExpTables(w) {
   ];
   const mp = WO_MANPOWER_DIVISI.map(([lbl, div]) => [lbl, Number(md[div]) || 0]);
   const sum = rows => rows.reduce((t, r) => t + r[1], 0);
+  // Baris rapat (padding kecil) supaya print WO tetap 1 halaman A4.
+  const td = 'padding:2px 6px;';
   const tbl = (title, rows) => `
-    <table style="margin-bottom:4px;">
-      <thead><tr><th style="width:46%;">${title}</th><th class="center" style="width:18%;">Cek List</th><th class="num">Nilai</th></tr></thead>
-      <tbody>${rows.map(([l, v]) => `<tr><td>${l}</td><td class="center">${v ? '&#10003;' : ''}</td><td class="num">${v ? formatRupiah(v) : ''}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><td colspan="2" style="text-align:right; font-weight:700;">Subtotal</td><td class="num" style="font-weight:800;">${formatRupiah(sum(rows))}</td></tr></tfoot>
+    <table style="margin:0;">
+      <thead><tr><th style="width:46%;${td}">${title}</th><th class="center" style="width:18%; white-space:nowrap;${td}">Cek List</th><th class="num" style="${td}">Nilai</th></tr></thead>
+      <tbody>${rows.map(([l, v]) => `<tr><td style="${td}">${l}</td><td class="center" style="${td}">${v ? '&#10003;' : ''}</td><td class="num" style="${td}">${v ? formatRupiah(v) : ''}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="2" style="text-align:right; font-weight:700;${td}">Subtotal</td><td class="num" style="font-weight:800;${td}">${formatRupiah(sum(rows))}</td></tr></tfoot>
     </table>`;
-  return tbl('OTHER EXP', other) + `<div style="height:8px;"></div>` + tbl('MAN POWER', mp) + `
-    <div style="display:flex; justify-content:space-between; border-top:2px solid #1e293b; margin-top:6px; padding-top:4px; font-weight:800;">
-      <span>TOTAL</span><span>${formatRupiah(sum(other) + sum(mp))}</span></div>`;
+  return {
+    mp: tbl('MAN POWER', mp),
+    other: tbl('OTHER EXP', other),
+    total: `<div style="display:flex; justify-content:space-between; border-top:2px solid #1e293b; margin-top:6px; padding-top:4px; font-weight:800;">
+      <span>TOTAL (Other Exp + Man Power)</span><span>${formatRupiah(sum(other) + sum(mp))}</span></div>`,
+  };
 }
 
 function printWO(id) {
   const w = workOrders.find(x => x.id === id);
   if (!w) { showToast('Data WO tidak ditemukan.'); return; }
+  const exp = woExpTables(w);
   const budgetRows = (w.budget_items || []).map(bi => `
     <tr><td>${esc(bi.nama_item)}</td><td class="num">${formatRupiah(bi.budget)}</td><td class="num">${formatRupiah(bi.actual)}</td></tr>
   `).join('') || `<tr><td colspan="3" class="center" style="color:#94a3b8;">Tidak ada rincian Item Pekerjaan</td></tr>`;
@@ -527,17 +534,21 @@ function printWO(id) {
       <thead><tr><th>Item Pekerjaan</th><th class="num">Budget</th><th class="num">Actual</th></tr></thead>
       <tbody>${budgetRows}</tbody>
     </table>
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8mm; margin-top:10px;">
-      <div style="flex:1; min-width:0;">${woExpTables(w)}</div>
-      <div class="totals" style="margin-left:0; margin-top:0; width:72mm; flex-shrink:0;">
-        <div><span>Budget Produksi</span><span>${formatRupiah(w.budget_prod)}</span></div>
-        <div><span>Aktual Produksi</span><span>${formatRupiah(w.aktual_prod)}</span></div>
-        <div><span>Budget Pembelian</span><span>${formatRupiah(w.budget_pem)}</span></div>
-        <div><span>Aktual Pembelian (DPP PR)</span><span>${formatRupiah(w.aktual_pem)}</span></div>
-        ${CAN_NILAI ? `<div class="grand"><span>PROFIT / LOSS <small style="font-weight:400;">(DPP - Diskon - Total Produksi)</small></span><span>${formatRupiah(w.profit_loss)}</span></div>` : ''}
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8mm; margin-top:8px;">
+      <div style="flex:1; min-width:0;">${exp.mp}</div>
+      <div style="width:80mm; flex-shrink:0;">
+        <div class="totals" style="margin:0; width:auto;">
+          <div><span>Budget Produksi</span><span>${formatRupiah(w.budget_prod)}</span></div>
+          <div><span>Aktual Produksi</span><span>${formatRupiah(w.aktual_prod)}</span></div>
+          <div><span>Budget Pembelian</span><span>${formatRupiah(w.budget_pem)}</span></div>
+          <div><span>Aktual Pembelian (DPP PR)</span><span>${formatRupiah(w.aktual_pem)}</span></div>
+          ${CAN_NILAI ? `<div class="grand"><span>PROFIT / LOSS <small style="font-weight:400;">(DPP - Diskon - Total Produksi)</small></span><span>${formatRupiah(w.profit_loss)}</span></div>` : ''}
+        </div>
+        <div style="margin-top:10px;">${exp.other}</div>
+        ${exp.total}
       </div>
     </div>
-    <div class="sign-grid" style="margin-top:8mm;">
+    <div class="sign-grid" style="margin-top:4mm;">
       <div class="box">User Peminta<div class="nm">${esc(w.requester_nama || '')}</div></div>
       <div class="box">Atasan Direct<div class="nm">${esc(w.atasan_nama || '')}</div></div>
       <div class="box">Manager Head<div class="nm">${esc(w.manager_nama || '')}</div></div>
