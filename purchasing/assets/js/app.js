@@ -459,6 +459,33 @@ function printPR(prNumber) {
   openPrintWindow(`PR ${head.pr_number}`, body);
 }
 
+// Rincian biaya per divisi di print WO (dari data MTC WO tsb). [label, nilai]
+const WO_MANPOWER_DIVISI = [
+  ['DIS ASSY', 'Disassembling'], ['OBSERVASI', 'Observasi'], ['ENGINEERING', 'Engineering'], ['MACHINING', 'Machining'],
+  ['BRASS PLATING', 'Brass Plating'], ['HONING', 'Honing'], ['CHROME', 'Chrome'], ['WELDING', 'Welding'],
+  ['PAINTING', 'Painting'], ['QC', 'QC'], ['ASSEMBLING', 'Assy'], ['HPU TEST', 'HPU Test (Assy)'],
+];
+function woExpTables(w) {
+  const md = w.mtc_divisi || {};
+  const other = [
+    ['CNC SEAL', Number(w.mtc_cnc_seal ?? w.total_seal) || 0],
+    ['TRANSPORTASI', Number(w.mtc_transport ?? w.total_transport) || 0],
+    ['LAIN-LAIN', Number(w.total_lain) || 0],
+    ['STORE ROOM', Number(md['Gudang']) || 0],
+  ];
+  const mp = WO_MANPOWER_DIVISI.map(([lbl, div]) => [lbl, Number(md[div]) || 0]);
+  const sum = rows => rows.reduce((t, r) => t + r[1], 0);
+  const tbl = (title, rows) => `
+    <table style="margin-bottom:4px;">
+      <thead><tr><th style="width:46%;">${title}</th><th class="center" style="width:18%;">Cek List</th><th class="num">Nilai</th></tr></thead>
+      <tbody>${rows.map(([l, v]) => `<tr><td>${l}</td><td class="center">${v ? '&#10003;' : ''}</td><td class="num">${v ? formatRupiah(v) : ''}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="2" style="text-align:right; font-weight:700;">Subtotal</td><td class="num" style="font-weight:800;">${formatRupiah(sum(rows))}</td></tr></tfoot>
+    </table>`;
+  return tbl('OTHER EXP', other) + `<div style="height:8px;"></div>` + tbl('MAN POWER', mp) + `
+    <div style="display:flex; justify-content:space-between; border-top:2px solid #1e293b; margin-top:6px; padding-top:4px; font-weight:800;">
+      <span>TOTAL</span><span>${formatRupiah(sum(other) + sum(mp))}</span></div>`;
+}
+
 function printWO(id) {
   const w = workOrders.find(x => x.id === id);
   if (!w) { showToast('Data WO tidak ditemukan.'); return; }
@@ -500,25 +527,20 @@ function printWO(id) {
       <thead><tr><th>Item Pekerjaan</th><th class="num">Budget</th><th class="num">Actual</th></tr></thead>
       <tbody>${budgetRows}</tbody>
     </table>
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12mm; break-inside:avoid;">
-      <div class="totals" style="margin-left:0; width:70mm;">
-        <div style="font-weight:800; color:#475569; border-bottom:1px solid #cbd5e1; margin-bottom:2px;"><span>OTHER EXP</span><span></span></div>
-        <div><span>CNC Seal</span><span>${formatRupiah(w.mtc_cnc_seal ?? w.total_seal)}</span></div>
-        <div><span>Transportasi</span><span>${formatRupiah(w.mtc_transport ?? w.total_transport)}</span></div>
-        <div><span>Lain-lain</span><span>${formatRupiah(w.total_lain)}</span></div>
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8mm; margin-top:10px;">
+      <div style="flex:1; min-width:0;">${woExpTables(w)}</div>
+      <div class="totals" style="margin-left:0; margin-top:0; width:72mm; flex-shrink:0;">
+        <div><span>Budget Produksi</span><span>${formatRupiah(w.budget_prod)}</span></div>
+        <div><span>Aktual Produksi</span><span>${formatRupiah(w.aktual_prod)}</span></div>
+        <div><span>Budget Pembelian</span><span>${formatRupiah(w.budget_pem)}</span></div>
+        <div><span>Aktual Pembelian (DPP PR)</span><span>${formatRupiah(w.aktual_pem)}</span></div>
+        ${CAN_NILAI ? `<div class="grand"><span>PROFIT / LOSS <small style="font-weight:400;">(DPP - Diskon - Total Produksi)</small></span><span>${formatRupiah(w.profit_loss)}</span></div>` : ''}
       </div>
-    <div class="totals" style="margin-left:0;">
-      <div><span>Budget Produksi</span><span>${formatRupiah(w.budget_prod)}</span></div>
-      <div><span>Aktual Produksi</span><span>${formatRupiah(w.aktual_prod)}</span></div>
-      <div><span>Budget Pembelian</span><span>${formatRupiah(w.budget_pem)}</span></div>
-      <div><span>Aktual Pembelian (DPP PR)</span><span>${formatRupiah(w.aktual_pem)}</span></div>
-      ${CAN_NILAI ? `<div class="grand"><span>PROFIT / LOSS <small style="font-weight:400;">(DPP - Diskon - Total Produksi)</small></span><span>${formatRupiah(w.profit_loss)}</span></div>` : ''}
     </div>
-    </div>
-    <div class="sign-grid">
-      <div class="box">User Peminta</div>
-      <div class="box">Atasan Direct</div>
-      <div class="box">Manager Head</div>
+    <div class="sign-grid" style="margin-top:8mm;">
+      <div class="box">User Peminta<div class="nm">${esc(w.requester_nama || '')}</div></div>
+      <div class="box">Atasan Direct<div class="nm">${esc(w.atasan_nama || '')}</div></div>
+      <div class="box">Manager Head<div class="nm">${esc(w.manager_nama || '')}</div></div>
     </div>`;
   openPrintWindow(`WO ${w.wo_number}`, body);
 }
@@ -2342,6 +2364,11 @@ function openWOModal(mode, id = null) {
     document.getElementById('wo-form-category').value = fromMtc ? 'MAINTENANCE' : 'PROJECT';
     document.getElementById('wo-form-status').value = 'ON PROGRESS';
     document.getElementById('wo-form-aktual-pem').value = formatRupiah(0);
+    // User Peminta = akun yang membuat WO (dihubungkan ke Master Karyawan bila namanya sama).
+    const me = currentUser?.full_name || currentUser?.username || '';
+    document.getElementById('wo-form-requester-display').value = me || '-';
+    const k = karyawanList.find(x => (x.nama || '').trim().toUpperCase() === me.trim().toUpperCase());
+    document.getElementById('wo-form-requester-select').value = k ? k.id : '';
     autoGenerateWONumber();
     calcWOFinance();
     recalcWOBudgetTotals();
@@ -2358,6 +2385,7 @@ function openWOModal(mode, id = null) {
     document.getElementById('wo-form-customer-select').value = w.customer_id || '';
     document.getElementById('wo-form-po-no').value = w.po_no || '';
     document.getElementById('wo-form-requester-select').value = w.requester_karyawan_id || '';
+    document.getElementById('wo-form-requester-display').value = w.requester_nama || '-';
     document.getElementById('wo-form-atasan-select').value = w.atasan_karyawan_id || '';
     document.getElementById('wo-form-manager-select').value = w.manager_karyawan_id || '';
     document.getElementById('wo-form-qty').value = qtyInputValue(w.qty);

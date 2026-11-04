@@ -620,6 +620,11 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
   serta blok **OTHER EXP** (di samping ringkasan budget). Nilai CNC Seal & Transportasi diambil dari **data MTC WO tsb**
   (sama dengan Dashboard MTC): input divisi CNC Seal / Transportasi di Modul Divisi Produksi + biaya otomatis menu
   Seal CNC / Transportasi. Lain-lain = Total Lain-lain di form WO.
+- Print WO: tabel **OTHER EXP** (CNC Seal, Transportasi, Lain-lain, Store Room = divisi Gudang MTC) dan **MAN POWER**
+  (Dis Assy, Observasi, Engineering, Machining, Brass Plating, Honing, Chrome, Welding, Painting, QC, Assembling, HPU Test)
+  dengan kolom Cek List (✓ bila ada nilai), Nilai, Subtotal & TOTAL — nilai dari data MTC WO tsb. Tanda tangan di bawah.
+- Form WO: **User Peminta otomatis** = pembuat WO (kolom `work_orders.created_by`, ditambahkan otomatis).
+  **Atasan Direct & Manager Head wajib** (dicek juga di server); nama ketiganya tampil di print WO (info & tanda tangan).
 
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 

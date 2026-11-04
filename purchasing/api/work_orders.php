@@ -8,6 +8,16 @@ require_perm(array_keys(all_menus()), ['tracking']);
 $method = http_method();
 $pdo = db();
 ensure_seal_transport_columns($pdo); // kolom status Seal dipakai rekap biaya
+// Pembuat WO (= User Peminta di print WO).
+db_ensure_columns($pdo, 'work_orders', ['created_by' => "INT UNSIGNED NULL COMMENT 'User pembuat WO (User Peminta)'"]);
+
+/** Approval Matrix WO wajib: Atasan Direct & Manager Head dari Master Karyawan. */
+function wo_require_approval_matrix(array $b): void
+{
+    if (!to_int_or_null(arr_val($b, 'atasan_karyawan_id')) || !to_int_or_null(arr_val($b, 'manager_karyawan_id'))) {
+        json_error('Approval Matrix wajib diisi: pilih Atasan Direct dan Manager Head.', 422);
+    }
+}
 $action = $_GET['action'] ?? '';
 
 /** Kolom nilai jual / PO / profit yang hanya boleh dilihat role berizin "Lihat Nilai PO". */
@@ -71,7 +81,7 @@ switch ($method) {
         $arWo = ar_for_wo_sql($pdo);
         $sql = "
             SELECT wo.*, c.nama AS customer_nama,
-                   kr.nama AS requester_nama, ka.nama AS atasan_nama, km.nama AS manager_nama,
+                   COALESCE(ucr.full_name, kr.nama) AS requester_nama, ka.nama AS atasan_nama, km.nama AS manager_nama,
                    COALESCE((SELECT SUM(pr.dpp) FROM pr_items pr WHERE pr.wo_id = wo.id AND pr.status != 'CANCEL'), 0) AS aktual_pem,
                    COALESCE((SELECT SUM(si.total) FROM seal_items si WHERE si.wo_id = wo.id AND si.status <> 'CANCEL'), 0) AS total_seal,
                    COALESCE((SELECT SUM(ti.total) FROM transport_items ti WHERE ti.wo_id = wo.id), 0) AS total_transport,
@@ -83,6 +93,7 @@ switch ($method) {
                        AND (ar.penjualan + ar.ppn - ar.terbayar - ar.pph23 - ar.ppn030 - ar.biaya_lain) > 0.5) AS ar_unpaid_count
             FROM work_orders wo
             LEFT JOIN customers c ON c.id = wo.customer_id
+            LEFT JOIN users ucr ON ucr.id = wo.created_by
             LEFT JOIN master_karyawan kr ON kr.id = wo.requester_karyawan_id
             LEFT JOIN master_karyawan ka ON ka.id = wo.atasan_karyawan_id
             LEFT JOIN master_karyawan km ON km.id = wo.manager_karyawan_id
@@ -91,7 +102,7 @@ switch ($method) {
         $rows = $pdo->query($sql)->fetchAll();
         $sjByWo = sj_by_wo($pdo);
         $invByWo = ar_invoices_by_wo($pdo);
-        $mtcDivByWo = mtc_divisi_totals_by_wo($pdo, ['CNC Seal', 'Transportasi']);
+        $mtcDivByWo = mtc_divisi_totals_by_wo($pdo, MTC_DIVISI_LIST);
 
         foreach ($rows as &$w) {
             // Surat Jalan (modul Finance) & No Invoice AR yang memuat WO ini.
@@ -103,6 +114,7 @@ switch ($method) {
             $md = $mtcDivByWo[(int) $w['id']] ?? [];
             $w['mtc_cnc_seal'] = (float) ($md['CNC Seal'] ?? 0) + (float) $w['total_seal'];
             $w['mtc_transport'] = (float) ($md['Transportasi'] ?? 0) + (float) $w['total_transport'];
+            $w['mtc_divisi'] = (object) $md; // total MTC per divisi (Man Power di print WO)
             // Aktual tiap Item Pekerjaan = total rincian MTC (Modul Divisi Produksi) dengan
             // nama item yang sama; Aktual Produksi WO = jumlah semua Item Pekerjaan.
             $w['budget_items'] = apply_mtc_actuals(fetch_wo_budget_items($pdo, (int) $w['id']), mtc_totals_per_item($pdo, (int) $w['id']));
@@ -163,6 +175,7 @@ switch ($method) {
         if ($project === '') {
             json_error('Nama Project wajib diisi.', 422);
         }
+        wo_require_approval_matrix($b);
 
         $qty = to_float(arr_val($b, 'qty', 1));
         $harga = to_float(arr_val($b, 'harga_satuan', 0));
@@ -187,13 +200,14 @@ switch ($method) {
             'INSERT INTO work_orders
              (wo_number, wo_category, project, customer_id, requester_karyawan_id, atasan_karyawan_id, manager_karyawan_id,
               est_kirim, nilai_po, budget_prod, aktual_prod, budget_pem, budget_lain, total_lain, status,
-              po_no, qty, satuan, harga_satuan, diskon, is_ppn, ppn, is_pph23, pph23, pph_lain_pct, pph_lain, wo_total)
+              po_no, qty, satuan, harga_satuan, diskon, is_ppn, ppn, is_pph23, pph23, pph_lain_pct, pph_lain, wo_total, created_by)
              VALUES (:wo, :cat, :proj, :cust, :req, :atasan, :manager,
               :est, :nilai, :bprod, :aprod, :bpem, :blain, :lain, :status,
-              :pono, :qty, :satuan, :harga, :diskon, :isppn, :ppn, :ispph23, :pph23, :pphlainpct, :pphlain, :wototal)'
+              :pono, :qty, :satuan, :harga, :diskon, :isppn, :ppn, :ispph23, :pph23, :pphlainpct, :pphlain, :wototal, :createdby)'
         );
         try {
             $stmt->execute([
+                ':createdby' => current_user()['id'] ?? null,
                 ':wo'    => $woNumber,
                 ':cat'   => $category,
                 ':proj'  => $project,
@@ -250,6 +264,7 @@ switch ($method) {
         if (!$id || $woNumber === '' || $project === '') {
             json_error('ID, No. WO, dan Nama Project wajib diisi.', 422);
         }
+        wo_require_approval_matrix($b);
 
         $qty = to_float(arr_val($b, 'qty', 1));
         $harga = to_float(arr_val($b, 'harga_satuan', 0));
