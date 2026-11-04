@@ -617,7 +617,9 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 ## 8o. Update Log — Print Work Order
 
 - Print WO menampilkan **Invoice** (No. Invoice AR yang memuat WO) dan **Surat Jalan** (No. SJ) di bagian info,
-  serta blok **OTHER EXP**: CNC Seal, Transportasi, Lain-lain (di samping ringkasan budget).
+  serta blok **OTHER EXP** (di samping ringkasan budget). Nilai CNC Seal & Transportasi diambil dari **data MTC WO tsb**
+  (sama dengan Dashboard MTC): input divisi CNC Seal / Transportasi di Modul Divisi Produksi + biaya otomatis menu
+  Seal CNC / Transportasi. Lain-lain = Total Lain-lain di form WO.
 
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 

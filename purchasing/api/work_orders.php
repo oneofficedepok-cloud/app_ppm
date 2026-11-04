@@ -91,12 +91,18 @@ switch ($method) {
         $rows = $pdo->query($sql)->fetchAll();
         $sjByWo = sj_by_wo($pdo);
         $invByWo = ar_invoices_by_wo($pdo);
+        $mtcDivByWo = mtc_divisi_totals_by_wo($pdo, ['CNC Seal', 'Transportasi']);
 
         foreach ($rows as &$w) {
             // Surat Jalan (modul Finance) & No Invoice AR yang memuat WO ini.
             $w['surat_jalan'] = $sjByWo[(int) $w['id']] ?? [];
             $w['sj_status'] = $w['surat_jalan'][0]['status'] ?? null; // status SJ terbaru
             $w['ar_invoices'] = $invByWo[(int) $w['id']] ?? [];
+            // Other Exp (print WO) = data MTC WO ini, sama seperti Dashboard MTC:
+            // input divisi di Modul Divisi Produksi + biaya otomatis menu Seal CNC / Transportasi.
+            $md = $mtcDivByWo[(int) $w['id']] ?? [];
+            $w['mtc_cnc_seal'] = (float) ($md['CNC Seal'] ?? 0) + (float) $w['total_seal'];
+            $w['mtc_transport'] = (float) ($md['Transportasi'] ?? 0) + (float) $w['total_transport'];
             // Aktual tiap Item Pekerjaan = total rincian MTC (Modul Divisi Produksi) dengan
             // nama item yang sama; Aktual Produksi WO = jumlah semua Item Pekerjaan.
             $w['budget_items'] = apply_mtc_actuals(fetch_wo_budget_items($pdo, (int) $w['id']), mtc_totals_per_item($pdo, (int) $w['id']));

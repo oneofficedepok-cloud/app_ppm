@@ -284,3 +284,31 @@ function valid_wo_ids(PDO $pdo, $raw): array
     if (count($rows) !== count($ids)) json_error('Sebagian WO yang dipilih sudah tidak ada. Muat ulang halaman lalu coba lagi.', 422);
     return [array_map(fn($r) => (int) $r['id'], $rows), array_column($rows, 'wo_number')];
 }
+
+/**
+ * Total biaya MTC (Modul Divisi Produksi) per WO untuk divisi tertentu.
+ * Return: [wo_id => ['CNC Seal' => total, 'Transportasi' => total]]
+ */
+function mtc_divisi_totals_by_wo(PDO $pdo, array $divisi): array
+{
+    if (!$divisi) return [];
+    try {
+        $ph = implode(',', array_fill(0, count($divisi), '?'));
+        $stmt = $pdo->prepare(
+            // Sama seperti Dashboard MTC: hanya record yang item-nya ada di Item Pekerjaan WO tsb.
+            "SELECT r.wo_id, r.divisi, COALESCE(SUM(i.total), 0) AS total
+             FROM mtc_divisi_records r
+             JOIN mtc_divisi_items i ON i.record_id = r.id
+             WHERE r.divisi IN ($ph)
+               AND EXISTS (SELECT 1 FROM work_order_budget_items b WHERE b.wo_id = r.wo_id AND b.nama_item = r.nama_item)
+             GROUP BY r.wo_id, r.divisi"
+        );
+        $stmt->execute(array_values($divisi));
+    } catch (PDOException $e) {
+        return []; // tabel MTC belum ada
+    }
+    $out = [];
+    foreach ($stmt->fetchAll() as $r) $out[(int) $r['wo_id']][$r['divisi']] = (float) $r['total'];
+    return $out;
+}
+

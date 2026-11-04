@@ -503,8 +503,8 @@ function printWO(id) {
     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12mm; break-inside:avoid;">
       <div class="totals" style="margin-left:0; width:70mm;">
         <div style="font-weight:800; color:#475569; border-bottom:1px solid #cbd5e1; margin-bottom:2px;"><span>OTHER EXP</span><span></span></div>
-        <div><span>CNC Seal</span><span>${formatRupiah(w.total_seal)}</span></div>
-        <div><span>Transportasi</span><span>${formatRupiah(w.total_transport)}</span></div>
+        <div><span>CNC Seal</span><span>${formatRupiah(w.mtc_cnc_seal ?? w.total_seal)}</span></div>
+        <div><span>Transportasi</span><span>${formatRupiah(w.mtc_transport ?? w.total_transport)}</span></div>
         <div><span>Lain-lain</span><span>${formatRupiah(w.total_lain)}</span></div>
       </div>
     <div class="totals" style="margin-left:0;">
