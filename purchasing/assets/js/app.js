@@ -481,6 +481,9 @@ function printWO(id) {
       <div><span class="lbl">User Peminta</span> ${esc(w.requester_nama || '-')}</div>
       <div><span class="lbl">Atasan Direct</span> ${esc(w.atasan_nama || '-')}</div>
       <div><span class="lbl">Manager Head</span> ${esc(w.manager_nama || '-')}</div>
+      <div><span class="lbl">Invoice</span> ${esc((w.ar_invoices || []).join(', ') || '-')}</div>
+      <div></div>
+      <div><span class="lbl">Surat Jalan</span> ${esc((w.surat_jalan || []).map(sj => sj.no_sj).join(', ') || '-')}</div>
     </div>
     ${CAN_NILAI ? `<h2>Perhitungan Nilai Jual</h2>
     <table>
@@ -497,12 +500,20 @@ function printWO(id) {
       <thead><tr><th>Item Pekerjaan</th><th class="num">Budget</th><th class="num">Actual</th></tr></thead>
       <tbody>${budgetRows}</tbody>
     </table>
-    <div class="totals">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12mm; break-inside:avoid;">
+      <div class="totals" style="margin-left:0; width:70mm;">
+        <div style="font-weight:800; color:#475569; border-bottom:1px solid #cbd5e1; margin-bottom:2px;"><span>OTHER EXP</span><span></span></div>
+        <div><span>CNC Seal</span><span>${formatRupiah(w.total_seal)}</span></div>
+        <div><span>Transportasi</span><span>${formatRupiah(w.total_transport)}</span></div>
+        <div><span>Lain-lain</span><span>${formatRupiah(w.total_lain)}</span></div>
+      </div>
+    <div class="totals" style="margin-left:0;">
       <div><span>Budget Produksi</span><span>${formatRupiah(w.budget_prod)}</span></div>
       <div><span>Aktual Produksi</span><span>${formatRupiah(w.aktual_prod)}</span></div>
       <div><span>Budget Pembelian</span><span>${formatRupiah(w.budget_pem)}</span></div>
       <div><span>Aktual Pembelian (DPP PR)</span><span>${formatRupiah(w.aktual_pem)}</span></div>
       ${CAN_NILAI ? `<div class="grand"><span>PROFIT / LOSS <small style="font-weight:400;">(DPP - Diskon - Total Produksi)</small></span><span>${formatRupiah(w.profit_loss)}</span></div>` : ''}
+    </div>
     </div>
     <div class="sign-grid">
       <div class="box">User Peminta</div>

@@ -614,6 +614,11 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - Kode customer tampil di tabel PR (di bawah WO / Project), ikut pencarian, dan ikut export Excel PR.
 - Kolom `customers.kode` ditambahkan otomatis oleh aplikasi — tidak perlu import SQL.
 
+## 8o. Update Log — Print Work Order
+
+- Print WO menampilkan **Invoice** (No. Invoice AR yang memuat WO) dan **Surat Jalan** (No. SJ) di bagian info,
+  serta blok **OTHER EXP**: CNC Seal, Transportasi, Lain-lain (di samping ringkasan budget).
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.
