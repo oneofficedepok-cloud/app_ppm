@@ -2375,11 +2375,8 @@ function openWOModal(mode, id = null) {
     document.getElementById('wo-form-category').value = fromMtc ? 'MAINTENANCE' : 'PROJECT';
     document.getElementById('wo-form-status').value = 'ON PROGRESS';
     document.getElementById('wo-form-aktual-pem').value = formatRupiah(0);
-    // User Peminta = akun yang membuat WO (dihubungkan ke Master Karyawan bila namanya sama).
-    const me = currentUser?.full_name || currentUser?.username || '';
-    document.getElementById('wo-form-requester-display').value = me || '-';
-    const k = karyawanList.find(x => (x.nama || '').trim().toUpperCase() === me.trim().toUpperCase());
-    document.getElementById('wo-form-requester-select').value = k ? k.id : '';
+    // User Peminta dipilih manual dari Master Karyawan (bukan otomatis user login).
+    document.getElementById('wo-form-requester-select').value = '';
     autoGenerateWONumber();
     calcWOFinance();
     recalcWOBudgetTotals();
@@ -2396,7 +2393,6 @@ function openWOModal(mode, id = null) {
     document.getElementById('wo-form-customer-select').value = w.customer_id || '';
     document.getElementById('wo-form-po-no').value = w.po_no || '';
     document.getElementById('wo-form-requester-select').value = w.requester_karyawan_id || '';
-    document.getElementById('wo-form-requester-display').value = w.requester_nama || '-';
     document.getElementById('wo-form-atasan-select').value = w.atasan_karyawan_id || '';
     document.getElementById('wo-form-manager-select').value = w.manager_karyawan_id || '';
     document.getElementById('wo-form-qty').value = qtyInputValue(w.qty);

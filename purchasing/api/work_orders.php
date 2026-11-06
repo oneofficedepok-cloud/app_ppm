@@ -14,8 +14,8 @@ db_ensure_columns($pdo, 'work_orders', ['created_by' => "INT UNSIGNED NULL COMME
 /** Approval Matrix WO wajib: Atasan Direct & Manager Head dari Master Karyawan. */
 function wo_require_approval_matrix(array $b): void
 {
-    if (!to_int_or_null(arr_val($b, 'atasan_karyawan_id')) || !to_int_or_null(arr_val($b, 'manager_karyawan_id'))) {
-        json_error('Approval Matrix wajib diisi: pilih Atasan Direct dan Manager Head.', 422);
+    if (!to_int_or_null(arr_val($b, 'requester_karyawan_id')) || !to_int_or_null(arr_val($b, 'atasan_karyawan_id')) || !to_int_or_null(arr_val($b, 'manager_karyawan_id'))) {
+        json_error('Approval Matrix wajib diisi: pilih User Peminta, Atasan Direct dan Manager Head.', 422);
     }
 }
 $action = $_GET['action'] ?? '';
@@ -81,7 +81,7 @@ switch ($method) {
         $arWo = ar_for_wo_sql($pdo);
         $sql = "
             SELECT wo.*, c.nama AS customer_nama,
-                   COALESCE(ucr.full_name, kr.nama) AS requester_nama, ka.nama AS atasan_nama, km.nama AS manager_nama,
+                   COALESCE(kr.nama, ucr.full_name) AS requester_nama, ka.nama AS atasan_nama, km.nama AS manager_nama,
                    COALESCE((SELECT SUM(pr.dpp) FROM pr_items pr WHERE pr.wo_id = wo.id AND pr.status != 'CANCEL'), 0) AS aktual_pem,
                    COALESCE((SELECT SUM(si.total) FROM seal_items si WHERE si.wo_id = wo.id AND si.status <> 'CANCEL'), 0) AS total_seal,
                    COALESCE((SELECT SUM(ti.total) FROM transport_items ti WHERE ti.wo_id = wo.id), 0) AS total_transport,

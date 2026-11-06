@@ -1838,9 +1838,9 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
         <div class="bg-amber-50/70 p-4 rounded-xl border border-amber-200 space-y-3">
           <h4 class="font-bold text-amber-800 uppercase text-[10px] tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-user-check text-amber-600"></i> Approval Matrix *</h4>
-          <p class="text-[10px] text-amber-700/80 -mt-1">User Peminta otomatis = pembuat WO. Atasan Direct &amp; Manager Head wajib dipilih — namanya tampil di print WO (kolom tanda tangan).</p>
+          <p class="text-[10px] text-amber-700/80 -mt-1">User Peminta, Atasan Direct &amp; Manager Head wajib dipilih — namanya tampil di print WO (kolom tanda tangan).</p>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div><label class="block font-semibold text-slate-600 mb-1">User Peminta (Auto)</label><input type="text" id="wo-form-requester-display" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg font-bold text-slate-700"><select id="wo-form-requester-select" class="hidden"><option value="">-- Pilih --</option></select></div>
+            <div><label class="block font-semibold text-slate-600 mb-1">User Peminta *</label><select id="wo-form-requester-select" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"><option value="">-- Pilih --</option></select></div>
             <div><label class="block font-semibold text-slate-600 mb-1">Atasan Direct *</label><select id="wo-form-atasan-select" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"><option value="">-- Pilih --</option></select></div>
             <div><label class="block font-semibold text-slate-600 mb-1">Manager Head *</label><select id="wo-form-manager-select" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"><option value="">-- Pilih --</option></select></div>
           </div>

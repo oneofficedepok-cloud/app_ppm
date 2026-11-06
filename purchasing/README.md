@@ -623,8 +623,9 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
 - Print WO: tabel **OTHER EXP** (CNC Seal, Transportasi, Lain-lain, Store Room = divisi Gudang MTC) dan **MAN POWER**
   (Dis Assy, Observasi, Engineering, Machining, Brass Plating, Honing, Chrome, Welding, Painting, QC, Assembling, HPU Test)
   dengan kolom Cek List (✓ bila ada nilai), Nilai, Subtotal & TOTAL — nilai dari data MTC WO tsb. Tanda tangan di bawah.
-- Form WO: **User Peminta otomatis** = pembuat WO (kolom `work_orders.created_by`, ditambahkan otomatis).
-  **Atasan Direct & Manager Head wajib** (dicek juga di server); nama ketiganya tampil di print WO (info & tanda tangan).
+- Form WO: **User Peminta, Atasan Direct & Manager Head dipilih dari Master Karyawan dan wajib diisi** (dicek juga di server);
+  User Peminta tidak lagi otomatis = user login. Nama ketiganya tampil di print WO (info & tanda tangan).
+  WO lama yang belum punya User Peminta tetap menampilkan nama pembuat WO (`work_orders.created_by`).
 
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
