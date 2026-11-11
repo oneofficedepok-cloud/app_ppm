@@ -641,6 +641,7 @@ const TAB_LOADERS = {
   tracking: () => { setWOViewMode('MAIN'); renderWOTracking(); },
   womtc: () => { setWOViewMode('MTC'); renderWOTracking(); },
   seal: () => renderSealTable(),
+  sealkit: () => renderSealkitTab(),
   transport: () => renderTransportTable(),
   customers: () => renderCustomerDirectory(),
   suppliers: () => renderSupplierDirectory(),
@@ -667,7 +668,7 @@ const TAB_LOADERS = {
 const TAB_SECTION = {
   overview: 'overview',
   dashboard: 'purchasing', transport: 'purchasing',
-  tracking: 'produksi', womtc: 'produksi', seal: 'produksi',
+  tracking: 'produksi', womtc: 'produksi', seal: 'produksi', sealkit: 'produksi',
   customers: 'masterdata', suppliers: 'masterdata', master: 'masterdata',
   stok: 'gudang', produksi: 'gudang', riwayat: 'gudang', incoming: 'gudang', receiving: 'gudang',
   findash: 'finance', cashflow: 'finance', ar: 'finance', sj: 'finance', ap: 'finance', talangan: 'finance',
@@ -677,7 +678,7 @@ const TAB_SECTION = {
 };
 const SECTION_TABS = {
   purchasing: ['dashboard', 'transport'],
-  produksi: ['tracking', 'womtc', 'seal'],
+  produksi: ['tracking', 'womtc', 'seal', 'sealkit'],
   masterdata: ['customers', 'suppliers', 'master'],
   gudang: ['stok', 'incoming', 'receiving', 'produksi', 'riwayat'],
   finance: ['findash', 'cashflow', 'ar', 'sj', 'ap', 'talangan'],
@@ -1449,6 +1450,7 @@ function handleWOSelect() {
   const w = workOrders.find(x => String(x.id) === String(woId));
   document.getElementById('form-project').value = w ? w.project : '';
   applyWOCustomerToItems();
+  if (typeof applySealkitToPR === 'function') applySealkitToPR(w);
 }
 
 // ---------- Customer PR: Nama Customer di bagian WO, Kode Customer tiap item terisi otomatis (tidak bisa diedit) ----------
@@ -1585,7 +1587,7 @@ function populateItemBlockDropdowns(block) {
   if (prodSel) {
     const cur = prodSel.value;
     prodSel.innerHTML = masterProducts.map(p => opt(p.nama, p.nama)).join('');
-    if (cur) prodSel.value = cur;
+    setPRProductValue(prodSel, cur);
   }
   const suppSel = block.querySelector('.pri-supplier');
   if (suppSel) {
@@ -1611,6 +1613,13 @@ function populateItemBlockDropdowns(block) {
   }
 }
 
+/** Pilih Nama Product; kalau belum ada di Master Product (mis. dari Master Sealkit) tetap ditambahkan sebagai opsi. */
+function setPRProductValue(sel, val) {
+  if (!sel || !val) return;
+  if (![...sel.options].some(o => o.value === val)) sel.insertAdjacentHTML('afterbegin', opt(val, val));
+  sel.value = val;
+}
+
 function addPRItemBlock(data = null) {
   const container = document.getElementById('pr-items-container');
   const wrapper = document.createElement('div');
@@ -1625,7 +1634,7 @@ function addPRItemBlock(data = null) {
 
   if (data) {
     block.querySelector('.pri-item-no').value = data.item_no;
-    block.querySelector('.pri-product').value = data.product || '';
+    setPRProductValue(block.querySelector('.pri-product'), data.product || '');
     block.querySelector('.pri-type').value = data.type || '';
     block.querySelector('.pri-dimensi').value = data.dimensi || '';
     block.querySelector('.pri-brand').value = data.brand || '';
@@ -2377,6 +2386,7 @@ function openWOModal(mode, id = null) {
     document.getElementById('wo-form-aktual-pem').value = formatRupiah(0);
     // User Peminta dipilih manual dari Master Karyawan (bukan otomatis user login).
     document.getElementById('wo-form-requester-select').value = '';
+    if (typeof fillWOSealkitSelect === 'function') fillWOSealkitSelect('');
     autoGenerateWONumber();
     calcWOFinance();
     recalcWOBudgetTotals();
@@ -2393,6 +2403,7 @@ function openWOModal(mode, id = null) {
     document.getElementById('wo-form-customer-select').value = w.customer_id || '';
     document.getElementById('wo-form-po-no').value = w.po_no || '';
     document.getElementById('wo-form-requester-select').value = w.requester_karyawan_id || '';
+    if (typeof fillWOSealkitSelect === 'function') fillWOSealkitSelect(w.sealkit_id || '');
     document.getElementById('wo-form-atasan-select').value = w.atasan_karyawan_id || '';
     document.getElementById('wo-form-manager-select').value = w.manager_karyawan_id || '';
     document.getElementById('wo-form-qty').value = qtyInputValue(w.qty);
@@ -2444,6 +2455,7 @@ async function handleWOSubmit(e) {
     project: document.getElementById('wo-form-project').value,
     customer_id: document.getElementById('wo-form-customer-select').value || null,
     requester_karyawan_id: document.getElementById('wo-form-requester-select').value || null,
+    sealkit_id: document.getElementById('wo-form-sealkit-select').value || null,
     atasan_karyawan_id: document.getElementById('wo-form-atasan-select').value || null,
     manager_karyawan_id: document.getElementById('wo-form-manager-select').value || null,
     est_kirim: document.getElementById('wo-form-est-kirim').value || null,

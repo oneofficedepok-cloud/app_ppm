@@ -633,6 +633,18 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
   sekarang **tetap terlihat di atas** saat halaman/tabel di-scroll ke bawah. Sebelumnya ikut hilang karena `<body>`
   diberi tinggi tetap 1 layar; kini ketiganya dibungkus 1 blok sticky (`#app-sticky-top`).
 
+## 8q. Update Log — Master Sealkit (Produksi)
+
+- Menu baru **Produksi -> MASTER SEALKIT** (hak akses di Role Management: Produksi -> Master Sealkit).
+  Tambah Sealkit: pilih **Type Cylinder** (H - Hydraulic / P - Pneumatic), **Kode Customer** (nama otomatis),
+  isi Cylinder Name, lalu **Tambah Item**: Part Name, Type, Part No., Material, Dimension, Qty, Unit, Keterangan.
+- **No. Sealkit otomatis**: `NoUrut.Type.KodeCustomer.Tahun`, mis. `0001.H.AMNT.2026` (urut per Type+Customer+Tahun,
+  dibuat di server saat simpan). Bisa dicetak (ikon print). Hapus hanya Admin, dan ditolak bila masih dipakai WO.
+- **Form WO**: kolom baru **No. Sealkit** (pilihan sealkit milik customer WO).
+- **Form PR**: saat **No. WO** dipilih dan WO punya sealkit, **semua item sealkit otomatis masuk** ke Detail Barang
+  (Qty = qty sealkit x Qty WO / jumlah cylinder, Keterangan = No. Sealkit). Item tetap bisa diedit/dihapus sebelum disimpan.
+- Tabel `sealkits`, `sealkit_items` & kolom `work_orders.sealkit_id` dibuat otomatis (tanpa import SQL).
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

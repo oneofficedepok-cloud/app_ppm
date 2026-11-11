@@ -207,6 +207,11 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <i class="fa-solid fa-compact-disc text-amber-500"></i> SEAL CNC
         </button>
         <?php endif; ?>
+        <?php if ($canView('sealkit')): ?>
+        <button id="tab-btn-sealkit" onclick="switchTab('sealkit')" class="px-3.5 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap text-slate-600 hover:bg-slate-100">
+          <i class="fa-solid fa-puzzle-piece text-teal-600"></i> MASTER SEALKIT
+        </button>
+        <?php endif; ?>
       </div>
     </div>
   </nav>
@@ -637,6 +642,73 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
     </div>
 
     <!-- 3. SEAL CNC -->
+    <!-- ===== PRODUKSI -> MASTER SEALKIT (daftar + form) ===== -->
+    <div id="tab-content-sealkit" class="hidden space-y-5 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+      <div id="sk-view-list" class="space-y-4">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="fa-solid fa-puzzle-piece text-teal-600"></i> Master Sealkit Cylinder</h3>
+            <p class="text-xs text-slate-400">Daftar sealkit standar per cylinder &amp; customer. Pilih di form WO &rarr; saat PR memakai WO tsb, semua item sealkit otomatis masuk.</p>
+          </div>
+          <button onclick="openSealkitForm()" class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md" data-sk-edit><i class="fa-solid fa-plus-circle"></i> + Tambah Sealkit</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.4fr)] gap-3 text-xs">
+          <div><label class="block font-semibold text-slate-600 mb-1">Pencarian</label><input id="sk-q" oninput="renderSealkitList()" placeholder="Cari No. Sealkit, cylinder, customer, part..." class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+          <div><label class="block font-semibold text-slate-600 mb-1">Type Cylinder</label><select id="sk-f-type" onchange="renderSealkitList()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"><option value="">Semua</option><option value="H">H - Hydraulic</option><option value="P">P - Pneumatic</option></select></div>
+          <div><label class="block font-semibold text-slate-600 mb-1">Customer</label><select id="sk-f-cust" onchange="renderSealkitList()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"><option value="">Semua</option></select></div>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-xl">
+          <table class="w-full text-xs text-left whitespace-nowrap">
+            <thead class="bg-teal-50 text-teal-900 font-semibold uppercase text-[10px]">
+              <tr><th class="py-3 px-3 text-center">Aksi</th><th class="py-3 px-3">No. Sealkit</th><th class="py-3 px-3">Type</th><th class="py-3 px-3">Kode Cust.</th><th class="py-3 px-3">Nama Customer</th><th class="py-3 px-3">Cylinder Name</th><th class="py-3 px-3 text-center">Jml Item</th><th class="py-3 px-3">Dipakai di WO</th><th class="py-3 px-3">Tgl Dibuat</th></tr>
+            </thead>
+            <tbody id="sk-list-body" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="sk-view-form" class="hidden space-y-4 text-xs">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <h3 id="sk-form-title" class="font-bold text-slate-800 text-lg">Form Master Sealkit - Tambah Baru</h3>
+            <p class="text-xs text-slate-400">Isi data cylinder, lalu tambahkan komponen sealkit-nya.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="showSealkitList()" class="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 px-4 py-2 rounded-xl font-bold transition flex items-center gap-2"><i class="fa-solid fa-arrow-left"></i> Kembali</button>
+            <button type="button" id="sk-save-btn" onclick="saveSealkit()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold transition flex items-center gap-2 shadow-md" data-sk-edit><i class="fa-solid fa-floppy-disk"></i> Simpan Sealkit</button>
+          </div>
+        </div>
+        <input type="hidden" id="sk-id">
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div><label class="block font-semibold text-slate-600 mb-1">No. Sealkit (Auto)</label><input id="sk-no" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg font-bold text-teal-800"><p class="text-[10px] text-slate-400 mt-1">Format: NoUrut.Type.KodeCustomer.Tahun</p></div>
+          <div class="lg:col-span-2"><label class="block font-semibold text-slate-600 mb-1">Type Cylinder *</label>
+            <div id="sk-type" class="grid grid-cols-2 gap-2">
+              <label data-v="H" class="sk-type-opt flex items-center gap-2 p-2 border border-slate-300 rounded-lg bg-white cursor-pointer font-bold text-slate-700"><input type="radio" name="sk-type" value="H" onchange="setSealkitType('H')" class="accent-teal-600"> H - Hydraulic</label>
+              <label data-v="P" class="sk-type-opt flex items-center gap-2 p-2 border border-slate-300 rounded-lg bg-white cursor-pointer font-bold text-slate-700"><input type="radio" name="sk-type" value="P" onchange="setSealkitType('P')" class="accent-teal-600"> P - Pneumatic</label>
+            </div></div>
+          <div><label class="block font-semibold text-slate-600 mb-1">Tanggal Dibuat</label><input id="sk-date" type="date" onchange="refreshSealkitNo()" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+          <div><label class="block font-semibold text-slate-600 mb-1">Kode Customer *</label><select id="sk-cust" onchange="setSealkitCustomer()" class="w-full p-2 bg-white border border-slate-300 rounded-lg font-bold"></select></div>
+          <div><label class="block font-semibold text-slate-600 mb-1">Nama Customer (Auto)</label><input id="sk-cust-nama" readonly class="w-full p-2 bg-slate-100 border border-slate-300 rounded-lg font-medium"></div>
+          <div class="sm:col-span-2"><label class="block font-semibold text-slate-600 mb-1">Cylinder Name *</label><input id="sk-cyl" placeholder="mis. HYD. TILT FORKLIFT" class="w-full p-2 bg-white border border-slate-300 rounded-lg uppercase"></div>
+        </div>
+        <div class="flex items-center justify-between">
+          <b class="uppercase tracking-wider text-slate-700 text-[11px]">Komponen Sealkit</b>
+          <button type="button" onclick="addSealkitItem()" class="bg-teal-600 hover:bg-teal-500 text-white px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5" data-sk-edit><i class="fa-solid fa-plus"></i> Tambah Item</button>
+        </div>
+        <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-xl">
+          <table class="w-full text-xs min-w-[1000px]">
+            <thead class="bg-slate-800 text-white text-[10px] uppercase">
+              <tr><th class="py-2 px-2 w-10">No</th><th class="py-2 px-2 text-left">Part Name *</th><th class="py-2 px-2 text-left w-28">Type</th><th class="py-2 px-2 text-left w-24">Part No.</th><th class="py-2 px-2 text-left w-36">Material</th><th class="py-2 px-2 text-left">Dimension</th><th class="py-2 px-2 w-20">Qty *</th><th class="py-2 px-2 w-20">Unit</th><th class="py-2 px-2 text-left">Keterangan</th><th class="py-2 px-2 w-10"></th></tr>
+            </thead>
+            <tbody id="sk-item-body" class="divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+        <datalist id="sk-dl-part"><option>Wiper Seal</option><option>Rod Seal</option><option>Back Up Rod Seal</option><option>Rod Bearing</option><option>D-Ring Gland</option><option>O-Ring Gland</option><option>Piston Seal</option><option>Piston Bearing</option><option>O-Ring Piston</option><option>Buffer Seal</option><option>Dust Seal</option></datalist>
+        <datalist id="sk-dl-mat"><option>H-PU</option><option>AFS-PU</option><option>NBR</option><option>POM</option><option>BLACK MOLLY</option><option>PTFE D46 + NBR</option><option>VITON</option></datalist>
+        <div><label class="block font-semibold text-slate-600 mb-1">Catatan</label><textarea id="sk-note" rows="2" placeholder="Catatan tambahan untuk sealkit ini..." class="w-full p-2 bg-white border border-slate-300 rounded-lg"></textarea></div>
+      </div>
+    </div>
+
     <div id="tab-content-seal" class="hidden space-y-6 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div>
@@ -1837,7 +1909,11 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
           <div><label class="block font-semibold text-slate-700 mb-1">Nama Project *</label><input type="text" id="wo-form-project" placeholder="PR Jack Cyl Front CS" required class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
           <div><label class="block font-semibold text-slate-700 mb-1">Nama Customer *</label><select id="wo-form-customer-select" required class="w-full p-2 bg-white border border-slate-300 rounded-lg font-medium"></select></div>
         </div>
-        <div><label class="block font-semibold text-slate-700 mb-1">No. PO (dari Customer)</label><input type="text" id="wo-form-po-no" placeholder="PO-CUST-88" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div><label class="block font-semibold text-slate-700 mb-1">No. PO (dari Customer)</label><input type="text" id="wo-form-po-no" placeholder="PO-CUST-88" class="w-full p-2 bg-white border border-slate-300 rounded-lg"></div>
+          <div><label class="block font-semibold text-slate-700 mb-1"><i class="fa-solid fa-puzzle-piece text-teal-600"></i> No. Sealkit (Master Sealkit)</label><select id="wo-form-sealkit-select" class="w-full p-2 bg-white border border-teal-300 rounded-lg font-medium"><option value="">-- Tanpa Sealkit --</option></select>
+            <p id="wo-form-sealkit-info" class="text-[10px] text-teal-700 mt-1">Item sealkit otomatis masuk ke PR saat No. WO ini dipilih (Qty x Qty WO).</p></div>
+        </div>
 
         <div class="bg-amber-50/70 p-4 rounded-xl border border-amber-200 space-y-3">
           <h4 class="font-bold text-amber-800 uppercase text-[10px] tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-user-check text-amber-600"></i> Approval Matrix *</h4>
@@ -2774,6 +2850,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   </script>
   <script src="<?= asset_url('assets/js/app.js') ?>"></script>
   <script src="<?= asset_url('assets/js/report.js') ?>"></script>
+  <script src="<?= asset_url('assets/js/sealkit.js') ?>"></script>
   <script src="<?= asset_url('assets/js/table-tools.js') ?>"></script>
 </body>
 </html>

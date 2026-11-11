@@ -23,6 +23,7 @@ const APP_MODULES = [
     'produksi' => ['label' => 'Produksi', 'menus' => [
         'tracking' => 'WO & Budget',
         'seal'     => 'Seal CNC',
+        'sealkit'  => 'Master Sealkit',
     ]],
     'masterdata' => ['label' => 'Master Data', 'menus' => [
         'customers' => 'Customer',

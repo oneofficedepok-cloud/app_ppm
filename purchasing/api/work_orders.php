@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/wo_functions.php';
+require_once __DIR__ . '/../includes/sealkit.php';
 
 // Baca: semua menu (WO jadi referensi PR, Gudang, Finance, MTC). Ubah: menu WO & Budget.
 require_perm(array_keys(all_menus()), ['tracking']);
@@ -10,6 +11,20 @@ $pdo = db();
 ensure_seal_transport_columns($pdo); // kolom status Seal dipakai rekap biaya
 // Pembuat WO (= User Peminta di print WO).
 db_ensure_columns($pdo, 'work_orders', ['created_by' => "INT UNSIGNED NULL COMMENT 'User pembuat WO (User Peminta)'"]);
+sealkit_ensure($pdo); // kolom work_orders.sealkit_id (Master Sealkit untuk WO)
+
+/** Simpan pilihan Master Sealkit WO (hanya bila dikirim form, supaya import/edit lain tidak menghapusnya). */
+function wo_save_sealkit(PDO $pdo, int $woId, array $b): void
+{
+    if (!array_key_exists('sealkit_id', $b)) return;
+    $sk = to_int_or_null($b['sealkit_id']);
+    if ($sk) {
+        $q = $pdo->prepare('SELECT COUNT(*) FROM sealkits WHERE id = :id');
+        $q->execute([':id' => $sk]);
+        if (!(int) $q->fetchColumn()) $sk = null;
+    }
+    $pdo->prepare('UPDATE work_orders SET sealkit_id = :sk WHERE id = :id')->execute([':sk' => $sk, ':id' => $woId]);
+}
 
 /** Approval Matrix WO wajib: Atasan Direct & Manager Head dari Master Karyawan. */
 function wo_require_approval_matrix(array $b): void
@@ -80,7 +95,7 @@ switch ($method) {
         // dimanipulasi dari browser - menggantikan logika yang dulu ada di client JS.
         $arWo = ar_for_wo_sql($pdo);
         $sql = "
-            SELECT wo.*, c.nama AS customer_nama,
+            SELECT wo.*, c.nama AS customer_nama, skm.sealkit_no,
                    COALESCE(kr.nama, ucr.full_name) AS requester_nama, ka.nama AS atasan_nama, km.nama AS manager_nama,
                    COALESCE((SELECT SUM(pr.dpp) FROM pr_items pr WHERE pr.wo_id = wo.id AND pr.status != 'CANCEL'), 0) AS aktual_pem,
                    COALESCE((SELECT SUM(si.total) FROM seal_items si WHERE si.wo_id = wo.id AND si.status <> 'CANCEL'), 0) AS total_seal,
@@ -93,6 +108,7 @@ switch ($method) {
                        AND (ar.penjualan + ar.ppn - ar.terbayar - ar.pph23 - ar.ppn030 - ar.biaya_lain) > 0.5) AS ar_unpaid_count
             FROM work_orders wo
             LEFT JOIN customers c ON c.id = wo.customer_id
+            LEFT JOIN sealkits skm ON skm.id = wo.sealkit_id
             LEFT JOIN users ucr ON ucr.id = wo.created_by
             LEFT JOIN master_karyawan kr ON kr.id = wo.requester_karyawan_id
             LEFT JOIN master_karyawan ka ON ka.id = wo.atasan_karyawan_id
@@ -249,6 +265,7 @@ switch ($method) {
                 ->execute([':b' => $sums[0], ':a' => $sums[1], ':id' => $newId]);
         }
 
+        wo_save_sealkit($pdo, $newId, $b);
         sync_wo_actual_from_mtc($pdo, $newId);
         log_activity('create', 'work_orders', $newId, $woNumber);
         $seeNilai = can_see_nilai_po(current_user());
@@ -342,6 +359,7 @@ switch ($method) {
             throw $e;
         }
 
+        wo_save_sealkit($pdo, $id, $b);
         sync_wo_actual_from_mtc($pdo, $id);
         log_activity('update', 'work_orders', $id, $woNumber);
         $seeNilai = can_see_nilai_po(current_user());
