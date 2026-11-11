@@ -627,6 +627,12 @@ Tidak perlu logout/login ulang untuk update ini (berbeda dari update Role Manage
   User Peminta tidak lagi otomatis = user login. Nama ketiganya tampil di print WO (info & tanda tangan).
   WO lama yang belum punya User Peminta tetap menampilkan nama pembuat WO (`work_orders.created_by`).
 
+## 8p. Update Log — Header & Menu Tetap di Atas
+
+- Header, menu modul (Dashboard, Purchasing, Produksi, ...) dan submenu (mis. WO & Budget, WO Maintenance, Seal CNC)
+  sekarang **tetap terlihat di atas** saat halaman/tabel di-scroll ke bawah. Sebelumnya ikut hilang karena `<body>`
+  diberi tinggi tetap 1 layar; kini ketiganya dibungkus 1 blok sticky (`#app-sticky-top`).
+
 ## 8. Yang Masih Perlu Anda Lakukan Sendiri
 
 - **Aktifkan HTTPS** (SSL) di hosting Anda — biasanya gratis (Let's Encrypt) lewat menu cPanel "SSL/TLS Status". Tanpa HTTPS, password & data bisa disadap di jaringan publik.

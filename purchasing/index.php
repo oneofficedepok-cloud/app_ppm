@@ -48,10 +48,12 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
     .perm-readonly input[data-bulk], .perm-readonly input[onchange^="toggleBulkAll"] { display: none !important; }
   </style>
 </head>
-<body class="h-full font-sans text-slate-800 antialiased flex flex-col min-h-screen">
+<body class="font-sans text-slate-800 antialiased flex flex-col min-h-screen">
 
+  <!-- Header + menu modul + submenu dibungkus 1 blok sticky: selalu terlihat saat halaman/tabel di-scroll. -->
+  <div id="app-sticky-top" class="sticky top-0 z-40">
   <!-- TOP HEADER -->
-  <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md">
+  <header class="bg-slate-900 text-white relative z-30 shadow-md">
     <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex items-center justify-between h-16 gap-3">
         <!-- Kiri: logo + nama aplikasi (tidak boleh terlipat) -->
@@ -125,7 +127,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- NAV TAB BAR -->
   <!-- LEVEL 1: PEMILIH MODUL (Overview / Purchasing / Finance) -->
-  <nav class="bg-slate-900 sticky top-16 z-20 shadow-sm">
+  <nav class="bg-slate-900 relative z-20 shadow-sm">
     <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-2 overflow-x-auto custom-scrollbar py-2.5 text-xs font-bold">
         <button id="section-btn-overview" onclick="switchSection('overview')" class="px-4 py-2 rounded-xl transition flex items-center gap-2 whitespace-nowrap">
@@ -171,7 +173,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   </nav>
 
   <!-- LEVEL 2: SUB-MENU PURCHASING -->
-  <nav id="subnav-purchasing" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
+  <nav id="subnav-purchasing" class="hidden bg-white border-b border-slate-200 relative z-10 shadow-sm">
     <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('dashboard')): ?>
@@ -189,7 +191,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   </nav>
 
   <!-- LEVEL 2: SUB-MENU PRODUKSI -->
-  <nav id="subnav-produksi" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
+  <nav id="subnav-produksi" class="hidden bg-white border-b border-slate-200 relative z-10 shadow-sm">
     <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('tracking')): ?>
@@ -210,7 +212,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   </nav>
 
   <!-- LEVEL 2: SUB-MENU MASTER DATA -->
-  <nav id="subnav-masterdata" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
+  <nav id="subnav-masterdata" class="hidden bg-white border-b border-slate-200 relative z-10 shadow-sm">
     <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('customers')): ?>
@@ -233,7 +235,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   </nav>
 
   <!-- LEVEL 2: SUB-MENU GUDANG & PRODUKSI -->
-  <nav id="subnav-gudang" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
+  <nav id="subnav-gudang" class="hidden bg-white border-b border-slate-200 relative z-10 shadow-sm">
     <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('stok')): ?>
@@ -267,7 +269,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   </nav>
 
   <!-- LEVEL 2: SUB-MENU FINANCE -->
-  <nav id="subnav-finance" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
+  <nav id="subnav-finance" class="hidden bg-white border-b border-slate-200 relative z-10 shadow-sm">
     <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('findash')): ?>
@@ -305,7 +307,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
   </nav>
 
   <!-- LEVEL 2: SUB-MENU MTC PRODUKSI -->
-  <nav id="subnav-mtc" class="hidden bg-white border-b border-slate-200 sticky top-[104px] z-10 shadow-sm">
+  <nav id="subnav-mtc" class="hidden bg-white border-b border-slate-200 relative z-10 shadow-sm">
     <div class="w-full max-w-none mx-auto px-4 sm:px-6">
       <div class="flex space-x-1 sm:space-x-2 overflow-x-auto custom-scrollbar py-2 text-xs font-bold">
         <?php if ($canView('mtcdash')): ?>
@@ -326,6 +328,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
       </div>
     </div>
   </nav>
+  </div>
 
   <main class="w-full max-w-none mx-auto px-4 sm:px-6 py-6 flex-grow w-full">
     <?php if (!empty($user['weak_password'])): ?>
@@ -1117,7 +1120,7 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
       <div class="grid grid-cols-1 xl:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
         <!-- Panel pengaturan -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 text-xs xl:sticky xl:top-[120px]">
+        <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 text-xs xl:sticky" style="top: calc(var(--app-top-h, 160px) + 12px)">
           <div>
             <label class="block font-bold text-slate-600 mb-1"><i class="fa-solid fa-star text-amber-500 mr-1"></i>Report Favorit</label>
             <select id="rpt-preset" onchange="applyReportPreset(this.value)" class="w-full p-2 bg-amber-50 border border-amber-200 rounded-lg font-semibold"></select>
@@ -2760,6 +2763,13 @@ $canNilai = can_see_nilai_po($user); // boleh lihat Nilai PO / Profit-Loss / Mar
 
   <!-- Current user & role info dipakai app.js (menggantikan currentUser palsu di versi lama) -->
   <script>
+    // Tinggi blok header+menu (bisa berubah bila menu turun baris) -> dipakai panel sticky lain.
+    (function () {
+      const el = document.getElementById('app-sticky-top');
+      const set = () => document.documentElement.style.setProperty('--app-top-h', el.offsetHeight + 'px');
+      set();
+      if (window.ResizeObserver) new ResizeObserver(set).observe(el); else window.addEventListener('resize', set);
+    })();
     window.CURRENT_USER = <?= json_encode($user, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP) ?>;
   </script>
   <script src="<?= asset_url('assets/js/app.js') ?>"></script>
